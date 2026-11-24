@@ -1,0 +1,35 @@
+# ysfdurak.com ortak altyapısında çalıştırma (Caddy aynı "web" ağında; port dışarı açılmaz).
+#   cd deploy && sudo docker compose -f docker-compose.ortak.yml up -d --build
+# Kurulum betiği: ysfdurak.com/sunucu/kurulum-emanet.sh
+name: emanet
+services:
+  emanet:
+    build: ..
+    container_name: emanet
+    env_file: ../.env
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - emanet_veri:/veri          # demo veritabanı ve ziyaretçi kopyaları (her gece sıfırlanır)
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 768m                # scikit-learn + en çok 6 model önbelleği
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - web
+
+volumes:
+  emanet_veri:
+
+networks:
+  web:
+    external: true

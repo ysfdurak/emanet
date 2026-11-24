@@ -1,0 +1,188 @@
+# Emanet + Usta: proje dokümanı
+
+> Yaşayan doküman: kod değiştikçe aynı commit'te güncellenir. Derin anlatım ve 38+ soru:
+> [HAKIMIYET.md](HAKIMIYET.md). Vaka anlatımı: [VAKA_NOTU.md](VAKA_NOTU.md). Ortak altyapı
+> (Cloudflare, VPS, Docker, Caddy, yedek): ysfdurak.com deposu → `sunucu/README.md`,
+> güvenlik kuralları → `docs/GUVENLIK_TEMELI.md`.
+
+## 1. Bir bakışta
+
+| | |
+| --- | --- |
+| **Ne** | Sistemsel destek çağrılarını geçmişten öğrenerek doğru kişiye yönlendiren (Usta) ve bu çağrılardan "kim giderse ne kırılır" haritası çıkaran (Emanet) uygulama |
+| **Kimin için** | Depo/BT destek ekibi yöneticisi, İK ve eğitim birimi |
+| **Canlı adres** | https://emanet.ysfdurak.com **[doğrulanacak: henüz kurulmadı]** |
+| **Depo** | github.com/ysfdurak/emanet **[doğrulanacak: depo henüz açılmadı]** |
+| **Durum** | Pilot. Kod ve testler tamam (83 test), güvenlik taraması temiz; yayın deponun açılmasını bekliyor |
+| **Teknoloji** | Python 3.13, FastAPI, scikit-learn, SQLite, MCP, Docker |
+| **Lisans** | PolyForm Shield 1.0.0 |
+
+## 2. Sorun ve kararların
+
+**Sorun:** Destek çağrıları çoğu zaman "en iyi bilen" kişiye gider; zamanla bilgi birkaç kişide toplanır.
+O kişi izne çıkınca, ayrılınca ya da sistem değişince iş durur. Çağrı sistemleri sınıflandırır ama
+bu bağımlılığı göstermez.
+
+**Senin verdiğin kararlar** (mülakatın asıl konusu):
+
+| Karar | Neden |
+| --- | --- |
+| Usta yalnız **sistemsel** çağrılara bakar (BT, WMS); teknik/bakım çağrıları ayrı sistemden gelir | Sahadaki çağrı merkezi zaten böyle ayrılmış; bakım dökümü Emanet'e ayrıca girer |
+| Yönlendirme **makine öğrenmesiyle**: kime gitmiş, nasıl çözülmüş geçmişten öğrenilsin, çözene yol gösterilsin | Kural listesi eskiyor, geçmiş çağrılar bilgiyi zaten taşıyor |
+| **Yetki çerçevesinde otomasyon**: kurulum talebinde eksik bilgi Teams'ten sorulsun, onay alınsın, kendisi kursun; altı akışın hepsi | Çağrıların bir kısmı tekrar eden basit işler |
+| Değişimler de görülsün: **yeni otomasyon, yeni personel, yeni sistem** | Geçmişe bakan harita bu üç durumda yanılıyordu |
+| Kişi modeli "kime verilirdi"yi değil **"kim iyi çözer"i** öğrensin | Aksi hâlde Usta, Emanet'in azaltmaya çalıştığı bağımlılığı besliyordu |
+| Ziyaretçi **kendi çağrı verisini siteye yüklemesin**; gerçek veri yerelde denensin | Şirket verisi dışarı çıkmaz ilkesi |
+| Usta ve Emanet **tek proje**, Emanet çatı adı | İki taraf aynı veriyi kullanıyor |
+
+## 3. Mimari ve veri akışı
+
+```mermaid
+flowchart LR
+  T[Tarayıcı<br/>index.html + app.js] -->|/api, çerez| D
+  C[Claude<br/>MCP bağlayıcı] -->|/mcp/anahtar| D
+  subgraph D[api.py dış kat]
+    G[gerçek IP · gövde/hız sınırı · Origin · MCP anahtarı · başlıklar/CSP]
+    Z{ziyaretçi seçimi}
+  end
+  G --> Z
+  Z -->|çerez varsa / yazma| K[(ziyaretçi kopyası<br/>/veri/ziyaretci/*.db)]
+  Z -->|yalnız okuma| A[(ortak demo<br/>/veri/emanet.db)]
+  D --> F[FastAPI uçları]
+  F --> U[usta.py<br/>yönlendirme, çırak, paylaştırma]
+  F --> R[risk.py / takip.py / degisim.py<br/>risk, plan, izin, devir, geçiş]
+  F --> O[otomasyon.py<br/>reçeteler, Teams simülasyonu, sağlık]
+  U --> M[ogrenme.py<br/>TF-IDF + lojistik regresyon<br/>parmak izli model önbelleği]
+  MCP[mcp_sunucu.py · 19 araç] --> U & R & O
+```
+
+- **Tek çekirdek, iki kapı:** web ve MCP aynı fonksiyonları çağırır, kural tek yerde.
+- **Veri:** SQLite. Demo her gece yeniden üretilir (`veri_uret.py`, sabit tohum). Gerçek veri için
+  `yerel.py` boş bir veritabanına içe aktarır.
+
+## 4. Teknoloji seçimleri
+
+| Seçim | Neden | Elenen |
+| --- | --- | --- |
+| Python + scikit-learn | Model, optimizasyon ve analiz Python'da doğal; portföyün Python servis şablonuyla aynı | Node: ML kitaplıkları zayıf |
+| Harf 3-5'li TF-IDF + lojistik regresyon | Türkçe ekler ve yazım hataları; yüzlerce-binlerce çağrıda en iyi denge, açıklanabilir, saniyede eğitilir | Derin öğrenme (veri az, açıklanamaz), büyük dil modeli (veri dışarı çıkar) |
+| Model + açık kural (paylaştırma, çırak) | Model yetkinliği söyler, kime verileceğini kural söyler; kural okunabilir ve kapatılabilir | Olasılığı cezalandırmak: geçmiş atamalar yüzünden olasılık uzmanda yığılıyor, işe yaramadı |
+| SQLite | Tek süreç, demo verisi; ziyaretçi kopyası tek dosya kopyalamak | Ortak PostgreSQL: gece silinen demo için gereksiz |
+| Ziyaretçi başına veritabanı kopyası | Ziyaretçiler birbirinin metnini görmez; uçlar değişmeden (`ContextVar`) | Ortak tablo: herkes herkesin yazdığını görür |
+| Dinamik programlama (eğitim planı) | Bütçeli seçim tam çözülür, açgözlü kurala göre farkı ölçülür | — |
+
+## 5. Kod turu
+
+| Dosya | Ne yapar | Dikkat |
+| --- | --- | --- |
+| `emanet/api.py` | Dış kat (güvenlik, ziyaretçi seçimi) + FastAPI uçları | `con` bir vekil nesne: her istekte o isteğin veritabanına yönlenir |
+| `emanet/ogrenme.py` | Konu ve kişi modeli, kalite ağırlığı, paylaştırma kuralı, zaman bazlı değerlendirme | Önbellek anahtarı verinin parmak izi; değerlendirme bugünden önceki çağrılarla |
+| `emanet/usta.py` | Konu önerisi, yönlendirme (izin, vardiya, çırak, paylaştırma), çağrı açma/kapatma | Kapanan (geçişli) konuya çağrı açılamaz |
+| `emanet/otomasyon.py` | 8 reçete, Teams akışı, toplu arıza, kapanış teyidi, sağlık ve askıya alma | Yer yazılmamış çağrı yalnız yer yazılmamışlarla birleşir |
+| `emanet/risk.py` | Risk puanı, ya giderse, eğitim planı, tek kişiye kalanlar, veri tazeliği | Formül dosyanın başında |
+| `emanet/takip.py` | İzin kontrolü, plan takibi, devir dosyası, risk seyri, dikkat listesi | |
+| `emanet/degisim.py` | Sistem geçişi, yeni personel, ayrılış | |
+| `emanet/yerel.py` | Kendi verinle yerel kurulum ve rapor | Demo veritabanının üzerine yazmaz |
+| `emanet/gercek_ip.py` | Gerçek IP yalnız güvenilen vekilden | Python servis şablonundan |
+| `web/app.js` | Bütün ekranlar | Her değer `kac()` ile kaçışlanır; satır içi betik yok |
+
+Akış örneği, "Çağrıyı aç": `app.js` → `POST /api/cagri` → dış kat (sınırlar, Origin, ziyaretçi
+kopyası) → `usta.cagri_ac` → `toplu_kontrol` → `yonlendir` (model + kurallar) → `otomasyon.baslat` →
+kayıtlar → JSON → ekran.
+
+## 6. Sunucu ve yayın
+
+Ortak altyapıdaki yeri: ysfdurak.com PR #55 (`sunucu/kurulum-emanet.sh`, Caddy bloğu, tarama listesi).
+Ayrıntı: [deploy/KURULUM.md](../deploy/KURULUM.md).
+
+1. GitHub'da `ysfdurak/emanet` deposu → kod gönderilir → dal koruması.
+2. ysfdurak.com PR #54, sonra #55 birleşir.
+3. Cloudflare: `emanet` A kaydı, turuncu bulut.
+4. VPS: `bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh` (MCP anahtarını kendisi üretir).
+
+Ortam değişkenleri: `.env.example`. Önemlileri: `EMANET_MCP_ANAHTARLARI`, `EMANET_ZIYARETCI`,
+`EMANET_DB` (kendi verinle).
+
+## 7. Testler
+
+`python -m pytest -q`: 83 test (model, risk, otomasyon, değişimler, paylaştırma, yerel kurulum, API
+güvenliği, MCP). CI'da aynı testler ve `pip-audit`.
+
+**Örneklem (24 Kasım 2026, yerel sunucu, mobil 390 px Chrome):**
+
+| Adım | Beklenen | Gözlenen | Durum |
+| --- | --- | --- | --- |
+| 13 ekranı sırayla aç | Hata yok, CSP ihlali yok | Konsol temiz | ✅ |
+| Geçiş + yeni personel + bozulma demoları | Kartlar görünür, reçete askıda | Görüldü | ✅ |
+| İkinci tarayıcıdan aynı ekran | Birincinin geçişini görmez | Görmedi | ✅ |
+| "Kendi demo alanımı sıfırla" | Alan başa döner | Döndü | ✅ |
+| Dökümde `"><img onerror=…>` adlı kişiler | Betik çalışmaz, metin olarak görünür | Çalışmadı, metin göründü | ✅ |
+| Anahtarsız `/mcp` | 401 | 401 | ✅ |
+| Başka siteden POST (Origin) | 403 | 403 | ✅ |
+| `tara.py --audit` (#54 sürümü) | Temiz | Temiz | ✅ |
+| Canlı adreste başlıklar | CSP, HSTS, nosniff | **[doğrulanacak: yayından sonra]** | ⏳ |
+
+**Burada bir test daha yapalım (yayından sonra):** iki gerçek telefonda aynı anda çağrı açıp
+kapatmak; sunucuda `docker stats emanet` ile bellek (beklenen < 500 MB) ve `ls /veri/ziyaretci | wc -l`.
+
+## 8. Bilinen sınırlar ve sonraki adımlar
+
+- Sentetik veride başarı yüksek (konu %91); gerçek veride düşük çıkabilir: `python -m emanet.yerel` ile ölç.
+- Otomasyonlar simülasyondur (Teams, Intune, Active Directory bağlantısı yok).
+- Paylaştırma ve kalite ağırlığının etkisi demo verisinde küçük (bkz. HAKIMIYET 2b).
+- **Şöyle daha iyi olur:**
+  - Arıza Defteri yayına çıkınca bakım dökümü elle yüklemek yerine oradan okunabilir (Caddyfile'da
+    bu bağlantı için not var).
+  - Gerçek veri gelince anlam benzerliği için yerel bir cümle modeli eklenebilir.
+  - Ziyaretçi demosundaki model eğitimi isteği bekletiyor (ilk kapanışta 1-2 sn); arka plana alınabilir.
+
+## 9. Mülakat soruları
+
+1. **Neden büyük dil modeli değil de klasik makine öğrenmesi?** Veri azken daha iyi ya da eşit, açıklanabilir, saniyede eğitilir, şirket verisi dışarı çıkmaz.
+2. **Modelin isabeti %63 ise iyi mi?** Etiket "kim çözdü"; bu kime verildiğini de yansıtır. İlk üçte %92, eski kural %69. Asıl ölçü "bilene gitti mi, bilgi dağıldı mı".
+3. **Risk puanı nasıl hesaplanıyor?** Yoğunlaşma, yedek riski, yazısızlık ve kritiklik; otomasyon payı bağımlılık kısmını azaltır. Formül ekranda.
+4. **Ziyaretçiler neden birbirini görmüyor?** İlk değişiklikte kendi kopyası açılır, çerezle tanınır; 24 saatte silinir.
+5. **Güvenlik için ne yaptın?** CSP ve başlıklar, Origin denetimi, sınırlar, gerçek IP, anahtarlı MCP, sabit ve özetli bağımlılıklar, salt okunur konteyner; haftalık otomatik tarama.
+6. **Yeni sistem geldiğinde ne olur?** Eski konu kapanır, yeni konunun puanı ilk 60 gün geçicidir, bilgi tek kişide toplanırsa erken uyarı.
+
+Daha fazlası: HAKIMIYET.md, 1–38. sorular.
+
+## 10. Kendini test et
+
+<details><summary>1. Ziyaretçi bir çağrıyı yalnız okurken neden kopya açılmaz?</summary>
+Okuma isteği ortak demoyu değiştirmez; her bot ve gezgin için dosya açmak diski ve belleği doldururdu.
+Kopya ancak bir şey değiştiren ilk istekte açılır.</details>
+
+<details><summary>2. Model önbelleği neden veritabanına değil verinin parmak izine bağlı?</summary>
+Dokunulmamış 300 kopya aynı veriyi taşır; parmak izi aynı olduğu için tek model yeter. Bellek 768 MB.</details>
+
+<details><summary>3. uvicorn neden vekil başlıklarını yorumlamıyor?</summary>
+`X-Forwarded-For` herkes tarafından yazılabilir; yalnız güvenilen vekilden geliyorsa `gercek_ip.py`
+okur. Aksi hâlde hız sınırı başlık değiştirilerek atlatılırdı.</details>
+
+<details><summary>4. Sayfada neden satır içi betik yok?</summary>
+CSP `script-src 'self'` olabilsin; araya sızan bir HTML parçası betik çalıştıramasın.</details>
+
+<details><summary>5. Paylaştırma sipariş dalgasında neden devreye girmez?</summary>
+Vardiyada konuyu bilen ikinci kimse yok; yetkinliği olmayan birine çağrı verilmez. Çare eğitim planı.</details>
+
+## 11. Elle yapılacak alıştırma
+
+**Kod:** `emanet/ogrenme.py` içinde `PAY_ESIGI = 0.60` değerini `0.70` yap. `python -m pytest -q
+tests/test_politika.py` çalıştır, sonra uygulamada Öğrenme ekranındaki "Model + paylaştırma"
+satırının nasıl değiştiğine bak. Değeri geri al.
+
+**5 dakikalık demo akışı:**
+1. Genel bakış: "Bugün neye bakmalı?" listesi (1 dk).
+2. Çağrı aç: "Sipariş dalgası açılmıyor", gece vardiyası → bilen tek kişi gündüzde (1 dk).
+3. Ya giderse: Elif Kaya → hangi konular yedeksiz kalır, devir dosyası (1 dk).
+4. Eğitim planı: 60 saat → risk ne kadar düşer (1 dk).
+5. Değişimler: geçiş örneği → erken uyarı; "neden kendi veriniz siteye yüklenmiyor" (1 dk).
+
+## 12. Değişiklik günlüğü
+
+| Tarih | Değişiklik |
+| --- | --- |
+| 15 Kasım 2026 | Kapsam belgesi: Emanet + Usta tek proje |
+| 16 Kasım 2026 | İlk sürüm; makine öğrenmesi; altı otomasyon; Emanet'e altı ekleme; değişimler ve denetim; kişi modeline kalite ağırlığı ve paylaştırma; yerel kurulum |
+| 24 Kasım 2026 | Güvenlik temeli: PolyForm Shield, ziyaretçi başına veri kopyası, CSP (sayfa üç dosyaya ayrıldı), Origin denetimi, gövde ve hız sınırları, gerçek IP, `/docs` kapalı, anahtarlı MCP, CSV formül enjeksiyonu, öznitelik kaçışı, sabit ve özetli bağımlılıklar, Python servis şablonuna uygun Docker/compose, CI ve dependabot; ysfdurak.com PR #55; bu doküman |

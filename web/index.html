@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%231c2430%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-family=%27sans-serif%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27%3EE%3C/text%3E%3C/svg%3E">
+<title>Emanet · Bilgi kişide kalmasın</title>
+<meta name="description" content="Sistemsel çağrıları geçmişten öğrenerek doğru kişiye yönlendiren ve kişiye bağımlılık riskini gösteren demo.">
+<link rel="stylesheet" href="/stil.css">
+</head>
+<body>
+<header class="ust">
+  <div class="ic">
+    <div class="marka">Emanet<small>Bilgi kişide kalmasın</small></div>
+    <div class="demo">Demo · Yıldız Ev &amp; Yaşam (kurgusal veri)</div>
+  </div>
+  <nav id="nav" aria-label="Bölümler"></nav>
+</header>
+<main id="ana" aria-live="polite"></main>
+<footer>Emanet + Usta · Bütün kişi adları ve rakamlar kurgudur. Yaptığın değişiklikler yalnız sana görünür ve en geç ertesi gün silinir.</footer>
+<div id="durum" class="gizli" role="status"></div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

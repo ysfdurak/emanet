@@ -1,0 +1,33 @@
+# Tek başına kurulum (ortak altyapı olmadan): yalnız bu makineden erişilir, önüne kendi ters vekilini koy.
+#   docker compose up -d --build   →   http://127.0.0.1:8090
+# ysfdurak.com sunucusunda deploy/docker-compose.ortak.yml kullanılır.
+name: emanet
+services:
+  emanet:
+    build: .
+    container_name: emanet
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - emanet_veri:/veri
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 768m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Kendi verinle kurulumda (python -m emanet.yerel) .env içinde: EMANET_DB=/veri/yerel.db
+volumes:
+  emanet_veri:

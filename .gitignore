@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+.env.*
+!.env.example
+# Veri: demo veritabanı, ziyaretçi kopyaları, yerel kurulum ve takma ad eşleşmesi (kişisel veri depoya girmez)
+veri/
+*.db
+*.db-journal
+*_takma_adlar.csv
+*_rapor.md
