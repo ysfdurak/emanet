@@ -30,7 +30,7 @@ from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
 from . import devir as devir_surec
-from . import cagri_formu, olcum
+from . import cagri_formu, olcum, yonlendirme
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 log = logging.getLogger("emanet")
@@ -522,7 +522,7 @@ def cagri_onizle(i: CagriIstek):
         raise HTTPException(400, "Konu seçilmedi")
     with KILIT:
         kod = (con.execute("SELECT kod FROM kategori WHERE id=?", (i.kategori_id,)).fetchone() or [None])[0]
-        a = cagri_formu.alan_bul(kod, i.cevaplar, i.alan)
+        a = cagri_formu.alan_bul(kod, i.cevaplar, i.alan, kurallar=yonlendirme.belirti_kurallari(con))
         return dict(atama=usta.yonlendir(con, i.kategori_id, vardiya=i.vardiya, metin=i.metin, acan_birim=i.acan_birim,
                                          lokasyon_id=i.lokasyon_id, alan=a["alan"]), alan=a,
                     yol=usta.yol_goster(con, i.metin, i.kategori_id))
@@ -540,6 +540,7 @@ def _oncelik(kategori_id: int, etki, kapsam, sevkiyat, ne_zaman) -> dict:
 def cagri_ac(i: CagriIstek):
     with KILIT:
         aciliyet, ek, iki_asama = i.aciliyet, None, bool(i.etki or i.ne_zaman or i.cevaplar or i.yer)
+        alan_notu = None
         if iki_asama:
             if not i.kategori_id:
                 raise HTTPException(400, "Konu seçilmedi")
@@ -554,14 +555,18 @@ def cagri_ac(i: CagriIstek):
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(kod["kod"], cevap, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman, onc)
             cihaz = cevap.get("cihaz")
-            alan = cagri_formu.alan_bul(kod["kod"], cevap, i.alan)["alan"]
+            ab = cagri_formu.alan_bul(kod["kod"], cevap, i.alan, kurallar=yonlendirme.belirti_kurallari(con))
+            alan = ab["alan"]
+            if ab["secilenle_farkli"]:
+                alan_notu = (f"Sistem alanı cevaba göre {katalog.ALANLAR[i.alan][0]} yerine "
+                             f"{katalog.ALANLAR[alan][0]} yaptı (belirti: {cevap.get('belirti', '-')})")
             yer = i.yer or ((cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("yer"))   # envanterdeki yer
         else:
             cihaz, yer, alan = None, i.yer, i.alan
         if i.lokasyon_id and not con.execute("SELECT 1 FROM lokasyon WHERE id=?", (i.lokasyon_id,)).fetchone():
             raise HTTPException(400, "Tesis bulunamadı")
         return usta.cagri_ac(con, i.metin, i.acan_birim, aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi,
-                             yer=yer, ek_bilgi=ek, cihaz=cihaz, lokasyon_id=i.lokasyon_id, alan=alan)
+                             yer=yer, ek_bilgi=ek, cihaz=cihaz, lokasyon_id=i.lokasyon_id, alan=alan, alan_notu=alan_notu)
 
 
 @api.get("/api/cihaz/{no}")
@@ -694,6 +699,58 @@ def cagri_soru(cagri_id: int, i: SoruIstek):
             return usta.soru_sor(con, cagri_id, i.soru)
         except ValueError as e:
             raise HTTPException(400, str(e))
+
+
+class AktarIstek(BaseModel):
+    neden: str = Field(pattern="^(yanlis_ekip|yanlis_konu)$")
+    alan: str | None = Field(None, pattern="^(donanim|ag|wms|erp|bt|bilmiyorum)$")
+    kategori_id: int | None = None
+    aciklama: str | None = Field(None, max_length=200)
+
+
+class MudurIstek(BaseModel):
+    kisi_id: int
+    alan: str | None = Field(None, pattern="^(donanim|ag|wms|erp|bt)$")
+
+
+class KuralIstek(BaseModel):
+    kod: str = Field(max_length=40)
+    belirti: str = Field(max_length=120)
+    alan: str = Field(pattern="^(donanim|ag|wms|erp|bt)$")
+    onay: bool
+
+
+@api.post("/api/cagri/{cagri_id}/aktar")
+def cagri_aktar(cagri_id: int, i: AktarIstek):
+    """'Bu benim işim değil': doğru ekibe ileri; ikinci aktarım ya da 'bilmiyorum' BT müdürüne."""
+    with KILIT:
+        try:
+            return yonlendirme.aktar(con, cagri_id, i.neden, None if i.alan == "bilmiyorum" else i.alan,
+                                     i.kategori_id, i.aciklama)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
+@api.post("/api/cagri/{cagri_id}/mudur-karari")
+def cagri_mudur_karari(cagri_id: int, i: MudurIstek):
+    with KILIT:
+        try:
+            return yonlendirme.mudur_karari(con, cagri_id, i.kisi_id, i.alan)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
+@api.get("/api/kural-onerileri")
+def kural_onerileri():
+    with KILIT:
+        return yonlendirme.kural_onerileri(con)
+
+
+@api.post("/api/kural-onerileri")
+def kural_karari(i: KuralIstek):
+    """Belirti kuralı önerisini onayla ya da reddet (insan kararı)."""
+    with KILIT:
+        return yonlendirme.kural_karari(con, i.kod, i.belirti, i.alan, i.onay)
 
 
 @api.post("/api/cagri/{cagri_id}/yeniden-ata")

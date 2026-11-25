@@ -416,6 +416,8 @@ Sorular:
 49. Gece 02:00'de açılan ERP çağrısı gündüzcü Murat'a gidip 09:00'da kapandı. Süre kime yazılır?
 50. Çağrının hangi ekibe gideceğine ne karar veriyor; kişi "Donanım" seçti ama "ekran donuyor" dedi, ne olur?
 51. Tuzla'da gündüz bir yazıcı bozuldu, oradaki tek BT çalışanı akşamcı. Çağrı kime gider?
+52. Atanan kişi "bu benim işim değil" derse çağrı nereye gider, neden ikinci seferde müdüre gider?
+53. Sistem bir belirti kuralının yanlış olduğunu fark ederse kuralı neden kendisi değiştirmiyor?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -599,3 +601,8 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
 51. Merkezdeki en uygun kişiye uzaktan gider ve not düşülür: "Tuzla'da yerinde kimse yok (Onur akşam)".
     Uzaktan yönlendirir ya da sahaya haber verir. Bugün sayfası bunu kapsama eksiği olarak gösterir; çözüm
     tesise ikinci vardiyada yerinde bakabilecek birini yetiştirmek.
+52. Doğru ekipte vardiyadaki en uygun kişiye gider; gönderene ya da açana dönmez. İkinci aktarım "ekipler emin
+    değil" demektir; üçüncü bir ekibe atmak çağrıyı top gibi dolaştırır. Tek karar verici (BT müdürü) kişiyi
+    seçer ve bu karar aktarım sayılmaz. Yanlış ekipte geçen süre kimsenin hızına yazılmaz.
+53. Aktarımlar gürültülü olabilir (yorgun biri yanlış ekibe atabilir) ve kural bütün çağrıları etkiler. Sistem
+    kanıtı sayıyla gösterir ("9 çağrının 4'ü"); karar insanda. "Böyle kalsın" denirse öneri bir daha çıkmaz.

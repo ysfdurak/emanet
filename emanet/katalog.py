@@ -83,6 +83,9 @@ ALAN_UYELERI = {"donanim": ["Deniz Aksoy", "Burak Şahin", "Selin Koç", "Onur Y
                 "wms": ["Elif Kaya", "Derya Güneş", "Zeynep Aydın", "Hakan Polat"],
                 "erp": ["Murat Özkan", "Emre Çelik"],
                 "bt": ["Deniz Aksoy", "Burak Şahin", "Tolga Demir", "Selin Koç", "Onur Yıldız", "Gizem Arslan"]}
+# BT müdürü: çağrı atanmaz; ikinci kez aktarılan ya da ekibi bilinmeyen çağrıda karar verir (demo)
+KOORDINATOR = ("Levent Arıkan", "BT Destek", "BT Müdürü", "gunduz")
+
 # Yerinde müdahale isteyen alanlar: atama önce o tesisteki kişiye bakar
 YERINDE_ALANLAR = {"donanim", "ag"}
 

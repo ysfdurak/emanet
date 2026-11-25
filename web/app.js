@@ -521,6 +521,17 @@ const dk = m => m == null ? "-" : m < 60 ? `${m} dk` : m < 1440 ? `${sy(Math.rou
 const yukDokum = k => [k.uzerinde - k.islemde - k.bekliyor && `${k.uzerinde - k.islemde - k.bekliyor} başlanmadı`, k.islemde && `${k.islemde} işlemde`,
   k.bekliyor && `${k.bekliyor} bilgi bekliyor`, k.yuksek && `${k.yuksek} yüksek öncelik`].filter(Boolean).join(" · ");
 const saatYas = s => s == null ? "-" : s < 24 ? `${sy(Math.round(s))} sa` : `${sy(Math.round(s / 2.4) / 10)} gün`;
+/* Yanlış yönlendirme: ekibe göre aktarım oranı, kayıp süre, BT müdüründe bekleyenler, kural önerileri */
+function yonlendirmeKart(y, z) {
+  if (!y) return "";
+  return `<div class="kart"><h3>Yönlendirme</h3>
+    <p class="kucuk">Atanan kişi "bu benim işim değil" deyip başka ekibe aktardıysa yönlendirme yanlıştı. Bu dönem ${y.aktarilan} çağrı aktarıldı${y.oran != null ? ` (${yuzde(y.oran)})` : ""}; yanlış ekipte geçen ${sy(z.yonlendirme_kaybi_saat)} saat kimsenin hızına yazılmadı.</p>
+    <ul class="liste">${y.alanlar.map(a => `<li><div class="govde"><b>${kac(a.ad)}</b> <span class="kucuk">· ${a.acilan} çağrı · ${a.aktarilan} başka ekibe aktarıldı</span></div>${a.oran != null && a.oran >= 0.1 ? rozet("sari", yuzde(a.oran)) : `<span class="kucuk">${a.oran != null ? yuzde(a.oran) : "-"}</span>`}</li>`).join("")}</ul>
+    ${y.mudurde.length ? `<div class="not uyari">${y.mudurde.length} çağrı ${kac(y.koordinator.ad)} kararını bekliyor: ${y.mudurde.map(c => `<a href="#detay" data-cagri="${kac(c.id)}">#${kac(c.id)}</a>`).join(", ")}</div>` : ""}
+    ${y.kural_onerileri.map(k => `<div class="not"><b>Kural önerisi.</b> ${kac(k.konu)}: “${kac(k.belirti)}” diyen çağrılar şu an <b>${kac(k.su_an_ad)}</b> ekibine gidiyor; son 90 günde ${k.aktarilan} kez${k.toplam ? ` (aynı belirtili ${k.toplam} çağrıdan, ${yuzde(k.oran)})` : ""} <b>${kac(k.onerilen_ad)}</b> ekibine aktarıldı.
+      <p style="margin:.4rem 0 0"><button class="dugme kucuk" data-kural="1" data-kod="${kac(k.kod)}" data-belirti="${kac(k.belirti)}" data-kalan="${kac(k.onerilen)}">${kac(k.onerilen_ad)} ekibine çevir</button>
+      <button class="dugme kucuk ikincil" data-kural="0" data-kod="${kac(k.kod)}" data-belirti="${kac(k.belirti)}" data-kalan="${kac(k.onerilen)}">Böyle kalsın</button></p></div>`).join("")}</div>`;
+}
 /* Toplam süre nereye gitti: çalışma, vardiya beklemesi (kapsama boşluğu), bilgi bekleme, depo kapalı */
 function sureNereye(z, konular) {
   const t = z.toplam_saat, top = Math.max(1, t.calisma + t.bekleme + t.bilgi + t.kapali);
@@ -568,6 +579,7 @@ CIZ.olcum = async (gun) => {
       <ul class="liste">${o.tesisler.map(t => `<li><div class="govde"><b>${kac(t.ad)}</b> <span class="kucuk">· ${t.kapanan} kapandı · açanın beklediği ${dk(t.ortanca_hizmet_dk)} · ${t.acik} açık</span>
         <div class="kucuk">Yerinde cihaz/ağ işine bakan: ${t.yerinde_kisi.length ? t.yerinde_kisi.map(k => kac(k.ad) + " (" + kac(VARDIYA[k.vardiya] || k.vardiya) + ")").join(", ") : "kimse yok"}</div></div>
         ${t.yerinde_kisi.length <= 1 ? rozet("sari", t.yerinde_kisi.length ? "Tek kişi" : "Yerinde kimse yok") : ""}</li>`).join("")}</ul></div>` : ""}
+    ${yonlendirmeKart(o.yonlendirme, z)}
     ${sureNereye(z, o.konular)}
     ${hedefKart(z)}
     <div class="kart"><h3>Kimin üzerinde ne var</h3>
@@ -587,6 +599,12 @@ CIZ.olcum = async (gun) => {
       ${o.konular.map(k => `<tr><td>${kac(k.ad)}</td><td class="sayi">${k.kapanan}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${dk(k.p90_dk)}</td><td class="sayi">${k.bekleme_saat ? sy(k.bekleme_saat) + " sa" : "-"}</td><td class="sayi">${k.acik}</td></tr>`).join("")}</tbody></table></div></div>`;
   if ($("#ot")) $("#ot").onchange = e => { olcumTesis = e.target.value; CIZ.olcum(gun); };
   $("#ana").onclick = async e => {
+    const kr = e.target.closest("[data-kural]");
+    if (kr) {
+      await api("kural-onerileri", {kod: kr.dataset.kod, belirti: kr.dataset.belirti, alan: kr.dataset.kalan, onay: kr.dataset.kural === "1"});
+      bildir(kr.dataset.kural === "1" ? "Kural değişti; bundan sonra bu belirti yeni ekibe gider." : "Kural aynı kaldı; bu öneri bir daha gösterilmez.");
+      return CIZ.olcum(gun);
+    }
     const h = e.target.closest("[data-hedef]"); if (!h) return;
     const o = +h.dataset.hedef, t = $("#ht" + o).value, c = $("#hc" + o).value;
     try {
@@ -618,6 +636,26 @@ CIZ.kuyruk = async () => {
   $("#fd").onchange = $("#fb").onchange = yukle; if ($("#fl")) $("#fl").onchange = yukle; yukle();
 };
 
+/* "Bu benim işim değil": doğru ekibe ileri; ikinci aktarım ya da "bilmiyorum" BT müdürüne (top oynatma kuralı) */
+function aktarKart(c) {
+  if (c.mudurde) {
+    return `<div class="kart"><h3>${kac(c.koordinator.rol)} kararı</h3>
+      <p class="kucuk">Bu çağrı ${c.aktarim_sayisi > 1 ? `${c.aktarim_sayisi} kez aktarıldı` : "aktarıldı ve doğru ekip bilinmiyordu"}; ekipler arasında gidip gelmesin diye kararı ${kac(c.koordinator.ad)} verir. Seçtiği kişiye gider; bu karar yeni bir aktarım sayılmaz.</p>
+      <div class="sira"><div><label for="mudurkisi">Kime verilsin?</label><select id="mudurkisi">${T.kisiler.filter(k => T.usta_birimleri.includes(k.birim) && k.rol !== c.koordinator.rol).map(k => `<option value="${kac(k.id)}">${kac(k.ad)} · ${kac(k.rol)} · ${kac(VARDIYA[k.vardiya] || "")}</option>`).join("")}</select></div>
+      <div style="flex:0 0 auto;align-self:flex-end"><button class="dugme" id="mudurbtn">Ver</button></div></div></div>`;
+  }
+  const alanAd = a => ((T.alanlar || []).find(x => x.kod === a) || {}).ad || a || "-";
+  return `<div class="kart"><h3>Bu benim işim değil</h3>
+    <p class="kucuk">Çağrı şu an <b>${kac(alanAd(c.alan))}</b> ekibinde. Aktarırsan doğru ekipte vardiyadaki en uygun kişiye gider; sana ya da açana dönmez.
+    ${c.aktarim_sayisi ? ` <b>Bu çağrı daha önce aktarıldı: bir daha aktarılırsa ${kac(c.koordinator ? c.koordinator.ad + " (" + c.koordinator.rol + ")" : "BT müdürü")} karar verir.</b>` : ""}
+    Bilgi eksikse aktarma; yukarıdan açana soru sor.</p>
+    <div class="sira"><div><label for="aktarneden">Neden?</label><select id="aktarneden"><option value="yanlis_ekip">Yanlış ekip</option><option value="yanlis_konu">Yanlış konu</option></select></div>
+      <div id="aktarekip"><label for="aktaralan">Doğru ekip</label><select id="aktaralan">${(T.alanlar || []).filter(a => a.kod !== c.alan).map(a => `<option value="${kac(a.kod)}">${kac(a.ad)}</option>`).join("")}<option value="bilmiyorum">Bilmiyorum (BT müdürüne)</option></select></div>
+      <div id="aktarkonu" hidden><label for="aktarkat">Doğru konu</label><select id="aktarkat">${T.kategoriler.filter(k => k.id !== c.kategori_id).map(k => `<option value="${kac(k.id)}">${kac(k.ad)}</option>`).join("")}</select></div></div>
+    <label for="aktaracik">Not <span class="kucuk">(isteğe bağlı; ör. "uygulama sağlam, pil şişmiş")</span></label><input id="aktaracik" maxlength="200">
+    <p class="kucuk">Düzeltilen konu ve ekip modelin öğrenme verisine girer; aynı belirti sık aktarılıyorsa sistem kural değişikliği önerir.</p>
+    <p><button class="dugme ikincil" id="aktarbtn">Aktar</button></p></div>`;
+}
 /* Çağrının neresinde olduğumuz ve sıradaki adım: kim ne bekliyor */
 function durumKart(c) {
   const sira = ["atandi", "islemde", "cozuldu", "kapali"];
@@ -655,12 +693,9 @@ CIZ.detay = async (id) => {
         <p><b>${acik ? "Atanan" : "Çözen"}:</b> ${kac((acik ? c.atanan : c.cozen) || (c.otomatik ? "Otomasyon" : "-"))}${c.sure_dk ? ` · ${c.sure_dk} dk` : ""}${c.acan_kisi ? ` <span class="kucuk">· Açan: ${kac(c.acan_kisi)}</span>` : ""}${c.teyit === 1 ? " " + rozet("yesil", "Açan kişi teyit etti") : c.teyit === 0 ? " " + rozet("kirmizi", "Açan kişi çözülmedi dedi") : ""}</p>
         ${c.cozum_notu ? `<h3 style="margin-top:.6rem">Nasıl çözüldü</h3>${adimlar(c.cozum_notu)}` : ""}
         <h3 style="margin-top:.7rem">Geçmiş</h3>
-        <ul class="liste">${c.olaylar.map(o => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(o.zaman)}</span><div class="govde">${{acildi: "Açıldı", atandi: "Atandı", yeniden_atandi: "Yeniden atandı", kapandi: "Kapandı", durum: "Durum", yeniden_acildi: "Yeniden açıldı"}[o.tur] || o.tur}${o.kisi ? ": " + kac(o.kisi) : ""}${o.aciklama ? `<div class="kucuk">${kac(o.aciklama)}</div>` : ""}</div></li>`).join("")}</ul>
+        <ul class="liste">${c.olaylar.map(o => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(o.zaman)}</span><div class="govde">${{acildi: "Açıldı", atandi: "Atandı", yeniden_atandi: "Yeniden atandı", kapandi: "Kapandı", durum: "Durum", yeniden_acildi: "Yeniden açıldı", aktarildi: "Aktarıldı", sistem: "Sistem", mudur_karari: "Müdür kararı"}[o.tur] || o.tur}${o.kisi ? ": " + kac(o.kisi) : ""}${o.aciklama ? `<div class="kucuk">${kac(o.aciklama)}</div>` : ""}</div></li>`).join("")}</ul>
       </div>
-      ${acik ? `<div class="kart"><h3>Yanlış mı yönlendi?</h3>
-        <p class="kucuk">Konuyu düzelt; çağrı yeni konunun en uygun kişisine gider. Çağrı kapanınca düzeltilmiş hâliyle modelin öğrenme verisine girer.</p>
-        <div class="sira"><div><label for="yk">Doğru konu</label><select id="yk">${T.kategoriler.map(k => `<option value="${kac(k.id)}" ${k.id === c.kategori_id ? "selected" : ""}>${kac(k.birim)} · ${kac(k.ad)}</option>`).join("")}</select></div>
-        <div style="flex:0 0 auto"><button class="dugme ikincil" id="ya">Yeniden yönlendir</button></div></div></div>
+      ${acik ? aktarKart(c) + `
       <div class="kart"><h3>Çağrıyı kapat</h3>
         <label for="ka">Nasıl çözdün? (her satıra bir adım)</label><textarea id="ka" maxlength="2000" placeholder="Örn. Kilitli dalgayı iptal ettim&#10;Siparişleri yeni dalgada serbest bıraktım"></textarea>
         <p class="kucuk">Yazdığın adımlar bir sonraki benzer çağrıda “geçmişte nasıl çözüldü” bölümünde çıkar. Model her kapanan çağrıyla yeniden eğitilir.</p>
@@ -680,7 +715,19 @@ CIZ.detay = async (id) => {
   </div>`;
   if (!acik) return;
   $("#kk").onchange = e => $("#kalan").classList.toggle("gizli", !e.target.checked);
-  $("#ya").onclick = async () => { await api(`cagri/${id}/yeniden-ata`, {kategori_id: +$("#yk").value, aciklama: "Konu düzeltildi"}); bildir("Çağrı yeniden yönlendirildi."); git("detay", id); };
+  const an = $("#aktarneden"); if (an) an.onchange = () => { $("#aktarekip").hidden = an.value !== "yanlis_ekip"; $("#aktarkonu").hidden = an.value !== "yanlis_konu"; };
+  const ab = $("#aktarbtn"); if (ab) ab.onclick = async () => {
+    const n = an.value;
+    try {
+      const r = await api(`cagri/${id}/aktar`, {neden: n, alan: n === "yanlis_ekip" ? $("#aktaralan").value : null,
+        kategori_id: n === "yanlis_konu" ? +$("#aktarkat").value : null, aciklama: $("#aktaracik").value || null});
+      bildir(r.mudurde ? `Çağrı ${r.koordinator.ad} kararına gitti.` : `Çağrı ${r.atanan} kişisine aktarıldı.`); git("detay", id);
+    } catch (err) { bildir(err.message); }
+  };
+  const mb = $("#mudurbtn"); if (mb) mb.onclick = async () => {
+    try { const r = await api(`cagri/${id}/mudur-karari`, {kisi_id: +$("#mudurkisi").value}); bildir(`Karar verildi: ${r.atanan}.`); git("detay", id); }
+    catch (err) { bildir(err.message); }
+  };
   const ia = $("#isleme"); if (ia) ia.onclick = async () => { await api(`cagri/${id}/isleme-al`, {}); bildir("Çağrı işleme alındı."); git("detay", id); };
   const ss = $("#sorgonder"); if (ss) ss.onclick = async () => {
     try { await api(`cagri/${id}/soru`, {soru: $("#soru").value}); bildir("Soru Teams'ten gönderildi; cevap gelince çağrı İşlemde'ye döner."); git("detay", id); }

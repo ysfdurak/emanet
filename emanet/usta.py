@@ -155,8 +155,8 @@ def _cirak_sec(con, kat: dict, adaylar: list[dict], olas: dict, aciliyet: int, s
 
 def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None = None, vardiya: str | None = None,
               metin: str = "", acan_birim: str = "", aciliyet: int = 2, lokasyon_id: int | None = None,
-              alan: str | None = None) -> dict:
-    """Kişi modelinin olasılıklarına göre atar.
+              alan: str | None = None, haric: set[int] | None = None) -> dict:
+    """Kişi modelinin olasılıklarına göre atar. haric: aday olmayacak kişiler (ör. çağrıyı aktaran).
 
     1. Konunun birimindeki kişiler alınır, izindekiler elenir.
     2. O vardiyada çalışan varsa yalnızca onlar kalır.
@@ -183,6 +183,8 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
     ekip = [dict(r) for r in con.execute("SELECT p.* FROM kisi p JOIN kisi_alan a ON a.kisi_id=p.id "
                                          "WHERE a.alan=? AND p.aktif=1", (alan,))] if alan else []
     uyeler = ekip or [dict(r) for r in con.execute("SELECT * FROM kisi WHERE birim_id=? AND aktif=1", (kat["birim_id"],))]
+    # BT müdürüne çağrı atanmaz (yalnız aktarımlarda karar verir); aktaran kişi yeniden aday olmaz
+    uyeler = [u for u in uyeler if not u.get("koordinator") and u["id"] not in (haric or set())]
     yerinde_alan = alan or kat.get("alan")
     birim_ad = K.ALANLAR[alan][0] + " ekibi" if ekip else kat["birim"]
     for u in uyeler:
@@ -305,7 +307,8 @@ def _olay(con, cagri_id, zaman, tur, kisi=None, aciklama=None):
 def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", aciliyet: int = 2,
              kategori_id: int | None = None, vardiya: str | None = None, simdi: datetime | None = None,
              acan_kisi: str | None = None, yer: str | None = None, ek_bilgi: str | None = None,
-             cihaz: str | None = None, lokasyon_id: int | None = None, alan: str | None = None) -> dict:
+             cihaz: str | None = None, lokasyon_id: int | None = None, alan: str | None = None,
+             alan_notu: str | None = None) -> dict:
     metin = metin.strip()
     if len(metin) < 5:
         raise ValueError("Çağrı metni çok kısa")
@@ -333,6 +336,8 @@ def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", 
     cid = cur.lastrowid
     _olay(con, cid, simdi, "acildi")
     _olay(con, cid, simdi, "atandi", atama["kisi_id"], atama["neden"])
+    if alan_notu:   # sistemin kendi yaptığı değişiklik de geçmişe yazılır (sonradan "kim değiştirdi" bellidir)
+        _olay(con, cid, simdi, "sistem", None, alan_notu)
     con.commit()
     toplu = otomasyon.toplu_kontrol(con, cid, simdi)        # aynı konuda çok çağrı → tek olay
     oto = None if toplu else otomasyon.baslat(con, cid)     # uyan reçete varsa otomasyon
@@ -514,7 +519,10 @@ def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:
     cg = cihaz_gecmisi(con, c["cihaz"]) if c["cihaz"] else None
     if cg:
         cg["cagrilar"] = [x for x in cg["cagrilar"] if x["id"] != cagri_id]
-    return dict(c, asama_ad=ASAMA_AD.get(c["asama"], c["asama"]), ek=json.loads(c["ek_bilgi"]) if c["ek_bilgi"] else None, cihaz_gecmisi=cg, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
+    kr = con.execute("SELECT id, ad, rol FROM kisi WHERE koordinator=1 AND aktif=1 LIMIT 1").fetchone()
+    akt = con.execute("SELECT COUNT(*) FROM aktarim WHERE cagri_id=?", (cagri_id,)).fetchone()[0]
+    return dict(c, aktarim_sayisi=akt, mudurde=bool(kr and c["atanan_kisi_id"] == kr["id"]),
+                koordinator=dict(kr) if kr else None, asama_ad=ASAMA_AD.get(c["asama"], c["asama"]), ek=json.loads(c["ek_bilgi"]) if c["ek_bilgi"] else None, cihaz_gecmisi=cg, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
                 mesajlar=[m for m in otomasyon.mesajlar(con, cagri_id=cagri_id) if m["oto_id"] is None],
                 toplu_olay=toplu)
 

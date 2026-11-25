@@ -477,6 +477,16 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
     if eksik:
         liste.append(dict(seviye="mavi", metin="Yerinde donanım ekibi olmayan vardiyalar: " + "; ".join(eksik)
                           + ". Bu saatlerde cihaz ve ağ arızaları uzaktan yönlendiriliyor.", sayfa="risk"))
+    from .yonlendirme import kural_onerileri, yonlendirme_olculeri
+    yo = yonlendirme_olculeri(con, (simdi - timedelta(days=30)).isoformat(timespec="minutes"))
+    if yo["mudurde"] and yo["koordinator"]:
+        liste.append(dict(seviye="kirmizi", metin=f"{len(yo['mudurde'])} çağrı ekipler arasında gidip geldi ya da ekibi "
+                          f"bilinmiyor; {yo['koordinator']['ad']} ({yo['koordinator']['rol']}) kararını bekliyor.",
+                          sayfa="kuyruk"))
+    for o in kural_onerileri(con, simdi)[:1]:
+        liste.append(dict(seviye="mavi", metin=f"Kural önerisi: “{o['belirti']}” diyen çağrılar son 90 günde {o['aktarilan']} kez "
+                          + (f"(aynı belirtili {o['toplam']} çağrıdan) " if o["toplam"] else "")
+                          + f"{o['su_an_ad']} ekibinden {o['onerilen_ad']} ekibine aktarıldı. Kural değişsin mi?", sayfa="olcum"))
     from .olcum import vardiya_boslugu
     vb = vardiya_boslugu(con, simdi)
     if vb:

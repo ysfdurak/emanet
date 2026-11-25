@@ -18,7 +18,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from . import degisim, egitim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
 from . import devir as devir_surec
-from . import cagri_formu, olcum
+from . import cagri_formu, olcum, yonlendirme
 
 sunucu = MCPServer(
     name="Emanet",
@@ -143,7 +143,7 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
                 raise ValueError("Tesis bulunamadı: " + ", ".join(r["ad"] for r in con.execute("SELECT ad FROM lokasyon")))
         elif cihaz:
             lok = (cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("lokasyon_id")
-        alan = cagri_formu.alan_bul(k["kod"], cevap)["alan"]   # belirti cevabı verildiyse ekip ona göre
+        alan = cagri_formu.alan_bul(k["kod"], cevap, kurallar=yonlendirme.belirti_kurallari(con))["alan"]   # belirtiye göre ekip
         c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer,
                           ek_bilgi=ek, cihaz=cihaz, lokasyon_id=lok, alan=alan)
         sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"), zorunlu=bool(s.get("zorunlu")))
@@ -198,6 +198,19 @@ def cagri_olculeri(gun: int = 30) -> dict:
     iş yükünü dengelemek."""
     with KILIT:
         return olcum.cagri_olculeri(baglanti(), gun)
+
+
+@arac
+def cagri_aktar(cagri_id: int, neden: str, alan: str | None = None, konu: str | None = None,
+                aciklama: str | None = None) -> dict:
+    """Atanan kişi "bu benim işim değil" der. neden: yanlis_ekip (alan: donanim | ag | wms | erp | bt | bilmiyorum)
+    ya da yanlis_konu (konu: doğru konunun adı). Çağrı doğru ekibe ileri gider, gönderene dönmez. İkinci aktarım
+    ya da "bilmiyorum" BT müdürüne gider (top oynatma kuralı)."""
+    with KILIT:
+        con = baglanti()
+        kid = _konu_bul(con, konu) if konu else None
+        c = yonlendirme.aktar(con, cagri_id, neden, None if alan == "bilmiyorum" else alan, kid, aciklama)
+    return dict(_sade_cagri(c), gecmis=[o["aciklama"] for o in c["olaylar"] if o["tur"] in ("aktarildi", "sistem")])
 
 
 @arac

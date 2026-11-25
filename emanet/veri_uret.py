@@ -35,8 +35,8 @@ from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
 # (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi,
-#  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler, 7: çağrı alanları ve ekipleri)
-VERI_SURUMU = 7
+#  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler, 7: çağrı alanları ve ekipleri, 8: aktarım ve BT müdürü)
+VERI_SURUMU = 8
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -200,6 +200,37 @@ def _pazari_kaydir(con: sqlite3.Connection, bugun: date) -> None:
         con.execute("UPDATE cagri_olay SET zaman=strftime('%Y-%m-%dT%H:%M', zaman, '+1 day') WHERE cagri_id=? AND tur='kapandi'", (r[0],))
 
 
+def _yonlendirme_gecmisi(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
+    """BT müdürü ve geçmiş aktarımlar. Demo hikâyesi: "Ekran donuyor" kuralı WMS'e gönderir ama eski
+    terminallerde donma çoğu zaman donanımdır (pil, bellek); son aylarda bu çağrıların bir kısmı WMS'ten
+    donanıma aktarılmış. Kural önerisi buradan çıkar; karar insanındır. Ayrı tohum."""
+    rnd = random.Random(tohum + 17)
+    ad, birim, rol, vardiya = K.KOORDINATOR
+    con.execute("INSERT INTO kisi(ad,birim_id,rol,vardiya,lokasyon_id,koordinator) SELECT ?, b.id, ?, ?, "
+                "(SELECT id FROM lokasyon ORDER BY id LIMIT 1), 1 FROM birim b WHERE b.ad=?", (ad, rol, vardiya, birim))
+    bel = "Ekran donuyor ya da uygulama kapanıyor"
+    ek = json.dumps(dict(cevaplar=[dict(soru="Ne oluyor?", cevap=bel)], etki="Yavaşladı ya da geçici yolla devam ediyorum",
+                         kapsam="Yalnız ben", sevkiyat=False, ne_zaman=None, oncelik_gerekce="-"), ensure_ascii=False)
+    bas = (datetime.combine(bugun, datetime.min.time()) - timedelta(days=80)).isoformat(timespec="minutes")
+    adaylar = con.execute("SELECT c.id, c.acilis, c.sure_dk, c.cozen_kisi_id FROM cagri c JOIN kategori k ON k.id=c.kategori_id "
+                          "WHERE k.kod='EL_TERMINALI' AND c.durum='kapali' AND c.acilis>=? ORDER BY c.id", (bas,)).fetchall()
+    secilen = rnd.sample(list(adaylar), min(9, len(adaylar)))
+    wms = [r[0] for r in con.execute("SELECT kisi_id FROM kisi_alan WHERE alan='wms' ORDER BY kisi_id")]
+    for i, c in enumerate(secilen):
+        con.execute("UPDATE cagri SET ek_bilgi=? WHERE id=?", (ek, c["id"]))
+        if i < 4:   # 9 çağrının 4'ü WMS'ten donanıma aktarılmış
+            an = datetime.fromisoformat(c["acilis"]) + timedelta(minutes=max(5, int(c["sure_dk"] * 0.3)))
+            g = rnd.choice(wms)
+            con.execute("INSERT INTO aktarim(cagri_id,zaman,gonderen_id,alici_id,neden,eski_alan,yeni_alan,eski_kategori_id,"
+                        "yeni_kategori_id,belirti,aciklama) SELECT ?,?,?,?,'yanlis_ekip','wms','donanim',kategori_id,kategori_id,?,? "
+                        "FROM cagri WHERE id=?", (c["id"], an.isoformat(timespec="minutes"), g, c["cozen_kisi_id"], bel,
+                                                  "Uygulama sağlam; cihaz pili şişmiş", c["id"]))
+            gad = con.execute("SELECT ad FROM kisi WHERE id=?", (g,)).fetchone()[0]
+            con.execute("INSERT INTO cagri_olay(cagri_id,zaman,tur,kisi_id,aciklama) VALUES(?,?,?,?,?)",
+                        (c["id"], an.isoformat(timespec="minutes"), "aktarildi", c["cozen_kisi_id"],
+                         f"Yanlış ekip: WMS → Donanım (gönderen {gad}). Uygulama sağlam; cihaz pili şişmiş"))
+
+
 def _kalite_gecmisi(con: sqlite3.Connection, tohum: int) -> None:
     """Geçmiş çağrılara kapanış onayı ve "ilk seferde çözülmedi" izi (ölçüler ekranı için). Ayrı tohum.
     Açanların çoğu onaylar, bir kısmı cevap vermez; kişi başına %1-8 çağrı ilk çözümden sonra yeniden açılmıştır."""
@@ -361,6 +392,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
     _lokasyon_ata(con, tohum)
     _cihaz_ata(con, bugun, tohum)
     _kalite_gecmisi(con, tohum)
+    _yonlendirme_gecmisi(con, bugun, tohum)
     # Durumlar: açık çağrıların bir kısmına başlanmış, birinde açana soru sorulmuş (cevap bekleniyor)
     acik = con.execute("SELECT id, acilis, atanan_kisi_id, acan_kisi FROM cagri WHERE durum='acik' ORDER BY id").fetchall()
     for i, c in enumerate(acik[:3]):

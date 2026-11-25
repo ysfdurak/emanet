@@ -45,6 +45,21 @@ CREATE TABLE IF NOT EXISTS lokasyon (
     ad  TEXT NOT NULL UNIQUE
 );
 
+-- Aktarım: atanan kişinin "bu benim işim değil" demesi (yanlış ekip ya da konu). Kural önerileri buradan çıkar.
+CREATE TABLE IF NOT EXISTS aktarim (
+    id               INTEGER PRIMARY KEY,
+    cagri_id         INTEGER NOT NULL REFERENCES cagri(id),
+    zaman            TEXT NOT NULL,
+    gonderen_id      INTEGER REFERENCES kisi(id),
+    alici_id         INTEGER REFERENCES kisi(id),
+    neden            TEXT NOT NULL,          -- yanlis_ekip | yanlis_konu
+    eski_alan        TEXT, yeni_alan TEXT,
+    eski_kategori_id INTEGER, yeni_kategori_id INTEGER,
+    belirti          TEXT,                   -- çağrının "Ne oluyor?" cevabı (kural önerisi için)
+    aciklama         TEXT,
+    mudure           INTEGER NOT NULL DEFAULT 0   -- BT müdürüne gitti (ikinci aktarım ya da ekip bilinmiyor)
+);
+
 -- Çağrı alanları ve ekipleri: kim hangi alana bakar (donanım, ağ, WMS, ERP, BT genel)
 CREATE TABLE IF NOT EXISTS kisi_alan (
     kisi_id INTEGER NOT NULL REFERENCES kisi(id),
@@ -270,7 +285,7 @@ CREATE TABLE IF NOT EXISTS egitim_plani (
 );
 """
 
-TABLOLAR = ["kisi_alan", "cihaz", "lokasyon", "devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
+TABLOLAR = ["aktarim", "kisi_alan", "cihaz", "lokasyon", "devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
             "kategori", "musaitlik", "kisi", "birim", "meta"]
 
 
@@ -293,7 +308,8 @@ def baglan(yol: Path | str | None = None) -> sqlite3.Connection:
 GOCLER = {
     "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT"), ("kart_saat", "REAL"),
                  ("sure_onay", "INTEGER NOT NULL DEFAULT 0"), ("alan", "TEXT")],   # alan: varsayılan çağrı alanı
-    "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT"), ("lokasyon_id", "INTEGER")],
+    "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT"), ("lokasyon_id", "INTEGER"),
+             ("koordinator", "INTEGER NOT NULL DEFAULT 0")],   # BT müdürü: çağrı atanmaz, aktarımlarda karar verir
     "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT"), ("cihaz", "TEXT"),
               ("asama", "TEXT"), ("lokasyon_id", "INTEGER"), ("alan", "TEXT")],   # alan: işe bakan ekip   # çağrı durumu: acik | atandi | islemde | bilgi_bekleniyor | cozuldu | kapali   # cihaz: etiket no, tekrarlayan arıza izlenir
     "devir": [("devralan_sinir", "REAL NOT NULL DEFAULT 4")],

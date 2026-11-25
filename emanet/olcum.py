@@ -159,9 +159,21 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
         a = datetime.fromisoformat(c["acilis"])
         return parcala(a, son, vardiya.get(kisi), izin.get(kisi, frozenset()), bilgi.get(c["id"]))
 
+    # Aktarılan çağrıda yanlış ekipte geçen süre çözenin hızına yazılmaz: çözenin süresi son aktarımdan başlar
+    son_aktarim = {r[0]: datetime.fromisoformat(r[1]) for r in con.execute(
+        "SELECT cagri_id, MAX(zaman) FROM aktarim GROUP BY cagri_id")}
     for c in kapanan:
-        p = ayir(c, c["cozen_kisi_id"], datetime.fromisoformat(c["kapanis"]))
-        c.update(p, net=max(1.0, p["calisma"]), hizmet=p["calisma"] + p["bekleme"])
+        kap = datetime.fromisoformat(c["kapanis"])
+        p = ayir(c, c["cozen_kisi_id"], kap)
+        c.update(p, hizmet=p["calisma"] + p["bekleme"], kayip=0.0)
+        sa = son_aktarim.get(c["id"])
+        if sa and datetime.fromisoformat(c["acilis"]) < sa < kap:
+            once = ayir(c, c["cozen_kisi_id"], sa)
+            c["kayip"] = once["calisma"] + once["bekleme"]
+            sonra = parcala(sa, kap, vardiya.get(c["cozen_kisi_id"]), izin.get(c["cozen_kisi_id"], frozenset()), bilgi.get(c["id"]))
+            c["net"] = max(1.0, sonra["calisma"])
+        else:
+            c["net"] = max(1.0, p["calisma"])
         if c["id"] in ilk_islem:
             t = ayir(c, c["cozen_kisi_id"], ilk_islem[c["id"]])
             c["tepki"] = t["calisma"] + t["bekleme"]
@@ -208,7 +220,8 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
                 ilk_seferde=round(1 - len(yeniden) / len(kapanan), 2) if kapanan else None,
                 onaylanan_pay=round(sum(1 for c in sorulan if c["teyit"] == 1) / len(sorulan), 2) if sorulan else None,
                 en_eski_acik_saat=max((yas_saat(a["acilis"]) for a in acik), default=None),
-                hedefler={str(k): v for k, v in hd.items()}, hedef_asimi=asim)
+                hedefler={str(k): v for k, v in hd.items()}, hedef_asimi=asim,
+                yonlendirme_kaybi_saat=round(sum(c["kayip"] for c in kapanan) / 60, 1))
 
     # Konu: tipik çalışma süresi ve vardiya beklemesi (kapsama boşluğu)
     konu_sure: dict[int, list[float]] = defaultdict(list)
@@ -273,7 +286,10 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
                              ortanca_hizmet_dk=round(median([c["hizmet"] for c in kc])) if kc else None,
                              acik=sum(1 for a in acik if a["lokasyon_id"] == l["id"]),
                              yerinde_kisi=[dict(ad=k["ad"], vardiya=k["vardiya"]) for k in yerinde]))
-    return dict(ozet=ozet, kisiler=kisiler, konular=konular, haftalar=haftalar, tesisler=tesisler)
+    from .yonlendirme import kural_onerileri, yonlendirme_olculeri
+    yon = yonlendirme_olculeri(con, bas, lokasyon_id)
+    yon["kural_onerileri"] = kural_onerileri(con, simdi)
+    return dict(ozet=ozet, kisiler=kisiler, konular=konular, haftalar=haftalar, tesisler=tesisler, yonlendirme=yon)
 
 
 def vardiya_boslugu(con: sqlite3.Connection, simdi: datetime | None = None, esik_saat: float = 8) -> dict | None:

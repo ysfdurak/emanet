@@ -231,10 +231,11 @@ def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simd
     return sonuc[:5]
 
 
-def alan_bul(kod: str | None, cevaplar: dict | None, secilen: str | None = None, varsayilan: str | None = None) -> dict:
+def alan_bul(kod: str | None, cevaplar: dict | None, secilen: str | None = None, varsayilan: str | None = None,
+             kurallar: dict | None = None) -> dict:
     """Çağrının gideceği alan. Sıra: belirti cevabı > kişinin seçtiği alan > konunun varsayılan alanı.
     Belirti öne geçer: "Ekran donuyor" diyen biri alanı "Donanım" seçmiş olsa da iş WMS ekibinindir."""
-    for soru, harita in K.BELIRTI_ALANI.get(kod or "", {}).items():
+    for soru, harita in (kurallar if kurallar is not None else K.BELIRTI_ALANI).get(kod or "", {}).items():
         a = harita.get((cevaplar or {}).get(soru, ""))
         if a:
             return dict(alan=a, kaynak="belirti", secilenle_farkli=bool(secilen and secilen != a))
@@ -242,6 +243,11 @@ def alan_bul(kod: str | None, cevaplar: dict | None, secilen: str | None = None,
         return dict(alan=secilen, kaynak="secim", secilenle_farkli=False)
     a = varsayilan or K.KONU_ALANI.get(kod or "")
     return dict(alan=a, kaynak="konu", secilenle_farkli=False)
+
+
+def _kurallar(con: sqlite3.Connection) -> dict:
+    from .yonlendirme import belirti_kurallari
+    return belirti_kurallari(con)
 
 
 def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, lokasyon_id: int | None = None) -> dict:
@@ -254,7 +260,7 @@ def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, loka
     return dict(kategori_id=k["id"], kategori=k["ad"], kritiklik=k["kritiklik"], talep=k["kod"] in TALEP_KONULARI,
                 sorular=sorular(k["kod"]), kendin_dene=KENDIN_DENE.get(k["kod"], []),
                 kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None,
-                alan=k["alan"], alan_haritasi=K.BELIRTI_ALANI.get(k["kod"], {}), benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
+                alan=k["alan"], alan_haritasi=_kurallar(con).get(k["kod"], {}), benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
                 yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
                 kapsam=[dict(kod=a, ad=b[0]) for a, b in KAPSAM.items()],
                 ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()])

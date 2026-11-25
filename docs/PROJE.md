@@ -442,6 +442,22 @@ bakar**a göre ayırmaktı. Yeni yapı:
   "Gideceği ekip" satırı cevaplarla canlı değişir, atama önizlemesi de onunla.
 - Çağrı alanı kaydedilir (`cagri.alan`); yerinde atama ve tesis kapsaması alana göre (Donanım, Ağ).
 
+*Yanlış yönlendirme* (kullanıcıyla kararlaştırıldı; `emanet/yonlendirme.py`, `aktarim` tablosu):
+- **"Bu benim işim değil"** (çağrı detayı): neden *yanlış ekip* (doğru ekip ya da "Bilmiyorum") ya da *yanlış
+  konu*. Bilgi eksikse aktarılmaz; açana soru sorulur (Bilgi bekleniyor).
+- **Geri değil ileri:** doğru ekipte vardiyadaki en uygun kişiye gider; gönderen aday olmaz (`yonlendir(haric=)`),
+  açana "yanlış seçmişsin" denmez.
+- **Top oynatma kuralı:** ikinci aktarım ya da "Bilmiyorum" → **BT müdürü** (demo: Levent Arıkan; `kisi.koordinator=1`,
+  ona çağrı atanmaz). Müdürün kişi seçmesi son karardır, aktarım sayılmaz. Bugün: "N çağrı kararını bekliyor".
+- **Süre adaleti:** yanlış ekipte geçen süre "yönlendirme kaybı" olarak ayrı gösterilir; çözenin süresi son
+  aktarımdan başlar.
+- **Şeffaflık:** sistemin kendi değişikliği geçmişe yazılır ("Sistem alanı cevaba göre Donanım yerine WMS yaptı").
+- **Kural önerisi:** aynı belirti 90 günde en az 3 kez ve aynı belirtili çağrıların %30'undan fazlasında aynı
+  ekibe aktarıldıysa Ölçüler'de öneri çıkar; "… ekibine çevir" ya da "Böyle kalsın" (insan kararı, `meta`
+  `belirti_kurali` / `belirti_kurali_red`). Demo hikâyesi: "Ekran donuyor" kuralı WMS'e gönderir ama eski
+  terminallerde donma çoğu zaman donanımdır (şişmiş pil); 9 çağrının 4'ü donanıma aktarılmış.
+- Ölçüler → Yönlendirme: ekibe göre aktarım oranı, müdürde bekleyenler, öneriler. MCP `cagri_aktar`.
+
 *Tesis* (`lokasyon` tablosu; kişi, çağrı ve cihaz bir tesise bağlı). Tesis, tesisin içindeki **yer**den
 (koridor, rampa) ayrı bir katmandır. Demo: Gebze Merkez, Tuzla Aktarma, İzmir Bölge; Tuzla'da Onur (akşam),
 İzmir'de Gizem (gece) yerinde BT.
@@ -727,3 +743,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Süre dörde ayrıldı (çalışma, vardiya beklemesi, bilgi, depo kapalı; 6 gün 3 vardiya); ilk tepki; kullanıcının girdiği öncelik hedefleri ve aşım; konu bazında vardiya beklemesi ve Bugün uyarısı; demo pazar kapalı (gürültü ölçütü %78,9, geçiyor); 136 test |
 | 25 Kasım 2026 | Ana kategoriler (isteğe bağlı, olasılık şişirmeden daraltır); tesisler: yerinde atama, tesis bazında toplu arıza ve 'zaten bildirildi', kuyruk ve ölçüler süzgeci, Tesisler kartı, yerinde BT olmayan vardiyalar uyarısı, envanterde tesis; 141 test |
 | 25 Kasım 2026 | Kullanıcı düzeltmesi: gruplar yerine çağrı alanları ve ekipleri (Donanım, Ağ, WMS, ERP, BT genel); alan belirtiden (terminal donuyor → WMS, açılmıyor → donanım); Riskler'de tesis kapsama tablosu; 143 test |
+| 25 Kasım 2026 | Yanlış yönlendirme: 'Bu benim işim değil' ile ileri aktarım, ikinci aktarımda BT müdürü, yönlendirme kaybı, sistem kaydı, belirti kuralı önerisi (insan onaylar); MCP `cagri_aktar`; 149 test |
