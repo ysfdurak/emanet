@@ -150,6 +150,18 @@ bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh
   - Gerçek veri gelince anlam benzerliği için yerel bir cümle modeli eklenebilir.
   - Ziyaretçi demosundaki model eğitimi isteği bekletiyor (ilk kapanışta 1-2 sn); arka plana alınabilir.
 
+### Pilot bitiş ölçütleri (dış kaynak olmadan)
+
+Dördü de sağlanınca durum "Tamamlandı" olur; siteye proje sayfası ve Rota girdisi eklenir.
+Hiçbiri başka kişiye ya da şirket verisine bağlı değil.
+
+| # | Ölçüt | Nasıl bakılır | Hedef |
+| --- | --- | --- | --- |
+| 1 | Canlıda 14 gün kararlı (9 Aralık 2026'ya kadar) | `docker inspect emanet --format '{{.RestartCount}} {{.State.StartedAt}}'` ve `docker stats emanet --no-stream` | Yeniden başlama 0, bellek < 500 MB, gece sıfırlaması her gün |
+| 2 | Model zor veride de ayakta | Gürültülü sentetik veri: yazım hatası, kısa metin, %15 yanlış etiket; `python -m emanet.yerel` ile içe aktarılıp model ekranında ölçülür | Konu ≥ %75, kişi ilk üçte ≥ %80 |
+| 3 | İlk kez gelen biri yardımsız kullanır | Claude temiz tarayıcıyla 5 görev: en riskli konu, ya giderse, çağrı aç, devir dosyası, eğitim planı. Takılınan her yer düzeltilir | 5 görevin 5'i sayfa dışı açıklama olmadan |
+| 4 | Proje sana geçti | Bölüm 11'deki 5 dakikalık demo ve Bölüm 10'daki soruların 10'u, bakmadan | Demo akıcı, 10 sorudan en az 8'i doğru |
+
 ## 9. Mülakat soruları
 
 1. **Neden büyük dil modeli değil de klasik makine öğrenmesi?** Veri azken daha iyi ya da eşit, açıklanabilir, saniyede eğitilir, şirket verisi dışarı çıkmaz.
