@@ -1062,7 +1062,7 @@ CIZ.plan = async (butce) => {
       ${L.map(k => `<tr id="sure-${k.kategori_id}"><td>${kac(k.ad)}<div class="kucuk">${kac(k.birim)}${k.acilis ? " · yeni konu" : ""}</div></td>
         <td class="sayi"><input type="number" min="0.5" max="200" step="0.5" value="${k.kart_saat_etkin}" data-sk="kart" aria-label="${kac(k.ad)} kart yazma saati"></td>
         <td class="sayi"><input type="number" min="0.5" max="200" step="0.5" value="${k.ogrenme_saati}" data-sk="ogr" aria-label="${kac(k.ad)} öğretme saati"></td>
-        <td>${k.sure_onay ? rozet("yesil", "Senin girdiğin") : rozet("sari", "Tahmini")} <button class="dugme kucuk ikincil" data-sure-kaydet="${kac(k.kategori_id)}">Kaydet</button></td></tr>`).join("")}
+        <td>${k.sure_onay ? rozet("yesil", "Girildi") : rozet("sari", "Tahmini")} <button class="dugme kucuk ikincil" data-sure-kaydet="${kac(k.kategori_id)}">Kaydet</button></td></tr>`).join("")}
       </tbody></table></div>`;
   }
   $("#psure").addEventListener("click", async e => {

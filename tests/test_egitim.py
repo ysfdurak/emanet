@@ -46,7 +46,21 @@ def test_takvim_oturumlari_gundemi_sirayla_paylasir():
     assert sum(len(x) for x in [takvim.oturum_gundemi(g, i, 2) for i in (1, 2)]) == 4
 
 
+def _suresiz(con, kid):
+    con.execute("UPDATE kategori SET kart_saat=NULL, sure_onay=0 WHERE id=?", (kid,))
+    con.commit()
+
+
+def test_demo_sureleri_uzman_tablosundan(con):
+    from emanet import katalog
+    assert not con.execute("SELECT COUNT(*) FROM kategori WHERE sure_onay=0 AND emeklilik IS NULL").fetchone()[0]
+    kart, ogr, _ = katalog.UZMAN_SURELERI["ERP entegrasyon hatası"]
+    r = con.execute("SELECT kart_saat, ogrenme_saati FROM kategori WHERE id=?", (ERP,)).fetchone()
+    assert (r[0], r[1]) == (kart, ogr)
+
+
 def test_sure_kullanicidan_gelir_ve_plani_degistirir(con):
+    _suresiz(con, ERP)
     once = risk.egitim_plani(con, 60, simdi=SIMDI)
     erp_kart = next(s for s in once["satirlar"] if s["tur"] == "kart" and s["kategori_id"] == ERP)
     assert erp_kart["sure_tahmini"] and erp_kart["saat"] == risk.KART_YAZMA_SAATI
@@ -72,9 +86,19 @@ def test_yarim_saatlik_sure_optimizasyonda(con):
 
 
 def test_suresi_girilmemis_riskli_konu_uyarisi(con):
+    assert not [x for x in takip.dikkat(con) if "eğitim süresi girilmedi" in x["metin"]]
+    _suresiz(con, ERP)
     d = [x for x in takip.dikkat(con) if "eğitim süresi girilmedi" in x["metin"]]
     assert d and d[0]["sayfa"] == "plan" and d[0]["veri"] == "sureler"
     for r in risk.risk_haritasi(con):
         if r["seviye"] in ("kirmizi", "sari"):
             egitim.sure_kaydet(con, r["kategori_id"], 2, 8)
     assert not [x for x in takip.dikkat(con) if "eğitim süresi girilmedi" in x["metin"]]
+
+
+def test_yeni_acilan_konu_suresi_tahmini(con):
+    from emanet import degisim
+    degisim.gecis_kaydet(con, "Yeni WMS dalga hatası", tarih=BUGUN.isoformat(), eski_kategori_id=9,
+                         anahtar_kelimeler="yeni wms, dalga hata")
+    r = con.execute("SELECT sure_onay, kart_saat FROM kategori WHERE ad='Yeni WMS dalga hatası'").fetchone()
+    assert tuple(r) == (0, None)

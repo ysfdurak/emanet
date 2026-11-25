@@ -185,6 +185,50 @@ süresi girilene kadar tahminidir. Riskli bir konunun süresi yoksa Bugün sayfa
 Tazeleme öğretmenin üçte biri, yeni sisteme geçiş yarısı sayılır. Optimizasyon yarım saatlik süreler için
 yarım saat biriminde çalışır (sırt çantası dizisi 2 × bütçe uzunluğunda).
 
+**Demo süreleri (alan uzmanı gözüyle, `katalog.UZMAN_SURELERI`):** kullanıcı süreleri depo/BT destek ve
+bakım tecrübesi olan birinin gözüyle yazmamı istedi. Varsayımlar: süreler **temas saatidir** (usta ile
+öğrenenin birlikte geçirdiği ya da ustanın yazıya ayırdığı süre; takvim bunu haftalara yayar); öğrenen **aynı
+birimden, temel işi bilen** biridir. Kart: her çözüm yolu için ekran görüntülü/fotoğraflı adımlar ve bir
+okuma-düzeltme turu. Öğretme: vakaların üzerinden geçmek ve öğrenen 3 işi tek başına yapana kadar gözetimli
+uygulama. Tazeleme bunun üçte biri, yeni sisteme geçiş yarısıdır.
+
+| Konu | Kart | Öğretme | Gerekçe |
+| --- | ---: | ---: | --- |
+| El terminali bağlanmıyor | 1,5 sa | 3 sa | Üç-dört yol (Wi-Fi profili, uygulama önbelleği, yedek cihaz); cihazı tanıyan biri MDM ekranını yarım günde öğrenir |
+| Etiket yazıcısı yazdırmıyor | 2 sa | 4 sa | Ribon/etiket ayarı, kalibrasyon, kuyruk; fotoğraf gerekir. Kalibrasyon ve şablon elle denenerek öğrenilir |
+| Şifre ve hesap kilidi | 0,5 sa | 1 sa | Tek ekran, tek akış; kimlik doğrulama kuralı en önemli kısmı |
+| Kablosuz ağ kopması | 2 sa | 12 sa | Kontrolör ekranı, erişim noktası ve dolaşım (roaming) sorunları ağ bilgisi ister; iki saha turu dahil |
+| Bilgisayar ve ekran arızası | 1 sa | 2 sa | Destek uzmanının temel işi; yalnız depo cihazlarına özgü noktalar |
+| E-posta ve takvim sorunu | 1 sa | 1,5 sa | Standart ofis sorunları |
+| Yazılım kurulum talebi | 1 sa | 2 sa | Kurulumdan çok lisans ve onay akışı öğrenilir |
+| Yetki ve erişim talebi | 1,5 sa | 3 sa | Rol matrisi ve onay kuralları; yanlış yetki riski yüzünden gözetim süresi uzun |
+| WMS adres ve yerleştirme hatası | 2 sa | 8 sa | Lokasyon ana verisi ve yerleştirme kuralları; WMS'i kullanan biri için bir iş günü |
+| Stok uyuşmazlığı | 3 sa | 16 sa | Hareket izleme, sayım düzeltme, ERP mutabakatı; finansal etkisi var, düzeltme onaylı yapılır |
+| Sipariş dalgası açılmıyor | 3 sa | 20 sa | Üç yol (tahsis/rezerv, kilitli dalga işi, şablon kesim saati); dalga ve tahsis mantığı vardiya baskısı altında öğrenilir |
+| Barkod okunmuyor | 1 sa | 3 sa | Okuyucu ayarı ve etiket kalitesi; çoğu sahada görülerek öğrenilir |
+| ERP entegrasyon hatası | 4 sa | 32 sa | Mesaj kuyruğu, entegrasyon günlüğü, belge yeniden gönderme; yanlış yeniden gönderme mükerrer kayıt yaratır. ERP-WMS veri modeli nadir bilgi |
+| Rapor ve küp yenilenmiyor | 1,5 sa | 6 sa | Zamanlanmış yenileme, kaynak bağlantısı, kapasite; raporlama bilen biri için |
+| Sorter arızası | 6 sa | 40 sa | Sensör/fotosel hizalama, sıkışma, PLC hata kodları ve kilitleme-etiketleme (LOTO) adımları fotoğraflı; elektromekanik + PLC okuma, gözetimli 3 arıza |
+| Raf hasarı | 2 sa | 4 sa | Hasar sınıfı (yeşil/sarı/kırmızı) ve bölge kapatma kuralı; karar vermeyi öğrenmek önemli |
+| Forklift ve akü arızası | 1,5 sa | 6 sa | Akü değişimi ve şarj güvenliği uygulamalı öğrenilir |
+| Konveyör durması | 3 sa | 16 sa | Motor, kayış, sensör ve hat kontrolü; durma nedenini ayırt etmek tecrübe ister |
+| Streç ve paketleme makinesi | 1,5 sa | 4 sa | Film takma, gerdirme ayarı, sık arızalar |
+| Rampa ve kapı arızası | 2 sa | 6 sa | Hidrolik rampa ve seksiyonel kapı; güvenlik kilitleri |
+| İş kıyafeti ve koruyucu ekipman | 0,5 sa | 0,5 sa | Stok ve dağıtım listesi |
+| Servis ve yemek | 0,5 sa | 0,5 sa | İletişim listesi ve değişiklik akışı |
+| Vardiya ve izin talebi | 1 sa | 1,5 sa | İK sistemi ekranı ve onay kuralları |
+| Giriş kartı ve turnike | 1 sa | 1,5 sa | Kart tanımlama ekranı ve kayıp kart akışı |
+| İş kazası ve ramak kala | 2 sa | 6 sa | Bildirim akışı ve yasal süreler, kayıt, kök neden; yanlış bildirim yasal risk |
+| Yangın ve sıcaklık alarmı | 3 sa | 10 sa | Alarm paneli, bölge tespiti, yanlış alarm ayrımı, soğuk oda sapma prosedürü, kime haber verilir; yangın eğitimi ayrıca gerekir |
+| Dökülme ve temizlik | 1 sa | 1 sa | Malzemeye göre temizlik ve atık kuralı |
+| Hasarlı ürün | 1 sa | 2 sa | Ayırma, kayıt, iade/imha kararı |
+
+**Bu sürelerin plana etkisi (demo):** 60 saatle Sorter arızasına yalnız kart yazılabiliyor (öğretmek tek başına
+40 saat); kırmızı konular yine sıfırlanıyor ama takvim haftada 2 saatle 12 hafta sürüyor ve süreyi Elif
+(20 saat öğretme) belirliyor. 120 saatle Sorter öğretimi de girer, takvim 23 haftaya uzar. **Şöyle daha iyi
+olur:** Sorter gibi 40 saatlik bir konu için haftalık 2 saat sınırı gerçekçi değil; bu tür konularda
+üretici eğitimi ya da yoğun bir hafta (Takvimde "bu hafta kişi başı +") planlanmalı.
+
 **Mülakat sorusu:** *"Süreyi neden veriden hesaplamadın?"* Veriden kart yazma süresi çıkmaz; kimse bunu
 kaydetmiyor. Uydurulmuş bir sayı planı gerçekçi gösterir ama yanıltır. Bu yüzden süre işi bilen kişiden
 gelir, girilmeyen her yer açıkça "tahmini" diye işaretlenir.
@@ -440,3 +484,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Ortak ölçüm ve geri bildirim (olcum.ysfdurak.com): yalnız emanet.ysfdurak.com'da yüklenir; her sayfa geçişi `olc("ekran", sayfa)` ile bildirilir (gidiş kuyruğa alınır, betik geç yüklenirse kaybolmaz). CSP'de yalnız `script-src` ve `connect-src`'ye bu adres eklendi. Kendi kurulumlarda dışarıya istek yok. Ders: ölçüm betiğini ayrı dosya yerine `app.js` başına koydum, çünkü sunucu `web/` içinden yalnız bilinen dosyaları sunuyor; yeni dosya izin listesine de eklenmeliydi. |
 | 25 Kasım 2026 | Sayfa içleri kısaldı (Risk 8.744 → 2.140 px), kelimeler sadeleşti, demo düğmeleri etiketlendi |
 | 25 Kasım 2026 | Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); süreler kullanıcıdan, girilmeyen tahmini işaretli; yarım saatlik optimizasyon; 3 MCP aracı |
+| 25 Kasım 2026 | Demo eğitim süreleri alan uzmanı gözüyle (28 konu, gerekçeli tablo); tercih ve beceriye alan uzmanı rolü |

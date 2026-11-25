@@ -550,3 +550,46 @@ USTA_KATEGORILERI += [
                    cozum=["Yönetici onayı alındı\nKullanıcı ilgili gruba eklendi\nErişim kullanıcıyla doğrulandı"])]),
 ]
 KATEGORILER = USTA_KATEGORILERI + TEKNIK_KATEGORILER
+
+
+# ---------------------------------------------------------------- eğitim süreleri (alan uzmanı gözüyle)
+# Konu adı → (kartı yazma saati, sıfırdan öğretme saati, gerekçe). Süreler "temas saati"dir: usta ile
+# öğrenenin birlikte geçirdiği ya da ustanın yazıya ayırdığı süre; takvim bunu haftalara yayar.
+# Öğrenen aynı birimden, temel işi bilen biri varsayılır (destek uzmanı cihazı tanır, teknisyen elektriği bilir).
+# Kart: her çözüm yolu için ekran görüntülü ya da fotoğraflı adımlar + bir okuma/düzeltme turu.
+# Öğretme: vakaların üzerinden geçmek + gözetimli uygulama, öğrenen 3 işi tek başına yapana kadar.
+UZMAN_SURELERI: dict[str, tuple[float, float, str]] = {
+    # BT Destek
+    "El terminali bağlanmıyor": (1.5, 3, "Üç-dört yol (Wi-Fi profili, uygulama önbelleği, yedek cihaz); cihazı tanıyan biri MDM ekranını yarım günde öğrenir"),
+    "Etiket yazıcısı yazdırmıyor": (2, 4, "Ribon/etiket ayarı, kalibrasyon, kuyruk; fotoğraf gerekir. Kalibrasyon ve şablon elle denenerek öğrenilir"),
+    "Şifre ve hesap kilidi": (0.5, 1, "Tek ekran, tek akış; kimlik doğrulama kuralı en önemli kısmı"),
+    "Kablosuz ağ kopması": (2, 12, "Kontrolör ekranı, erişim noktası ve dolaşım (roaming) sorunları ağ bilgisi ister; iki saha turu dahil"),
+    "Bilgisayar ve ekran arızası": (1, 2, "Destek uzmanının temel işi; yalnız depo cihazlarına özgü noktalar"),
+    "E-posta ve takvim sorunu": (1, 1.5, "Standart ofis sorunları"),
+    "Yazılım kurulum talebi": (1, 2, "Kurulumdan çok lisans ve onay akışı öğrenilir"),
+    "Yetki ve erişim talebi": (1.5, 3, "Rol matrisi ve onay kuralları; yanlış yetki riski yüzünden gözetim süresi uzun"),
+    # Depo Sistemleri
+    "WMS adres ve yerleştirme hatası": (2, 8, "Lokasyon ana verisi ve yerleştirme kuralları; WMS'i kullanan biri için bir iş günü"),
+    "Stok uyuşmazlığı": (3, 16, "Hareket izleme, sayım düzeltme, ERP mutabakatı; finansal etkisi var, düzeltme onaylı yapılır"),
+    "Sipariş dalgası açılmıyor": (3, 20, "Üç yol (tahsis/rezerv, kilitli dalga işi, şablon kesim saati); dalga ve tahsis mantığı vardiya baskısı altında öğrenilir"),
+    "Barkod okunmuyor": (1, 3, "Okuyucu ayarı ve etiket kalitesi; çoğu sahada görülerek öğrenilir"),
+    "ERP entegrasyon hatası": (4, 32, "Mesaj kuyruğu, entegrasyon günlüğü, belge yeniden gönderme; yanlış yeniden gönderme mükerrer kayıt yaratır. ERP-WMS veri modeli nadir bilgi"),
+    "Rapor ve küp yenilenmiyor": (1.5, 6, "Zamanlanmış yenileme, kaynak bağlantısı, kapasite; raporlama bilen biri için"),
+    # Bakım
+    "Sorter arızası": (6, 40, "Sensör/fotosel hizalama, sıkışma, PLC hata kodları ve kilitleme-etiketleme (LOTO) adımları fotoğraflı; elektromekanik + PLC okuma, gözetimli 3 arıza"),
+    "Raf hasarı": (2, 4, "Hasar sınıfı (yeşil/sarı/kırmızı) ve bölge kapatma kuralı; karar vermeyi öğrenmek önemli"),
+    "Forklift ve akü arızası": (1.5, 6, "Akü değişimi ve şarj güvenliği uygulamalı öğrenilir"),
+    "Konveyör durması": (3, 16, "Motor, kayış, sensör ve hat kontrolü; durma nedenini ayırt etmek tecrübe ister"),
+    "Streç ve paketleme makinesi": (1.5, 4, "Film takma, gerdirme ayarı, sık arızalar"),
+    "Rampa ve kapı arızası": (2, 6, "Hidrolik rampa ve seksiyonel kapı; güvenlik kilitleri"),
+    # İdari İşler
+    "İş kıyafeti ve koruyucu ekipman": (0.5, 0.5, "Stok ve dağıtım listesi"),
+    "Servis ve yemek": (0.5, 0.5, "İletişim listesi ve değişiklik akışı"),
+    "Vardiya ve izin talebi": (1, 1.5, "İK sistemi ekranı ve onay kuralları"),
+    "Giriş kartı ve turnike": (1, 1.5, "Kart tanımlama ekranı ve kayıp kart akışı"),
+    # İSG ve Kalite
+    "İş kazası ve ramak kala": (2, 6, "Bildirim akışı ve yasal süreler, kayıt, kök neden; yanlış bildirim yasal risk"),
+    "Yangın ve sıcaklık alarmı": (3, 10, "Alarm paneli, bölge tespiti, yanlış alarm ayrımı, soğuk oda sapma prosedürü, kime haber verilir; yangın eğitimi ayrıca gerekir"),
+    "Dökülme ve temizlik": (1, 1, "Malzemeye göre temizlik ve atık kuralı"),
+    "Hasarlı ürün": (1, 2, "Ayırma, kayıt, iade/imha kararı"),
+}

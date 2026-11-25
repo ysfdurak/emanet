@@ -263,6 +263,10 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
             con.execute("INSERT INTO lisans(yazilim,toplam,kullanilan) VALUES(?,?,?)",
                         (y["ad"], y["lisans"], y["lisans"] if "Acrobat" in y["ad"] else y["lisans"] - 3))
     otomasyon.recete_tanimlarini_yukle(con, f"{bugun.isoformat()}T00:00:00")   # otomasyon bugün devreye girdi
+    # Eğitim süreleri: alan uzmanı gözüyle girilmiş değerler (katalog.UZMAN_SURELERI). Yeni açılan konular
+    # bu listede olmadığı için süresi girilene kadar "tahmini" kalır.
+    for ad, (kart, ogr, _) in K.UZMAN_SURELERI.items():
+        con.execute("UPDATE kategori SET kart_saat=?, ogrenme_saati=?, sure_onay=1 WHERE ad=?", (kart, ogr, ad))
     con.commit()
 
     meta_yaz(con, "uretim_tarihi", bugun.isoformat())
