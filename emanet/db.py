@@ -271,7 +271,8 @@ GOCLER = {
     "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT"), ("kart_saat", "REAL"),
                  ("sure_onay", "INTEGER NOT NULL DEFAULT 0")],
     "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT")],
-    "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT")],   # iki aşamalı form: yer ve konuya özel cevaplar (JSON)
+    "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT")],
+    "devir": [("devralan_sinir", "REAL NOT NULL DEFAULT 4")],   # devralanların haftalık devir saati (ayrılanınkinden ayrı)   # iki aşamalı form: yer ve konuya özel cevaplar (JSON)
     "recete": [("askida", "INTEGER NOT NULL DEFAULT 0"), ("askida_neden", "TEXT"), ("askida_zaman", "TEXT"),
                ("saglik_bas", "TEXT"), ("sahip", "TEXT")],
 }

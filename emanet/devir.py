@@ -197,8 +197,14 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
     kartli = {s["kategori_id"] for s in satirlar if s["tur"] in ("kart", "kart_taslak")}
     for s in satirlar:
         s.update(egitim.icerik(con, s, kart_planda=s["kategori_id"] in kartli))
-    t = (takvim.takvim_olustur(satirlar, simdi.date(), d["haftalik_sinir"], 1.0, 1, 5, ilk_gun=simdi.date())
-         if satirlar else None)
+    devralan_idleri = {k["devralan_id"] for k in konular if k["devralan_id"]}
+
+    def tk_kur(ayrilan_saat: float, devralan_saat: float) -> dict:
+        # Ayrılan ve devralanın sınırı ayrı: devralanın da günlük işi var, ama devraldığı iş onun gelecekteki işi
+        return takvim.takvim_olustur(satirlar, simdi.date(), ayrilan_saat, 1.0, 1, 5, ilk_gun=simdi.date(),
+                                     kisi_sinir={i: devralan_saat for i in devralan_idleri})
+    a0, v0 = d["haftalik_sinir"], d["devralan_sinir"]
+    t = tk_kur(a0, v0) if satirlar else None
     def gec_kalanlar(tk) -> list[dict]:
         out = []
         for k in konular:
@@ -207,19 +213,39 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
                 out.append(dict(ad=k["ad"], bitis=son))
         return out
     yetismeyen = gec_kalanlar(t) if t else []
-    onerilen_sinir = None
-    if yetismeyen:   # hangi haftalık saatle yetişir? (yarım saat adımlarla, en fazla 20 saat)
-        saat = d["haftalik_sinir"] + 0.5
-        while saat <= 20 and onerilen_sinir is None:
-            tk = takvim.takvim_olustur(satirlar, simdi.date(), saat, 1.0, 1, 5, ilk_gun=simdi.date())
-            if not gec_kalanlar(tk):
-                onerilen_sinir = saat
-            saat += 0.5
+    onerilen_sinir = onerilen_devralan_sinir = None
+    if yetismeyen:   # hangi haftalık saatle yetişir? Önce ayrılanınki, olmazsa devralanınki, olmazsa ikisi (en fazla 20)
+        def ara(kur) -> float | None:
+            saat = 1.0
+            while saat <= 20:
+                if not gec_kalanlar(kur(saat)):
+                    return saat
+                saat += 0.5
+            return None
+        s = ara(lambda x: tk_kur(x, v0)) if a0 < 20 else None
+        if s and s > a0:
+            onerilen_sinir = s
+        else:
+            s = ara(lambda x: tk_kur(a0, x)) if v0 < 20 else None
+            if s and s > v0:
+                onerilen_devralan_sinir = s
+            else:
+                s = ara(lambda x: tk_kur(max(a0, x), max(v0, x)))
+                if s:
+                    onerilen_sinir, onerilen_devralan_sinir = max(a0, s), max(v0, s)
     farkli_vardiya = [k["ad"] for k in konular if k["devralan_vardiya"] and k["devralan_vardiya"] != d["vardiya"] and k["asama"] < 3]
     uyarilar = []
     if yetismeyen:
-        cozum = (f"Haftalık devir saatini {onerilen_sinir:g} saate çıkarırsanız yetişir".replace(".", ",")
-                 if onerilen_sinir else "Haftada 20 saat bile yetmiyor: konuyu birden çok devralana bölün ya da çıkışı erteleyin")
+        def sy(x: float) -> str:
+            return f"{x:g}".replace(".", ",")
+        if onerilen_sinir and onerilen_devralan_sinir:
+            cozum = f"İkisini de haftada {sy(onerilen_devralan_sinir)} saate çıkarırsanız yetişir"
+        elif onerilen_sinir:
+            cozum = f"Ayrılanın ({d['ad']}) haftalık devir saatini {sy(onerilen_sinir)} saate çıkarırsanız yetişir"
+        elif onerilen_devralan_sinir:
+            cozum = f"Darboğaz devralan: devralanın haftalık saatini {sy(onerilen_devralan_sinir)} saate çıkarırsanız yetişir"
+        else:
+            cozum = "Haftada 20 saat bile yetmiyor: konuyu birden çok devralana bölün ya da çıkışı erteleyin"
         uyarilar.append(dict(seviye="kirmizi", metin=f"{len(yetismeyen)} konu çıkış gününe yetişmiyor: "
                              + ", ".join(f"{y['ad']} (devir {tarih_tr(y['bitis'])} biter)" for y in yetismeyen)
                              + f". {cozum}; ya da konuyu başka biriyle paylaştırın."))
@@ -238,6 +264,7 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
                 haftalik_sinir=d["haftalik_sinir"], konular=konular, maddeler=maddeler, adaylar=adaylar,
                 gorusme=[dict(no=i, soru=q, cevap=gorusme.get(str(i), "")) for i, q in enumerate(GORUSME_SORULARI)],
                 takvim=t, uyarilar=uyarilar, ilerleme=ilerleme, onerilen_sinir=onerilen_sinir,
+                devralan_sinir=d["devralan_sinir"], onerilen_devralan_sinir=onerilen_devralan_sinir,
                 ozet=dict(konu=len(konular), tamam=tamam_konu, zaten=sum(1 for k in konular if k["zaten_biliyor"]), madde=len(maddeler), madde_tamam=sum(m["yapildi"] for m in maddeler)))
 
 
@@ -320,11 +347,17 @@ def sahip_degistir(con: sqlite3.Connection, devir_id: int, recete_kod: str, yeni
     con.commit()
 
 
-def haftalik_sinir_ayarla(con: sqlite3.Connection, devir_id: int, saat: float) -> None:
+def haftalik_sinir_ayarla(con: sqlite3.Connection, devir_id: int, saat: float | None = None,
+                          devralan_saat: float | None = None) -> None:
+    """saat: ayrılanın haftalık devir saati; devralan_saat: devralanlarınki. Oturum 1 saat: en az 1."""
     _acik_devir(con, devir_id)
-    if not 0.5 <= saat <= 40:
-        raise ValueError("Haftalık sınır 0,5 ile 40 saat arasında olmalı")
-    con.execute("UPDATE devir SET haftalik_sinir=? WHERE id=?", (saat, devir_id))
+    for x in (saat, devralan_saat):
+        if x is not None and not 1 <= x <= 40:
+            raise ValueError("Haftalık sınır 1 ile 40 saat arasında olmalı")
+    if saat is not None:
+        con.execute("UPDATE devir SET haftalik_sinir=? WHERE id=?", (saat, devir_id))
+    if devralan_saat is not None:
+        con.execute("UPDATE devir SET devralan_sinir=? WHERE id=?", (devralan_saat, devir_id))
     con.commit()
 
 

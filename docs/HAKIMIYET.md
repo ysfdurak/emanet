@@ -387,6 +387,29 @@ Sorular:
 37. Süre sütunu yoksa ne çalışmaz?
 38. Sentetik veride %91 çıkan konu doğruluğu gerçek veride neden düşebilir, rapor bunu nasıl gösterir?
 
+## 6e. Eğitim içeriği, devir süreci ve çağrı formu (egitim.py, devir.py, cagri_formu.py)
+
+Üçü de aynı eleştiriden çıktı: ekran "ne" diyordu ama "nasıl" demiyordu ve sahada iş öyle yürümüyordu.
+
+- **Eğitim içeriği:** kapanmış çağrıların çözüm notları ilk adımlarına göre gruplanır (çözüm yolları);
+  her yoldan bilgi veren bir vaka seçilir. Gündem: kartı oku → vakalar → birlikte uygulama. Süreler
+  kullanıcıdan gelir; girilmemişse "tahmini" yazılır (veriden çıkmayan sayı veri gibi gösterilmez).
+- **Devir:** rapor değil süreç. Aşamalar beyanla değil devralanın devirden sonra kapattığı çağrılarla
+  ilerler (1. çağrı "birlikte", 3. çağrı "tek başına"). Kart yoksa devralan taslağı yazar, ayrılan
+  düzeltir; öğretmede vakalar tekrar edilmez. Ayrılanın ve devralanın haftalık saati ayrıdır; takvim
+  çıkışa yetişmiyorsa sistem darboğaz kimse onun saatini önerir.
+- **Çağrı formu:** önce metin (model konuyu tahmin eder), sonra konuya özel 2-3 soru. Öncelik
+  sorulmaz: işin durumu (3/2/1) + kimi etkiliyor (1/2/3); 5-6 Yüksek, 4 Orta. Bekleyen araç varsa
+  Yüksek. Cevaplar metne eklenmez (metin modelin öğrenme verisi), `ek_bilgi` sütununda durur.
+
+Sorular:
+39. Devralanın konuyu öğrendiğini neye bakarak söylüyorsun; neden "izledi" elle işaretleniyor?
+40. Kartı neden ayrılan değil devralan yazıyor, bunun bedeli ne?
+41. Takvim çıkışa yetişmiyorsa sistem hangi saati önerir, neden önce ayrılanınkine bakar?
+42. Önceliği neden kullanıcıya seçtirmiyorsun?
+43. Form cevaplarını neden çağrı metnine eklemiyorsun?
+44. "Önce bunu dene" adımlarını neden çözüm notlarından türetmedin?
+
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
 Tarayıcı bir düğmeye basınca `/api/...` adresine istek gider; `api.py` içindeki fonksiyon
@@ -538,3 +561,15 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
 38. Sentetik cümleler sınırlı kalıplardan üretildi. Gerçek çağrılar dağınık, kısa ve yanlış konuya
     atanmış olabilir. Rapor, modelin kullanıcının kendi verisinde, eğitimde görmediği en yeni
     çağrılardaki başarısını ve eski kurala göre farkını yazar.
+39. Devralanın devir başladıktan sonra o konuda kendi kapattığı çağrı sayısına. İzlemek kayıt bırakmaz;
+    sistemin göremediğini uydurmak yerine elle işaretletiyorum.
+40. Devralan eski vakaları tek tek açıp yazarken öğrenir; ayrılanın saati düşer (Murat'ta 15 → 9) ve devir
+    ilk hafta başlar. Bedeli devralanın yükünün artması (11 → 13 saat); ama bu saat onun gelecekteki işi.
+41. Önce ayrılanınkine: genelde darboğaz odur ve bıraktığı işin yükü azalır. O yetmezse devralanınkine,
+    o da yetmezse ikisine birden; 20 saati aşan öneri yapmaz, konuyu bölmeyi ya da çıkışı ertelemeyi söyler.
+42. Seçtirilen öncelik herkesin "yüksek" dediği alan olur. Kişinin bildiğini soruyorum (iş durdu mu, kaç
+    kişi, araç bekliyor mu); önceliği kuralla hesaplayıp gerekçesini gösteriyorum. Sunucu kendi hesaplar.
+43. Metin modelin öğrenme verisi. "Yazıcı numarası: YZ-07" gibi form cümleleri her çağrıda tekrar
+    ederek modelin belirleyici sözcüklerini bozar.
+44. Notlar uzmanın uzmana yazdığı adımlar ("entegrasyon günlüğünde belgeyi bul"); çağrıyı açan depo
+    çalışanı bunları yapamaz. Yalnız kullanıcının güvenle yapabileceği adımları elle yazdım.

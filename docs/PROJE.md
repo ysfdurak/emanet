@@ -291,6 +291,16 @@ Takvime bunun için "önceki adım bitmeden başlama" kuralı eklendi (`takvim.p
 Murat örneği: ayrılanın devir saati 15 → 9; takvim 15 Aralık'ta bitiyor (çıkış 16 Aralık), haftalık saati
 artırma uyarısı kalktı. Bedeli: devralanın yükü artar (11 → 13 saat); ama bu saat zaten onun gelecekteki işi.
 
+**Devralanın ayrı haftalık sınırı.** Ayrılan ve devralan aynı sınırı paylaşıyordu; oysa devralanın da günlük
+işi var. Artık ikisi ayrı (`devir.devralan_sinir`, varsayılan 4; takvimde `kisi_sinir`). Takvim yetişmiyorsa
+öneri sırası: önce ayrılanın saati, yetmezse devralanınki, o da yetmezse ikisi birden (en fazla 20).
+Ekran süreyi kimin belirlediğini söyler: "Süreyi Emre Çelik belirliyor: 13 saat, haftada 4 saatle en az 4 hafta."
+
+**Çağrı formu, kullanıcı gözüyle ikinci bakış:** telefonda ikinci aşama 1027. pikselden başlıyordu; sorular
+açıldığında kullanıcı fark etmiyordu. Metin yazılınca örnek cümleler gizleniyor (ikinci aşama ~800 px'e çıktı)
+ve sorular hâlâ görünmüyorsa tahminin altında "6 kısa soru açıldı ↓" düğmesi çıkıyor. Kuyrukta çağrının yeri
+görünüyor. Yetki ve kurulum talebinde "Nerede?" sorulmuyor.
+
 ### İki aşamalı çağrı formu
 
 Eleştiri: "Çağrı açma kısmı fazla basit." Eski form tek metin + kişinin seçtiği aciliyetti. Sorunları:
@@ -522,7 +532,7 @@ görev odaklı bakış buldu.
    sonucu bir amirin kafasında yeniden yapabileceği kadar basittir. Takvimin uzunluğunu genelde tek kişi
    belirler (darboğaz); ekran onu adıyla gösterir: "Süreyi Kemal belirliyor".
 
-Daha fazlası: HAKIMIYET.md, 1–38. sorular.
+Daha fazlası: HAKIMIYET.md, 1–44. sorular (39–44: eğitim içeriği, devir, çağrı formu).
 
 ## 10. Kendini test et
 
@@ -592,3 +602,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Devir süreci: aşamalar çağrıyla, devralana yanında öğrenme, çıkışa yetişme ve önerilen haftalık saat, kontrol listesi, görüşme, tutanak; 117 test |
 | 25 Kasım 2026 | Devir sayfası kullanıcı gözüyle (Bu hafta kutusu, kısa takvim, dürüst durum satırı; 4813 → 2959 px); iki aşamalı çağrı formu (konuya özel sorular, hesaplanan öncelik, aynı sorun uyarısı, önce bunu dene); 123 test |
 | 25 Kasım 2026 | Devirde kartı devralan yazar, ayrılan düzeltir (takvimde adım sırası kuralı); ayrılanın saati 15 → 9; 124 test |
+| 25 Kasım 2026 | Devralanın ayrı haftalık sınırı ve darboğaz cümlesi; çağrı formu telefonda (örnekler gizlenir, "soru açıldı" düğmesi), kuyrukta yer; README ve HAKIMIYET (39–44. sorular) güncel; 125 test |

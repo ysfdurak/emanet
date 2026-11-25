@@ -13,9 +13,9 @@ konusu, yaklaşık 900 Usta çağrısı ve 650 kayıtlık bir bakım dökümü b
 
 | Modül | Soru | Cevap |
 | --- | --- | --- |
-| Usta | Bu çağrı hangi konu, kime gitmeli, daha önce nasıl çözülmüştü? | Konu modeli (emin değilse sorar), kişi modeli (izin ve vardiyaya göre), benzer çağrıların çözüm yolları |
+| Usta | Bu çağrı hangi konu, kime gitmeli, daha önce nasıl çözülmüştü? | İki aşamalı form (konuya özel sorular, cevaplardan hesaplanan öncelik, "zaten bildirildi" uyarısı, "önce bunu dene"), konu modeli (emin değilse sorar), kişi modeli (izin ve vardiyaya göre), benzer çağrıların çözüm yolları |
 | Otomasyon | Hangi çağrılar insansız çözülebilir? | Talep karşılama (Teams'ten soru ve onay), bilinen çözümü deneme, toplu arıza, kapanış teyidi, işe giriş/çıkış, notlardan reçete önerisi |
-| Emanet | Hangi konu kimin elinde, o giderse ne olur, aldığımız önlem işe yaradı mı? | Risk haritası ve seyri, "ya giderse", devir dosyası, izin kontrolü, bütçeli eğitim planı, haftalara yayılmış eğitim takvimi (Excel) ve takibi, kendi dökümünü yükleme |
+| Emanet | Hangi konu kimin elinde, o giderse ne olur, aldığımız önlem işe yaradı mı? | Risk haritası ve seyri, "ya giderse", devir süreci (aşamalar gerçek çağrıyla ölçülür, kartı devralan yazar, çıkışa yetişme kontrolü, tutanak), izin kontrolü, bütçeli eğitim planı, eski çağrılardan eğitim içeriği, haftalara yayılmış eğitim takvimi (Excel) ve takibi, kendi dökümünü yükleme |
 | Değişimler | Sistem değişti, yeni biri geldi, otomasyon bozuldu: risk bunu nasıl görür? | Sistem geçişi (yeni konu, geçici puan, erken uyarı, geçiş adayları), çırak modu ve işe alışma, otomasyon sağlığı (otomatik askıya alma), gerçek ayrılış kaydı |
 
 **Genel bakış** "Bugün neye bakmalı?" listesiyle açılır: yedeksiz kritik konular, askıdaki otomasyon,
@@ -119,6 +119,9 @@ emanet/
   otomasyon.py    Reçeteler, yetki çerçevesi, Teams benzeri mesajlaşma, altı otomasyon akışı, sağlık
   risk.py         Risk puanı, ısı haritası, ya giderse, eğitim planı (kural + optimizasyon)
   takvim.py       Eğitim planını kişi başı haftalık sınırla haftalara ve günlere yerleştirir
+  egitim.py       Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); konu süreleri
+  devir.py        Devir süreci: aşamalar, kontrol listesi, görüşme, devir takvimi, tutanak
+  cagri_formu.py  İki aşamalı çağrı formu: konuya özel sorular, öncelik hesabı, aynı sorun, kendin dene
   takip.py        İzin kontrolü, plan takibi, devir dosyası, risk seyri, reçete fırsatları, dikkat listesi
   degisim.py      Sistem geçişi, yeni personel ve işe alışma, gerçek ayrılış
   yerel.py        Kendi çağrı verinle yerel kurulum: içe aktarma, takma ad, rapor
@@ -138,11 +141,11 @@ docs/             PROJE.md (yaşayan doküman), HAKIMIYET.md (derin anlatım + s
 Sunucu çalışırken MCP adresi `/mcp` olur (Streamable HTTP) ve anahtar ister: Claude'da özel
 bağlayıcı adresi `https://<alan>/mcp`, anahtar istek başlığında `Authorization: Bearer <anahtar>` (önerilen; `…/mcp/<anahtar>` da çalışır ama anahtar adreste görünür). Anahtarlar
 `.env` içinde `EMANET_MCP_ANAHTARLARI` (virgülle, her biri en az 24 karakter; `openssl rand -hex 32`).
-MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 19 araç:
+MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 24 araç:
 
 | Araç | Ne yapar |
 | --- | --- |
-| `cagri_ac` | Sistemsel çağrı açar; konu, atama ve çözüm yolunu döndürür |
+| `cagri_ac` | Sistemsel çağrı açar; konu, atama ve çözüm yolunu döndürür. Etki ve kapsam verilirse öncelik hesaplanır; sorulmayan konu sorularını döndürür |
 | `cagrilari_listele` | Birime, kişiye, duruma göre çağrılar |
 | `nasil_cozuldu` | Bir sorun geçmişte nasıl çözülmüş, kaç kez, kim çözmüş |
 | `cagriyi_kapat` | Çağrıyı çözüm notuyla kapatır (istenirse karta dönüştürür) |
@@ -157,7 +160,12 @@ MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 19 araç
 | `risk_haritasi` | Konu bazında risk puanları ve nedenleri |
 | `tek_kisiye_kalanlar` | İzinler yüzünden yedeksiz kalan konular |
 | `ya_giderse` | Bir kişi yoksa etki özeti |
-| `egitim_plani_oner` | Saat bütçesiyle eğitim eşleşmeleri |
+| `egitim_plani_oner` | Saat bütçesiyle eğitim eşleşmeleri ve haftalık takvim |
+| `egitim_icerigi` | Bir konunun eğitiminde ne gösterilir: çözüm yolları, örnek vakalar, gündem |
+| `konu_sureleri` | Konuların kart yazma ve öğrenme süreleri (girilmemişse "tahmini") |
+| `konu_suresi_ayarla` | Bir konunun sürelerini girer |
+| `devir_baslat` | Ayrılan kişi için devir sürecini başlatır |
+| `devir_durumu` | Devrin aşamaları, kontrol listesi, takvimi ve çıkışa yetişip yetişmediği |
 | `degisimler` | Sistem geçişleri, yeni personelin işe alışması, otomasyon sağlığı |
 | `ise_alisma` | Bir kişinin konu konu ilerlemesi, yetkinliğe ne kaldı |
 | `gecis_kaydet` | Sistem geçişini kaydeder (eski konu kapanır, yeni konu açılır) |

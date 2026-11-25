@@ -112,3 +112,24 @@ def test_karti_devralan_yazar_ayrilan_duzeltir(con):
     ogretme = [o for o in os_ if o["tur"] in ("tazeleme", "egitim") and o["kategori_id"] == taslak[0]["kategori_id"]]
     assert all("Vaka #" not in m for o in ogretme for m in o["gundem"])     # vakalar taslakta geçildi
     assert any("taslağı yazar" in m["metin"] for m in d["maddeler"])
+
+
+def test_devralanin_sinirini_ayri_ayarlanir(con):
+    d = devir.baslat(con, kid(con, "Murat Özkan"), "2026-12-16", simdi=S)
+    devir.haftalik_sinir_ayarla(con, d["id"], 6, 1)            # ayrılan bol, devralan haftada 1 saat
+    d = devir.durum(con, d["id"], S)
+    if not d["takvim"]:
+        pytest.skip("Kalan oturum yok")
+    assert d["devralan_sinir"] == 1
+    hafta = {}
+    for o in d["takvim"]["oturumlar"]:
+        if o["ogrenen_id"] or o["tur"] == "kart_taslak":
+            dv = o["ogrenen_id"] or o["ogreten_id"]
+            hafta[(dv, o["hafta"])] = hafta.get((dv, o["hafta"]), 0) + o["saat"]
+    assert max(hafta.values()) <= 1
+    # Darboğaz devralansa öneri devralanın saatini artırır, ayrılanınkini değil
+    if d["uyarilar"] and d["uyarilar"][0]["seviye"] == "kirmizi":
+        assert d["onerilen_devralan_sinir"] and not d["onerilen_sinir"]
+    with pytest.raises(ValueError):
+        devir.haftalik_sinir_ayarla(con, d["id"], devralan_saat=0.5)
+    devir.haftalik_sinir_ayarla(con, d["id"], 4, 4)

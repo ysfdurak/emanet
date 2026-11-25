@@ -828,7 +828,8 @@ class DevirSahipIstek(BaseModel):
 
 
 class DevirSinirIstek(BaseModel):
-    saat: float = Field(ge=0.5, le=40)
+    saat: float | None = Field(None, ge=1, le=40)            # ayrılan
+    devralan_saat: float | None = Field(None, ge=1, le=40)   # devralanlar
 
 
 @api.get("/api/devir-sureci")
@@ -880,7 +881,7 @@ def devir_sahip(devir_id: int, i: DevirSahipIstek):
 @api.post("/api/devir-sureci/{devir_id}/sinir")
 def devir_sinir(devir_id: int, i: DevirSinirIstek):
     with KILIT:
-        devir_surec.haftalik_sinir_ayarla(con, devir_id, i.saat)
+        devir_surec.haftalik_sinir_ayarla(con, devir_id, i.saat, i.devralan_saat)
         return devir_surec.durum(con, devir_id)
 
 
