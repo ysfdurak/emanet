@@ -117,3 +117,8 @@ footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--soluk);fon
 .degistir summary{cursor:pointer;color:var(--vurgu);font-size:.9rem;font-weight:600}
 .degistir .sira{margin-top:.5rem}
 .degistir select,.degistir input{font-size:.88rem}
+/* .kucuk hem küçük düğme hem soluk açıklama metni için kullanılıyor; düğmede yazı rengi korunur */
+.dugme.kucuk{color:#fff}
+.dugme.kucuk.ikincil{color:var(--vurgu)}
+.teams{color:var(--murekkep)}
+.teams .ust-satir{color:#3f418a}
