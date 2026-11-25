@@ -35,8 +35,8 @@ GORUSME_SORULARI = [
     "Yarım kalan ya da yakında beklenen bir iş, değişiklik var mı?",
 ]
 ELLE_MADDELER = {
-    "hesap": "Hesapları ve yetkileri çıkış günü kapatılsın (İK kaydıyla işten çıkış paketi)",
-    "ekipman": "Cihazları, anahtarları ve kartları teslim alınsın",
+    "hesap": "Hesaplar ve yetkiler çıkış günü kapatılsın (İK kaydıyla işten çıkış paketi)",
+    "ekipman": "Cihazlar, anahtarlar ve kartlar teslim alınsın",
 }
 
 
@@ -138,14 +138,14 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
     acik = con.execute("SELECT COUNT(*) FROM cagri WHERE atanan_kisi_id=? AND durum='acik'", (d["kisi_id"],)).fetchone()[0]
     receteler = [dict(x) for x in con.execute("SELECT kod, ad, sahip FROM recete WHERE sahip=? AND tur!='taslak'", (d["ad"],))]
     gorusme = json.loads(d["gorusme"] or "{}")
-    maddeler = [dict(kod="acik", metin=f"Açık çağrıları devredilsin ({acik} açık)" if acik else "Açık çağrısı yok",
+    maddeler = [dict(kod="acik", metin=f"Açık çağrılar başkasına atansın ({acik} açık)" if acik else "Açık çağrısı kalmadı",
                      yapildi=acik == 0, otomatik=True)]
     maddeler += [dict(kod=f"sahip:{x['kod']}", metin=f"“{x['ad']}” otomatik çözümünün bakımı başka birine verilsin",
                       yapildi=False, otomatik=True, recete=x["kod"]) for x in receteler]
     # Sahipliği bu devirde devredilenler listede "yapıldı" olarak kalır
     for x in con.execute("SELECT m.kod, r.ad, r.sahip FROM devir_madde m JOIN recete r ON 'sahip:' || r.kod = m.kod "
                          "WHERE m.devir_id=? AND m.yapildi=1", (devir_id,)):
-        maddeler.append(dict(kod=x["kod"], metin=f"“{x['ad']}” otomatik çözümünün bakımı {x['sahip']} kişisine verildi",
+        maddeler.append(dict(kod=x["kod"], metin=f"“{x['ad']}” otomatik çözümünün bakımı devredildi (yeni sahibi {x['sahip']})",
                              yapildi=True, otomatik=True))
     # Kart: yazılı çözümü olmayan konular ve devir sırasında kartı yazılanlar
     yazilan = {r[0] for r in con.execute("SELECT DISTINCT kategori_id FROM cozum_karti WHERE olusturma>=?", (d["baslangic"],))}
@@ -217,7 +217,7 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
                 haftalik_sinir=d["haftalik_sinir"], konular=konular, maddeler=maddeler, adaylar=adaylar,
                 gorusme=[dict(no=i, soru=q, cevap=gorusme.get(str(i), "")) for i, q in enumerate(GORUSME_SORULARI)],
                 takvim=t, uyarilar=uyarilar, ilerleme=ilerleme, onerilen_sinir=onerilen_sinir,
-                ozet=dict(konu=len(konular), tamam=tamam_konu, madde=len(maddeler), madde_tamam=sum(m["yapildi"] for m in maddeler)))
+                ozet=dict(konu=len(konular), tamam=tamam_konu, zaten=sum(1 for k in konular if k["zaten_biliyor"]), madde=len(maddeler), madde_tamam=sum(m["yapildi"] for m in maddeler)))
 
 
 def acik_devirler(con: sqlite3.Connection) -> list[dict]:
@@ -317,7 +317,8 @@ def tutanak(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = Non
     s = [f"# Devir tutanağı: {d['kisi']['ad']}", "",
          f"- Birim: {d['kisi']['birim']}  ", f"- Devir başlangıcı: {d['baslangic']}  ",
          f"- Son çalışma günü: {d['cikis_tarihi']} ({d['gun_kaldi']} gün kaldı)  ",
-         f"- Durum: {d['ozet']['tamam']}/{d['ozet']['konu']} konu devredildi, "
+         f"- Durum: {d['ozet']['tamam'] - d['ozet']['zaten']}/{d['ozet']['konu'] - d['ozet']['zaten']} konu devredildi "
+         f"({d['ozet']['zaten']} konuda devralan işi zaten biliyordu), "
          f"{d['ozet']['madde_tamam']}/{d['ozet']['madde']} madde tamam", "", "## Konular", "",
          "| Konu | Devralan | Aşama | Kanıt |", "| --- | --- | --- | --- |"]
     for k in d["konular"]:

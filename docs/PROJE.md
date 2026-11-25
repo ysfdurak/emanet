@@ -270,8 +270,66 @@ flowchart LR
 **Mülakat sorusu:** *"Devralanın öğrendiğini nasıl anlıyorsun?"* Beyana bakmıyorum: devir başladıktan sonra
 o konuda kendi kapattığı çağrı sayısına bakıyorum. Yalnız "izledi" elle, çünkü izlemeyi kayıt göremez.
 
-**Sıradaki (onaylandı):** çağrı açma formu iki aşamalı olacak (konuya özel sorular, aciliyet cevaplardan,
-açılmadan önce "aynı sorun bildirildi" ve "önce bunu dene").
+**Kullanıcı gözüyle ikinci bakış (25 Kasım):** telefonda devir sayfası 4813 px'ti; altıda biri aynı cümleyi
+tekrarlayan takvimdi. Düzeltmeler: üstte **"Bu hafta"** kutusu (oturumlar ve bekleyen işler: izleme,
+açık çağrılar, görüşme); takvimde ilk iki hafta açık, kalanı açılır bölümde ve aynı işin cümlesi bir kez;
+görüşme açılır bölümde ("0/5 soru cevaplandı"); durum satırı dürüst ("0/1 konu devredildi, 5 konuda devralan
+zaten biliyor"; eskiden "5/6" yazıyordu, ilerleme var gibi görünüyordu); madde dili düzeltildi ("Açık
+çağrıları devredilsin" → "Açık çağrılar başkasına atansın"). Sonuç: 4813 → 2959 px, 797 → 486 kelime.
+
+**Alan uzmanı notu (öneri, uygulanmadı):** takvimde ayrılan kişi ilk 1,5 haftayı kartı tek başına yazmaya
+harcıyor, devralan ikinci haftada başlıyor. Sahada daha verimli yol: **kartı devralan yazar, ayrılan düzeltir.**
+Devralan yazarken öğrenir, ayrılanın saati yarıya iner, devir bir hafta erken başlar.
+
+### İki aşamalı çağrı formu
+
+Eleştiri: "Çağrı açma kısmı fazla basit." Eski form tek metin + kişinin seçtiği aciliyetti. Sorunları:
+herkes "yüksek" seçer; çözen kişi ilk iş geri arayıp "hangi yazıcı, nerede?" diye sorar; aynı arıza beş kez
+açılır; ribonu biten yazıcı için bir uzmanın işi bölünür. Yeni akış (`emanet/cagri_formu.py`):
+
+```mermaid
+flowchart TD
+  M[1. Sorunu kendi cümlenle yaz] --> T{Model konuyu<br/>tahmin eder}
+  T -- emin değil --> S[Kişi konuyu seçer]
+  T -- emin --> F
+  S --> F[2. Konuya özel sorular<br/>yazıcı no · etiket türü · dalga no · hata mesajı]
+  F --> D[Önce bunu dene<br/>kullanıcının güvenle yapabileceği adımlar]
+  F --> B[Aynı sorun son 1 saatte<br/>bu yerde bildirildi mi?]
+  F --> O[Etki + kapsam → öncelik<br/>gerekçesiyle]
+  D -- çözüldü --> X[Çağrı açılmaz, sayılır]
+  O --> A[Çağrı açılır: yer ve cevaplar<br/>çözen kişinin ekranında]
+```
+
+- **Öncelik sorulmaz, hesaplanır.** BT hizmet yönetimindeki etki x aciliyet matrisinin sahaya uyarlanmışı:
+  işin durumu (durdu 3, yavaşladı 2, etkilemiyor 1) + kimi etkiliyor (ben 1, ekip 2, bütün alan 3); 5-6 Yüksek,
+  4 Orta, aşağısı Düşük. **Bekleyen araç ya da sevkiyat saati** varsa iş etkilendiği sürece Yüksek (depoda
+  asıl maliyet kaçan araçtır). Kritik konuda iş durduysa en az Orta. Gerekçe ekranda düz cümle:
+  "İş tamamen durdu + yalnız ben + bekleyen araç var → Yüksek". Sunucu kendi hesaplar; gönderilen `aciliyet`
+  form alanlarıyla birlikte yok sayılır (kimse "yüksek" yazıp öne geçemez).
+- **Talep arıza değildir.** Yazılım kurulumu ve yetki talebinde "iş durdu mu" yerine "ne zamana lazım" sorulur;
+  en fazla Orta. Yetki talebi onaylayan yöneticiyi ister (gerçekte onaysız yetki verilmez). Yer sorulmaz.
+- **Sorular tanı koydurur.** Örn. el terminali: "Başka bir terminal denedin mi?" İkisi de çalışmıyorsa sorun
+  cihazda değil ağda ya da sistemde; çözen kişi ilk adımı atlar. Sorusu tanımlanmamış yeni konu genel iki soru alır.
+- **Cevaplar metne eklenmez.** Metin modelin öğrenme verisi; form cümleleriyle kirlenmesin diye cevaplar
+  `cagri.ek_bilgi` (JSON, soru metniyle) ve `cagri.yer` sütunlarında durur. Soru listesi sonradan değişse de
+  eski kayıt okunur kalır. Seçim cevabı seçeneklerden biri olmalı; metin cevabı 200 karakterle kesilir.
+- **Aynı sorun uyarısı:** aynı konuda son 60 dakikada açık çağrı varsa (yer yazıldıysa aynı yer ya da yeri
+  bilinmeyen) "zaten bildirilmiş olabilir" listesi çıkar. Engellemez: üç kişi bildirince toplu arıza tek kayda
+  birleşir. Toplu kontrol artık formdaki yeri de kullanır (eskiden yalnız metinde geçen yeri arıyordu).
+- **"Önce bunu dene" çözüm notlarından türetilmedi.** Notlar uzmanın uzmana yazdığı adımlar ("entegrasyon
+  günlüğünde belgeyi bul"); çağrıyı açan depo çalışanı bunları yapamaz. Bu yüzden yalnız kullanıcının güvenle
+  yapabileceği adımlar elle yazıldı (ribon/kapak, kapat-aç, yan göze bak). "Bununla çözüldü" denirse çağrı
+  açılmaz ve konu başına sayılır (açılmayan çağrı ölçüsü). Konuda otomatik çözüm varsa form bunu söyler.
+- Çağrı detayında yer, cevaplar ve öncelik gerekçesi görünür. MCP `cagri_ac`: `yer`, `etki`, `kapsam`,
+  `sevkiyat`, `cevaplar` parametreleri; sonuçta öncelik gerekçesi ve sorulmayan sorular döner (Claude
+  kullanıcıya eksikleri sorabilsin).
+
+**Mülakat sorusu:** *"Önceliği neden kullanıcıya seçtirmedin?"* Seçtirilen öncelik herkesin "yüksek" dediği bir
+alan olur ve sıralamayı anlamsızlaştırır. Kişinin bildiği şeyi soruyorum (iş durdu mu, kaç kişi, araç bekliyor
+mu); önceliği kuralla ben hesaplıyorum ve gerekçesini gösteriyorum. Kural tek dosyada, değiştirmek kolay.
+
+**Kendini test et:** Gece vardiyasında tek bir el terminali bağlanmıyor, operatör yedek terminalle devam
+ediyor, araç yok. Öncelik ne çıkar? *(Yavaşladı 2 + yalnız ben 1 = 3 → Düşük.)*
 
 ### Gerçek Teams bağlantısı nasıl kurulur?
 
@@ -521,5 +579,5 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Sayfa içleri kısaldı (Risk 8.744 → 2.140 px), kelimeler sadeleşti, demo düğmeleri etiketlendi |
 | 25 Kasım 2026 | Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); süreler kullanıcıdan, girilmeyen tahmini işaretli; yarım saatlik optimizasyon; 3 MCP aracı |
 | 25 Kasım 2026 | Demo eğitim süreleri alan uzmanı gözüyle (28 konu, gerekçeli tablo); tercih ve beceriye alan uzmanı rolü |
-
 | 25 Kasım 2026 | Devir süreci: aşamalar çağrıyla, devralana yanında öğrenme, çıkışa yetişme ve önerilen haftalık saat, kontrol listesi, görüşme, tutanak; 117 test |
+| 25 Kasım 2026 | Devir sayfası kullanıcı gözüyle (Bu hafta kutusu, kısa takvim, dürüst durum satırı; 4813 → 2959 px); iki aşamalı çağrı formu (konuya özel sorular, hesaplanan öncelik, aynı sorun uyarısı, önce bunu dene); 123 test |

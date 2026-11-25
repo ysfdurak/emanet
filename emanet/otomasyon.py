@@ -553,6 +553,14 @@ def _yer(metin: str) -> str | None:
     return next((y for y in K.YERLER if kucult(y) in k), None)
 
 
+def _cagri_yer(c) -> str | None:
+    """Formda yazılan yer öncelikli; yoksa metinde geçen bilinen yer. Yazılış farkı (büyük/küçük) birleşmeyi bozmasın."""
+    y = c["yer"] if "yer" in c.keys() and c["yer"] else None
+    if y:
+        return next((x for x in K.YERLER if kucult(x) == kucult(y)), y.strip())
+    return _yer(c["metin"])
+
+
 def toplu_kontrol(con: sqlite3.Connection, cagri_id: int, simdi: datetime | None = None) -> dict | None:
     """Aynı konuda (ve aynı yerde) son 60 dakikada 3 ya da daha fazla açık çağrı varsa tek olayda birleştirir."""
     simdi = simdi or datetime.now()
@@ -560,17 +568,17 @@ def toplu_kontrol(con: sqlite3.Connection, cagri_id: int, simdi: datetime | None
                     (cagri_id,)).fetchone()
     if c["kategori_kod"] in TOPLU_HARIC:
         return None
-    yer = _yer(c["metin"])
+    yer = _cagri_yer(c)
     esik = (simdi - timedelta(minutes=TOPLU_PENCERE_DK)).isoformat(timespec="minutes")
     adaylar = [dict(r) for r in con.execute(
         "SELECT * FROM cagri WHERE kaynak='usta' AND durum='acik' AND kategori_id=? AND acilis>=? ORDER BY acilis, id",
         (c["kategori_id"], esik))]
     if yer:
-        adaylar = [a for a in adaylar if _yer(a["metin"]) in (yer, None)]
+        adaylar = [a for a in adaylar if _cagri_yer(a) in (yer, None)]
     else:
         # Yer yazılmamışsa yalnızca yer yazılmamış çağrılarla birleşir: farklı yerlerden gelen
         # çağrılar aynı arıza değildir (ör. üç ayrı rampadaki üç ayrı yazıcı).
-        adaylar = [a for a in adaylar if _yer(a["metin"]) is None]
+        adaylar = [a for a in adaylar if _cagri_yer(a) is None]
     if len({a["acan_kisi"] or f"#{a['id']}" for a in adaylar}) < TOPLU_ESIK:
         return None
     olay_id = next((a["olay_id"] for a in adaylar if a["olay_id"]), None)

@@ -18,6 +18,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from . import degisim, egitim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
 from . import devir as devir_surec
+from . import cagri_formu
 
 sunucu = MCPServer(
     name="Emanet",
@@ -96,13 +97,18 @@ def _yol_sade(y: dict) -> dict:
 
 @arac
 def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiya: str | None = None,
-             konu: str | None = None, acan_kisi: str | None = None) -> dict:
+             konu: str | None = None, acan_kisi: str | None = None, yer: str | None = None,
+             etki: str | None = None, kapsam: str | None = None, sevkiyat: bool = False,
+             cevaplar: dict[str, str] | None = None) -> dict:
     """Sistemsel bir destek çağrısı (BT veya depo sistemi) açar. Makine öğrenmesi modeli konuyu tahmin eder,
     vardiyada olan en uygun kişiye atar ve geçmişte nasıl çözüldüğünü döndürür.
 
     Model konudan emin değilse hata döner ve aday konuları listeler; o zaman 'konu' parametresiyle tekrar çağır.
     Teknik arızalar (sorter, konveyör, forklift...) Usta'nın kapsamında değildir.
     aciliyet: 1 düşük, 2 orta, 3 yüksek. vardiya: gunduz | aksam | gece (boşsa o anki saat). Demo verisine yazar.
+    Öncelik için tercihen kişiye sor ve etki (durdu | yavas | yok) ile kapsam (ben | ekip | alan) ver; o zaman
+    aciliyet bunlardan hesaplanır. sevkiyat: bekleyen araç ya da sevkiyat saati varsa True. yer: örn. "paketleme hattı 2".
+    cevaplar: konuya özel soruların cevapları (sonuçtaki 'sorulmayanlar' listesindeki kodlarla).
     """
     with KILIT:
         con = baglanti()
@@ -115,13 +121,24 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
             if o["soru_gerekli"]:
                 raise ValueError("Konu belirsiz. Adaylar: " + ", ".join(f"{x['ad']} (%{round(x['puan'] * 100)})"
                                  for x in o["oneriler"]) + ". 'konu' parametresiyle yeniden çağır.")
-        c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi)
+        kid_son = kid or usta.kategori_oner(con, metin)["oneriler"][0]["kategori_id"]
+        k = con.execute("SELECT kod, kritiklik FROM kategori WHERE id=?", (kid_son,)).fetchone()
+        cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar)
+        ek, onc = None, None
+        if etki or kapsam or cevap or yer:
+            onc = cagri_formu.aciliyet_hesapla(etki, kapsam, sevkiyat, k["kritiklik"], k["kod"] in cagri_formu.TALEP_KONULARI)
+            aciliyet = onc["seviye"]
+            ek = cagri_formu.ek_bilgi_json(k["kod"], cevap, etki, kapsam, sevkiyat, None, onc)
+        c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer, ek_bilgi=ek)
+        sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"))
+                      for s in cagri_formu.sorular(k["kod"]) if s["kod"] not in cevap]
     o = c.get("otomasyon")
     return dict(otomasyon=(dict(recete=o["recete"], durum=o["durum"], son_adim=o["gunluk"][-1]["metin"],
                                 bekleyen_mesajlar=[dict(id=m["id"], kime=m["kime"], metin=m["metin"], secenekler=m["secenekler"])
                                                    for m in o["mesajlar"] if m["cevap"] is None and m["tur"] in ("soru", "onay")])
                            if o else None),
-                toplu_ariza=c.get("toplu"),cagri=_sade_cagri(c), konu_guveni=c["oneri"]["guven"], belirleyici_sozcukler=c["oneri"]["belirleyici"],
+                toplu_ariza=c.get("toplu"), cagri=_sade_cagri(c),
+                oncelik=onc["gerekce"] if onc else "Kişinin seçtiği aciliyet", sorulmayanlar=sorulmayan, konu_guveni=c["oneri"]["guven"], belirleyici_sozcukler=c["oneri"]["belirleyici"],
                 atama=dict(kisi=c["atama"]["ad"], neden=c["atama"]["neden"], uzman_notu=c["atama"]["uzman_notu"],
                            model_siralamasi=c["atama"]["siralama"]),
                 yol=_yol_sade(c["yol"]))

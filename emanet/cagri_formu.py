@@ -1,0 +1,229 @@
+"""İki aşamalı çağrı formu: konuya özel sorular, kendin dene adımları ve öncelik hesabı.
+
+1. aşama: kişi sorunu kendi cümlesiyle yazar, model konuyu tahmin eder (usta.kategori_oner).
+2. aşama: konuya göre 2-3 soru açılır. Cevaplar çağrıya ek bilgi olarak yazılır; metne eklenmez,
+   çünkü metin modelin öğrenme verisidir ve form sorularıyla kirlenmemeli.
+
+Öncelik kişiye sorulmaz ("aciliyet: yüksek" herkesin seçtiği şeydir); etki ve kapsamdan hesaplanır.
+Bu, BT hizmet yönetimindeki etki x aciliyet matrisinin sahaya uyarlanmış hâlidir.
+
+Sorular ve "kendin dene" adımları alan uzmanı gözüyle yazıldı. Çözüm notlarından türetilmedi:
+notlar uzmanın uzmana yazdığı adımlardır ("entegrasyon günlüğünde belgeyi bul"), çağrıyı açan
+kişinin yapabileceği şeyler değildir. Kendin dene yalnız kullanıcının güvenle yapabileceği adımları içerir.
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime, timedelta
+
+from . import katalog as K
+from .otomasyon import kucult
+
+# Soru türleri: metin (kısa serbest yazı) | secim (seçeneklerden biri)
+SORULAR: dict[str, list[dict]] = {
+    "EL_TERMINALI": [
+        dict(kod="cihaz", soru="Cihaz numarası", tur="metin", ipucu="Arkasındaki etiket, örn. EL-042"),
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim",
+             secenekler=["Ağa bağlanmıyor", "Oturum açılmıyor", "Ekran donuyor", "Şarj olmuyor"]),
+        dict(kod="baska", soru="Başka bir terminal denedin mi?", tur="secim",
+             secenekler=["O da çalışmıyor", "O çalışıyor", "Deneyemedim"],
+             neden="İkisi de çalışmıyorsa sorun cihazda değil ağda ya da sistemdedir."),
+    ],
+    "ETIKET_YAZICI": [
+        dict(kod="cihaz", soru="Yazıcı numarası", tur="metin", ipucu="Yazıcının üstündeki etiket, örn. YZ-07"),
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim",
+             secenekler=["Hiç basmıyor ya da çevrimdışı", "Boş ya da soluk basıyor", "Kayık ya da yanlış basıyor", "Kâğıt sıkıştı"]),
+        dict(kod="etiket", soru="Hangi baskı?", tur="secim", secenekler=["Koli etiketi", "Raf etiketi", "İrsaliye ya da A4"]),
+    ],
+    "SIFRE_HESAP": [
+        dict(kod="sistem", soru="Hangi sistem?", tur="secim", secenekler=["Windows", "WMS", "ERP", "E-posta"]),
+        dict(kod="kullanici", soru="Kullanıcı adın", tur="metin", ipucu="Şifreni yazma; kimse şifreni sormaz"),
+    ],
+    "WIFI": [
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim", secenekler=["Hiç bağlanmıyor", "Sık kopuyor", "Çok yavaş"]),
+        dict(kod="kapsam_yer", soru="Her yerde mi?", tur="secim", secenekler=["Yalnız bir bölgede", "Her yerde"],
+             neden="Tek bölgedeyse erişim noktası, her yerdeyse ağın kendisi."),
+    ],
+    "BILGISAYAR": [
+        dict(kod="cihaz", soru="Demirbaş numarası", tur="metin", ipucu="Kasanın üstündeki etiket"),
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim",
+             secenekler=["Açılmıyor", "Ekranda görüntü yok", "Çok yavaş", "Fare, klavye ya da okuyucu çalışmıyor"]),
+    ],
+    "EPOSTA": [
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim",
+             secenekler=["Gönderemiyorum", "Gelen posta yok", "Takvim ya da ortak kutu", "Telefonda çalışmıyor"]),
+    ],
+    "YAZILIM_KURULUM": [
+        dict(kod="program", soru="Hangi program?", tur="metin", ipucu="Adı ve sürümü, biliyorsan"),
+        dict(kod="cihaz", soru="Hangi bilgisayara?", tur="metin", ipucu="Demirbaş numarası"),
+    ],
+    "YETKI_TALEBI": [
+        dict(kod="sistem", soru="Hangi sistem?", tur="secim", secenekler=["WMS", "ERP", "Paylaşılan klasör", "Rapor"]),
+        dict(kod="yetki", soru="Hangi yetki?", tur="metin", ipucu="örn. WMS sayım onayı"),
+        dict(kod="onaylayan", soru="Onaylayan yöneticin", tur="metin", ipucu="Yetki yönetici onayı olmadan verilmez"),
+    ],
+    "ADRES_HATASI": [
+        dict(kod="adres", soru="Adres", tur="metin", ipucu="örn. A-12-03-B"),
+        dict(kod="belirti", soru="Ne oluyor?", tur="secim",
+             secenekler=["Adres önerilmiyor", "Dolu görünüyor ama boş", "Yanlış adrese yönlendiriyor"]),
+    ],
+    "STOK_FARKI": [
+        dict(kod="urun", soru="Ürün kodu", tur="metin"),
+        dict(kod="adres", soru="Adres", tur="metin", ipucu="örn. A-12-03-B"),
+        dict(kod="fark", soru="Sistemde kaç, rafta kaç?", tur="metin", ipucu="örn. sistem 40, rafta 36"),
+    ],
+    "DALGA": [
+        dict(kod="dalga", soru="Dalga ya da sipariş numarası", tur="metin"),
+        dict(kod="hata", soru="Ekrandaki hata mesajı", tur="metin", ipucu="Aynen yaz ya da fotoğrafını hazır tut"),
+    ],
+    "BARKOD": [
+        dict(kod="belirti", soru="Nerede okunmuyor?", tur="secim",
+             secenekler=["Tek üründe", "Bütün ürünlerde", "Yalnız bir cihazda"],
+             neden="Tek üründeyse etiket, bütün ürünlerdeyse okuyucu ya da sistem."),
+        dict(kod="urun", soru="Ürün kodu", tur="metin", ipucu="Tek üründeyse"),
+    ],
+    "ENTEGRASYON": [
+        dict(kod="belge", soru="Belge numarası", tur="metin", ipucu="İrsaliye, sipariş ya da fatura"),
+        dict(kod="tur", soru="Hangi işlem?", tur="secim", secenekler=["Mal kabul", "Sevkiyat", "İade", "Stok transferi"]),
+        dict(kod="hata", soru="Ekrandaki hata mesajı", tur="metin"),
+    ],
+    "RAPOR": [
+        dict(kod="rapor", soru="Rapor adı", tur="metin"),
+        dict(kod="son", soru="En son ne zaman güncel görünüyordu?", tur="metin", ipucu="örn. dün akşam"),
+    ],
+}
+# Sorusu tanımlanmamış konu (yeni sistem, kendi verinle kurulum): genel sorular
+GENEL_SORULAR = [
+    dict(kod="cihaz", soru="Cihaz ya da ekran", tur="metin", ipucu="Hangi cihazda, hangi ekranda?"),
+    dict(kod="hata", soru="Ekrandaki hata mesajı", tur="metin", ipucu="Varsa aynen yaz"),
+]
+
+# Arıza değil talep: "iş durdu mu" sorulmaz, "ne zamana lazım" sorulur
+TALEP_KONULARI = {"YAZILIM_KURULUM", "YETKI_TALEBI"}
+
+KENDIN_DENE: dict[str, list[str]] = {
+    "ETIKET_YAZICI": ["Kâğıt ve ribon takılı mı, kapak tam kapalı mı bak.",
+                      "Yazıcıyı kapat, 10 saniye bekle, aç.",
+                      "Ekranda kırmızı ışık ya da hata yazısı varsa not al; çağrıya yaz."],
+    "EL_TERMINALI": ["Terminali yeniden başlat (güç tuşuna uzun bas).",
+                     "Pil azsa yedek pille değiştir.",
+                     "Wi-Fi simgesi yoksa bilinen iyi çeken bir noktaya yürüyüp tekrar dene."],
+    "WIFI": ["Wi-Fi'yi kapatıp aç.", "Başka bir noktada bağlanıyor mu dene; bağlanıyorsa sorunlu yeri çağrıya yaz."],
+    "SIFRE_HESAP": ["Şifre sıfırlama sayfasını dene.", "Hesap kilitlendiyse arka arkaya deneme; bir süre bekleyip tekrar dene."],
+    "BILGISAYAR": ["Güç ve ekran kablolarını kontrol et.", "Bilgisayarı yeniden başlat."],
+    "EPOSTA": ["Outlook'u kapatıp aç.", "Web üzerinden girebiliyor musun dene; giriyorsan sorun bilgisayarda."],
+    "BARKOD": ["Okuyucunun camını sil.", "Etiket buruşuksa düzelt; başka bir ürünü okutup dene."],
+    "STOK_FARKI": ["Yan gözlere ve alt-üst katlara bak; ürün komşu adrese konmuş olabilir."],
+    "RAPOR": ["Raporu yenile ve tarih filtresine bak."],
+}
+
+ETKI = {"durdu": ("İş tamamen durdu", 3), "yavas": ("Yavaşladı ya da geçici yolla devam ediyorum", 2),
+        "yok": ("İşimi etkilemiyor", 1)}
+KAPSAM = {"ben": ("Yalnız ben", 1), "ekip": ("Ekibim ya da birkaç kişi", 2), "alan": ("Bütün alan ya da vardiya", 3)}
+NE_ZAMAN = {"bugun": ("Bugün lazım", 2), "hafta": ("Bu hafta içinde", 1), "acele_yok": ("Acelesi yok", 1)}
+ACILIYET_AD = {1: "Düşük", 2: "Orta", 3: "Yüksek"}
+BENZER_PENCERE_DK = 60
+
+
+def sorular(kod: str | None) -> list[dict]:
+    return SORULAR.get(kod or "", GENEL_SORULAR)
+
+
+def aciliyet_hesapla(etki: str | None = None, kapsam: str | None = None, sevkiyat: bool = False,
+                     kritiklik: int = 2, talep: bool = False, ne_zaman: str | None = None) -> dict:
+    """Etki x kapsam → öncelik (1-3) ve düz cümleyle gerekçe."""
+    if talep:
+        n = ne_zaman if ne_zaman in NE_ZAMAN else "hafta"
+        seviye = NE_ZAMAN[n][1]
+        return dict(seviye=seviye, ad=ACILIYET_AD[seviye],
+                    gerekce=f"Talep ({NE_ZAMAN[n][0].lower()}); talepler arızaların önüne geçmez.")
+    e = etki if etki in ETKI else "yavas"
+    k = kapsam if kapsam in KAPSAM else "ben"
+    puan = ETKI[e][1] + KAPSAM[k][1]
+    seviye = 3 if puan >= 5 else 2 if puan == 4 else 1
+    neden = [ETKI[e][0].lower(), KAPSAM[k][0].lower()]
+    if sevkiyat and e != "yok" and seviye < 3:
+        seviye = 3
+        neden.append("bekleyen araç ya da sevkiyat saati var")
+    if kritiklik >= 3 and e == "durdu" and seviye < 2:
+        seviye = 2
+        neden.append("konu kritik")
+    return dict(seviye=seviye, ad=ACILIYET_AD[seviye], gerekce=" + ".join(neden).capitalize() + f" → {ACILIYET_AD[seviye]}")
+
+
+def cevaplari_dogrula(kod: str | None, cevaplar: dict | None) -> dict:
+    """Yalnız konunun sorularına ait, sınırlı uzunlukta cevaplar kalır; seçim cevabı seçeneklerden olmalı."""
+    temiz = {}
+    for s in sorular(kod):
+        v = str((cevaplar or {}).get(s["kod"], "")).strip()[:200]
+        if not v:
+            continue
+        if s["tur"] == "secim" and v not in s["secenekler"]:
+            raise ValueError(f"'{s['soru']}' için geçersiz seçim")
+        temiz[s["kod"]] = v
+    return temiz
+
+
+def cagri_yeri(c) -> str | None:
+    """Çağrının yeri: formda yazılan yer, yoksa metinde geçen bilinen yer."""
+    yer = (c["yer"] if "yer" in c.keys() else None) or None
+    if yer:
+        return yer
+    k = kucult(c["metin"])
+    return next((y for y in K.YERLER if kucult(y) in k), None)
+
+
+def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simdi: datetime | None = None) -> list[dict]:
+    """Aynı konuda son 60 dakikada açılmış açık çağrılar (yer verilmişse aynı yer ya da yeri bilinmeyenler)."""
+    simdi = simdi or datetime.now()
+    esik = (simdi - timedelta(minutes=BENZER_PENCERE_DK)).isoformat(timespec="minutes")
+    satir = con.execute(
+        "SELECT c.*, p.ad AS atanan FROM cagri c LEFT JOIN kisi p ON p.id=c.atanan_kisi_id "
+        "WHERE c.kaynak='usta' AND c.durum='acik' AND c.kategori_id=? AND c.acilis>=? ORDER BY c.acilis DESC",
+        (kategori_id, esik)).fetchall()
+    sonuc = []
+    for c in satir:
+        cy = cagri_yeri(c)
+        if yer and cy and kucult(cy) != kucult(yer):
+            continue
+        dk = max(0, round((simdi - datetime.fromisoformat(c["acilis"])).total_seconds() / 60))
+        sonuc.append(dict(id=c["id"], metin=c["metin"], yer=cy, dakika_once=dk, atanan=c["atanan"]))
+    return sonuc[:5]
+
+
+def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None) -> dict:
+    k = con.execute("SELECT id, kod, ad, kritiklik FROM kategori WHERE id=?", (kategori_id,)).fetchone()
+    if not k:
+        raise ValueError("Konu bulunamadı")
+    kendin = con.execute("SELECT deger FROM meta WHERE anahtar=?", (f"kendin_cozdu:{k['kod']}",)).fetchone()
+    oto = con.execute("SELECT ad FROM recete WHERE kategori_kod=? AND tur IN ('talep','onarim') AND askida=0 LIMIT 1",
+                      (k["kod"],)).fetchone()
+    return dict(kategori_id=k["id"], kategori=k["ad"], kritiklik=k["kritiklik"], talep=k["kod"] in TALEP_KONULARI,
+                sorular=sorular(k["kod"]), kendin_dene=KENDIN_DENE.get(k["kod"], []),
+                kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None, benzer=benzer_acik(con, kategori_id, yer),
+                yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
+                kapsam=[dict(kod=a, ad=b[0]) for a, b in KAPSAM.items()],
+                ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()])
+
+
+def kendin_cozdu(con: sqlite3.Connection, kategori_id: int) -> int:
+    """Kişi kendin dene adımlarıyla çözüp çağrı açmadı: konu başına sayılır (açılmayan çağrı ölçüsü)."""
+    k = con.execute("SELECT kod FROM kategori WHERE id=?", (kategori_id,)).fetchone()
+    if not k:
+        raise ValueError("Konu bulunamadı")
+    anahtar = f"kendin_cozdu:{k['kod']}"
+    con.execute("INSERT INTO meta(anahtar, deger) VALUES(?, '1') "
+                "ON CONFLICT(anahtar) DO UPDATE SET deger=CAST(deger AS INTEGER)+1", (anahtar,))
+    con.commit()
+    return int(con.execute("SELECT deger FROM meta WHERE anahtar=?", (anahtar,)).fetchone()[0])
+
+
+def ek_bilgi_json(kod: str | None, cevaplar: dict, etki: str | None, kapsam: str | None, sevkiyat: bool,
+                  ne_zaman: str | None, oncelik: dict) -> str:
+    """Çağrıya yazılan ek bilgi. Cevaplar soru metniyle saklanır: soru listesi sonradan değişse de kayıt okunur kalır."""
+    etiket = {s["kod"]: s["soru"] for s in sorular(kod)}
+    return json.dumps(dict(cevaplar=[dict(soru=etiket[k], cevap=v) for k, v in cevaplar.items()],
+                           etki=ETKI[etki][0] if etki in ETKI else None, kapsam=KAPSAM[kapsam][0] if kapsam in KAPSAM else None,
+                           sevkiyat=sevkiyat, ne_zaman=NE_ZAMAN[ne_zaman][0] if ne_zaman in NE_ZAMAN else None,
+                           oncelik_gerekce=oncelik["gerekce"]), ensure_ascii=False)

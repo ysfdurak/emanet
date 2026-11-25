@@ -159,3 +159,11 @@ details.kart>summary{cursor:pointer}
 .kontrol .sahip select{width:auto}
 .hafta-kisa{padding:.5rem 0;border-top:1px solid var(--cizgi)}
 textarea[data-gorusme]{width:100%;margin-bottom:.6rem}
+/* İki aşamalı çağrı formu */
+.cip[aria-pressed="true"]{background:var(--vurgu);color:#fff;border-color:var(--vurgu)}
+#asama2 label{margin-top:.6rem}
+label.satir{display:flex;gap:.45rem;align-items:center;font-weight:400;margin-top:.2rem}
+label.satir input{width:auto;margin:0}
+dl.ek{display:grid;grid-template-columns:max-content 1fr;gap:.15rem .8rem;margin:.5rem 0;font-size:.88rem}
+dl.ek dt{color:var(--soluk,#5b6470)}
+dl.ek dd{margin:0}

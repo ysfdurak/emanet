@@ -21,7 +21,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -30,6 +30,7 @@ from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
 from . import devir as devir_surec
+from . import cagri_formu
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 log = logging.getLogger("emanet")
@@ -199,7 +200,7 @@ async def beklenmeyen(_: Request, hata: Exception):
 # --- Dış kat: başlıklar, gövde ve hız sınırı, kaynak denetimi, MCP anahtarı, ziyaretçi seçimi ------------
 _pencere: dict[tuple, deque] = defaultdict(deque)
 # Hesap yapan ama veri değiştirmeyen POST uçları: ziyaretçi kopyası açtırmaz
-SALT_OKUMA_POST = {"/api/cagri/oneri", "/api/cagri/onizle", "/api/ya-giderse", "/api/izin/kontrol", "/api/dokum/analiz"}
+SALT_OKUMA_POST = {"/api/cagri/oneri", "/api/cagri/onizle", "/api/cagri/oncelik", "/api/ya-giderse", "/api/izin/kontrol", "/api/dokum/analiz"}
 _ZID = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -336,6 +337,21 @@ class CagriIstek(BaseModel):
     aciliyet: int = Field(2, ge=1, le=3)
     kategori_id: int | None = None
     vardiya: str | None = Field(None, pattern="^(gunduz|aksam|gece)$")
+    # İki aşamalı form: verilirse öncelik bunlardan hesaplanır, 'aciliyet' yok sayılır
+    yer: str | None = Field(None, max_length=60)
+    cevaplar: dict[str, str] | None = Field(None, max_length=6)
+    etki: str | None = Field(None, pattern="^(durdu|yavas|yok)$")
+    kapsam: str | None = Field(None, pattern="^(ben|ekip|alan)$")
+    sevkiyat: bool = False
+    ne_zaman: str | None = Field(None, pattern="^(bugun|hafta|acele_yok)$")
+
+
+class OncelikIstek(BaseModel):
+    kategori_id: int
+    etki: str | None = Field(None, pattern="^(durdu|yavas|yok)$")
+    kapsam: str | None = Field(None, pattern="^(ben|ekip|alan)$")
+    sevkiyat: bool = False
+    ne_zaman: str | None = Field(None, pattern="^(bugun|hafta|acele_yok)$")
 
 
 class YenidenAtaIstek(BaseModel):
@@ -500,10 +516,59 @@ def cagri_onizle(i: CagriIstek):
                     yol=usta.yol_goster(con, i.metin, i.kategori_id))
 
 
+def _oncelik(kategori_id: int, etki, kapsam, sevkiyat, ne_zaman) -> dict:
+    k = con.execute("SELECT kod, kritiklik FROM kategori WHERE id=?", (kategori_id,)).fetchone()
+    if not k:
+        raise HTTPException(404, "Konu bulunamadı")
+    return cagri_formu.aciliyet_hesapla(etki, kapsam, sevkiyat, k["kritiklik"], k["kod"] in cagri_formu.TALEP_KONULARI,
+                                        ne_zaman)
+
+
 @api.post("/api/cagri")
 def cagri_ac(i: CagriIstek):
     with KILIT:
-        return usta.cagri_ac(con, i.metin, i.acan_birim, i.aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi)
+        aciliyet, ek, iki_asama = i.aciliyet, None, bool(i.etki or i.ne_zaman or i.cevaplar or i.yer)
+        if iki_asama:
+            if not i.kategori_id:
+                raise HTTPException(400, "Konu seçilmedi")
+            kod = con.execute("SELECT kod FROM kategori WHERE id=?", (i.kategori_id,)).fetchone()
+            if not kod:
+                raise HTTPException(404, "Konu bulunamadı")
+            try:
+                cevap = cagri_formu.cevaplari_dogrula(kod["kod"], i.cevaplar)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            onc = _oncelik(i.kategori_id, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman)
+            aciliyet = onc["seviye"]
+            ek = cagri_formu.ek_bilgi_json(kod["kod"], cevap, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman, onc)
+        return usta.cagri_ac(con, i.metin, i.acan_birim, aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi,
+                             yer=i.yer, ek_bilgi=ek)
+
+
+@api.get("/api/cagri/form/{kategori_id}")
+def cagri_form(kategori_id: int, yer: str | None = Query(None, max_length=60)):
+    """İkinci aşama: konuya özel sorular, kendin dene adımları ve aynı sorunun açık bir çağrısı var mı."""
+    with KILIT:
+        try:
+            return cagri_formu.form(con, kategori_id, yer)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+
+
+@api.post("/api/cagri/oncelik")
+def cagri_oncelik(i: OncelikIstek):
+    with KILIT:
+        return _oncelik(i.kategori_id, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman)
+
+
+@api.post("/api/cagri/kendin-cozdu/{kategori_id}")
+def cagri_kendin_cozdu(kategori_id: int):
+    """Kişi 'önce bunu dene' adımlarıyla çözdü, çağrı açmadı."""
+    with KILIT:
+        try:
+            return dict(sayi=cagri_formu.kendin_cozdu(con, kategori_id))
+        except ValueError as e:
+            raise HTTPException(404, str(e))
 
 
 @api.get("/api/cagri")

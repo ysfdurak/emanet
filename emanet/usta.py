@@ -7,6 +7,7 @@ Kararlar ogrenme.py'deki modellerden gelir; burası onları iş kurallarıyla bi
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections import Counter
 from datetime import datetime, timedelta
@@ -252,7 +253,7 @@ def _olay(con, cagri_id, zaman, tur, kisi=None, aciklama=None):
 
 def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", aciliyet: int = 2,
              kategori_id: int | None = None, vardiya: str | None = None, simdi: datetime | None = None,
-             acan_kisi: str | None = None) -> dict:
+             acan_kisi: str | None = None, yer: str | None = None, ek_bilgi: str | None = None) -> dict:
     metin = metin.strip()
     if len(metin) < 5:
         raise ValueError("Çağrı metni çok kısa")
@@ -268,9 +269,9 @@ def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", 
     atama = yonlendir(con, kategori_id, simdi, vardiya, metin, acan_birim, aciliyet)
     cur = con.execute(
         "INSERT INTO cagri(metin,acan_birim,aciliyet,kategori_id,onerilen_kategori_id,guven,durum,atanan_kisi_id,"
-        "acilis,vardiya,kaynak,acan_kisi) VALUES(?,?,?,?,?,?,'acik',?,?,?,'usta',?)",
+        "acilis,vardiya,kaynak,acan_kisi,yer,ek_bilgi) VALUES(?,?,?,?,?,?,'acik',?,?,?,'usta',?,?,?)",
         (metin, acan_birim, aciliyet, kategori_id, onerilen, oneri["guven"], atama["kisi_id"],
-         simdi.isoformat(timespec="minutes"), vardiya, acan_kisi))
+         simdi.isoformat(timespec="minutes"), vardiya, acan_kisi, (yer or "").strip()[:60] or None, ek_bilgi))
     cid = cur.lastrowid
     _olay(con, cid, simdi, "acildi")
     _olay(con, cid, simdi, "atandi", atama["kisi_id"], atama["neden"])
@@ -380,7 +381,7 @@ def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:
     if c["olay_id"]:
         toplu = dict(olay_id=c["olay_id"], cagrilar=[dict(r) for r in con.execute(
             "SELECT id, metin, acan_kisi, durum FROM cagri WHERE olay_id=? ORDER BY id", (c["olay_id"],))])
-    return dict(c, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
+    return dict(c, ek=json.loads(c["ek_bilgi"]) if c["ek_bilgi"] else None, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
                 mesajlar=[m for m in otomasyon.mesajlar(con, cagri_id=cagri_id) if m["oto_id"] is None],
                 toplu_olay=toplu)
 

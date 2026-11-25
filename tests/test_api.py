@@ -209,3 +209,16 @@ def test_egitim_takvimi_api_ve_csv():
     r = c.get("/api/egitim-plani/takvim.csv?butce_saat=20")
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
     assert r.text.startswith("﻿Hafta;Tarih;Gün;Konu")
+
+
+def test_iki_asamali_cagri_formu(c):
+    m = "Sipariş dalgası açılmıyor, toplama görevleri düşmedi"
+    kid = c.post("/api/cagri/oneri", json={"metin": m}).json()["oneriler"][0]["kategori_id"]
+    f = c.get(f"/api/cagri/form/{kid}").json()
+    assert f["sorular"] and f["etki"] and not f["talep"]
+    assert c.post("/api/cagri/oncelik", json={"kategori_id": kid, "etki": "durdu", "kapsam": "alan"}).json()["seviye"] == 3
+    r = c.post("/api/cagri", json={"metin": m, "kategori_id": kid, "yer": "C koridoru", "etki": "yavas", "kapsam": "ben",
+                                   "aciliyet": 3, "cevaplar": {"dalga": "D-7"}}).json()
+    assert r["aciliyet"] == 1 and r["yer"] == "C koridoru"          # öncelik hesaplanır, gönderilen aciliyet yok sayılır
+    assert any(b["id"] == r["id"] for b in c.get(f"/api/cagri/form/{kid}?yer=C koridoru").json()["benzer"])
+    assert c.post("/api/cagri", json={"metin": m, "kategori_id": kid, "etki": "uydurma"}).status_code == 422

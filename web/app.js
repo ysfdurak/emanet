@@ -228,31 +228,78 @@ const ORNEKLER = ["Sipariş dalgası açılmıyor, toplama görevleri düşmedi"
 CIZ.cagri = async (veri) => {
   $("#ana").innerHTML = `
   <h2>Çağrı aç</h2>
-  <p class="alt">Sorunu kendi cümlenle yaz. Usta geçmiş çağrılardan öğrendiğiyle konuyu tahmin eder, emin değilse sorar; vardiyada olan en uygun kişiyi seçer ve bu sorunun daha önce nasıl çözüldüğünü gösterir. ${T.mod === "yerel" ? "Konular ve kişiler içe aktardığın çağrılardan öğrenildi: " + kac(T.usta_birimleri.join(", ")) + "." : "Yalnızca sistemsel çağrılar (BT ve depo sistemleri) içindir."}</p>
+  <p class="alt">İki adım: önce sorunu kendi cümlenle yaz, Usta konuyu tahmin eder; sonra o konuya özel birkaç soru gelir. Öncelik seçtirilmez, cevaplarından hesaplanır. ${T.mod === "yerel" ? "Konular ve kişiler içe aktardığın çağrılardan öğrenildi: " + kac(T.usta_birimleri.join(", ")) + "." : "Yalnızca sistemsel çağrılar (BT ve depo sistemleri) içindir."}</p>
   <div class="iki genis">
     <div>
       <div class="kart">
+        <h3>1. Sorunu yaz</h3>
         <label for="metin">Sorun</label>
         <textarea id="metin" maxlength="600" placeholder="Örn. Yazıcı çevrimdışı görünüyor, etiket basmıyor"></textarea>
         <div>${(T.mod === "yerel" && T.ornek_metinler.length ? T.ornek_metinler : ORNEKLER).map(o => `<button class="cip" data-ornek="${kac(o)}">${kac(o)}</button>`).join("")}</div>
         <div class="sira">
           <div><label for="acan">Açan birim</label><select id="acan">${T.acan_birimler.map(b => `<option>${kac(b)}</option>`).join("")}</select></div>
-          <div><label for="acil">Aciliyet</label><select id="acil"><option value="1">Düşük</option><option value="2" selected>Orta</option><option value="3">Yüksek</option></select></div>
           <div><label for="vard">Vardiya</label><select id="vard">${Object.entries(T.vardiyalar).map(([k, a]) => `<option value="${k}" ${k === T.simdiki_vardiya ? "selected" : ""}>${kac(a)}</option>`).join("")}</select></div>
         </div>
         <div id="oneri" style="margin-top:.8rem"></div>
-        <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>
       </div>
+      <div class="kart" id="asama2"><h3>2. Birkaç soru</h3><p class="kucuk">Sorunu yazınca konusuna göre sorular burada açılır.</p></div>
       <div id="atama"></div>
     </div>
     <div id="yan"><div class="kart kucuk">Metni yazınca kime gideceği ve geçmişte nasıl çözüldüğü burada görünür.</div></div>
   </div>`;
   let secili = null, sayac = 0, manuel = false;   // manuel: konuyu kullanıcı seçti
+  let F = null;   // ikinci aşama: {form, kategori_id, cevaplar, etki, kapsam, ne_zaman, sevkiyat}
   const metin = $("#metin");
-  const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value, aciliyet: +$("#acil").value});
+  const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value});
+  const formGovde = () => ({cevaplar: F.cevaplar, yer: ($("#yer")?.value || "").trim() || null, etki: F.etki, kapsam: F.kapsam,
+    sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
+  const hazir = () => !!(secili && F && F.kategori_id === secili && (F.form.talep ? F.ne_zaman : F.etki && F.kapsam));
+  const secimGrubu = (ad, veri, secenekler, secili_) => `<div class="secim" role="group" aria-label="${kac(ad)}">${secenekler.map(s =>
+    `<button type="button" class="cip" data-${veri}="${kac(s.kod)}" aria-pressed="${s.kod === secili_}">${kac(s.ad)}</button>`).join("")}</div>`;
+  async function ikinciAsama() {
+    if (!secili) { F = null; $("#asama2").innerHTML = `<h3>2. Birkaç soru</h3><p class="kucuk">${metin.value.trim().length < 5 ? "Sorunu yazınca konusuna göre sorular burada açılır." : "Önce konuyu seç; sorular konuya göre açılır."}</p>`; return; }
+    if (F && F.kategori_id === secili) return;
+    const f = await api("cagri/form/" + secili);
+    F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false};
+    $("#asama2").innerHTML = `<h3>2. Birkaç soru <span class="kucuk">· ${kac(f.kategori)}</span></h3>
+      ${f.kendin_dene.length ? `<div class="not"><b>Açmadan önce bir dakika dene:</b><ol class="gundem">${f.kendin_dene.map(a => `<li>${kac(a)}</li>`).join("")}</ol>
+        <button type="button" class="dugme kucuk ikincil" id="kc">Bununla çözüldü, çağrı açmıyorum</button>${f.kendin_cozdu ? ` <span class="kucuk">Bu adımlarla ${f.kendin_cozdu} kez çağrı açmaya gerek kalmadı.</span>` : ""}</div>` : ""}
+      ${f.otomatik_cozum ? `<p class="kucuk">Bu konuda otomatik çözüm var (${kac(f.otomatik_cozum)}): çağrıyı açınca sistem önce kendisi dener, olmazsa kişiye düşer.</p>` : ""}
+      <div id="benzer"></div>
+      ${f.talep ? "" : `<label for="yer">Nerede?</label><input id="yer" list="yerler" maxlength="60" placeholder="örn. paketleme hattı 2" autocomplete="off">
+      <datalist id="yerler">${f.yerler.map(y => `<option value="${kac(y)}">`).join("")}</datalist>`}
+      ${f.sorular.map(s => s.tur === "secim"
+        ? `<label>${kac(s.soru)}</label>${secimGrubu(s.soru, "cevap", s.secenekler.map(x => ({kod: s.kod + "|" + x, ad: x})), null)}${s.neden ? `<div class="kucuk">${kac(s.neden)}</div>` : ""}`
+        : `<label for="s-${kac(s.kod)}">${kac(s.soru)}</label><input id="s-${kac(s.kod)}" data-metin-cevap="${kac(s.kod)}" maxlength="200" placeholder="${kac(s.ipucu || "")}">`).join("")}
+      ${f.talep
+        ? `<label>Ne zamana lazım?</label>${secimGrubu("Ne zamana lazım", "nezaman", f.ne_zaman, null)}`
+        : `<label>İşin durumu</label>${secimGrubu("İşin durumu", "etki", f.etki, null)}
+           <label>Kimi etkiliyor?</label>${secimGrubu("Kimi etkiliyor", "kapsam", f.kapsam, null)}
+           <p><label class="satir"><input type="checkbox" id="sevk"> Bekleyen araç ya da yakın sevkiyat saati var</label></p>`}
+      <div id="oncelik" class="kucuk" aria-live="polite">${f.talep ? "Ne zamana lazım olduğunu seç; öncelik buna göre belirlenir." : "Öncelik için iş durumu ve kimi etkilediğini seç."}</div>
+      <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>`;
+    benzerCiz(f.benzer);
+  }
+  function benzerCiz(L) {
+    $("#benzer").innerHTML = L.length ? `<div class="not uyari"><b>Bu sorun zaten bildirilmiş olabilir.</b> Son bir saatte aynı konuda ${L.length} açık çağrı var:
+      <ul class="gundem">${L.map(c => `<li>#${kac(c.id)} · ${c.dakika_once} dk önce${c.yer ? " · " + kac(c.yer) : ""}${c.atanan ? " · " + kac(c.atanan) + " bakıyor" : ""}: “${kac(c.metin)}”</li>`).join("")}</ul>
+      <span class="kucuk">Aynı sorunsa yine de açabilirsin; aynı yerden üç kişi bildirince tek kayıtta birleşir ve çözülünce sana da haber gelir.</span></div>` : "";
+  }
+  let yerBekle;
+  async function yerDegisti() {
+    clearTimeout(yerBekle);
+    yerBekle = setTimeout(async () => { if (!F) return; const y = ($("#yer").value || "").trim();
+      const f = await api("cagri/form/" + F.kategori_id + (y ? "?yer=" + encodeURIComponent(y) : "")); benzerCiz(f.benzer); }, 400);
+  }
+  async function oncelikGuncelle() {
+    $("#ac").disabled = !hazir();
+    if (!hazir()) return;
+    const o = await api("cagri/oncelik", {kategori_id: F.kategori_id, etki: F.etki, kapsam: F.kapsam, sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
+    $("#oncelik").innerHTML = `Öncelik: ${rozet(o.seviye === 3 ? "kirmizi" : o.seviye === 2 ? "sari" : "gri", o.ad)} <span class="kucuk">${kac(o.gerekce)}</span>`;
+  }
   async function oner() {
     const p = parametre(), no = ++sayac;
-    if (p.metin.length < 5) { $("#oneri").innerHTML = $("#atama").innerHTML = ""; $("#ac").disabled = true; return; }
+    if (p.metin.length < 5) { $("#oneri").innerHTML = $("#atama").innerHTML = ""; secili = null; await ikinciAsama(); return; }
     const o = await api("cagri/oneri", p); if (no !== sayac) return;
     secili = o.soru_gerekli ? null : o.oneriler[0].kategori_id;
     const ilk = o.oneriler[0];
@@ -266,7 +313,7 @@ CIZ.cagri = async (veri) => {
         <div class="kucuk">${kac(o.neden)}</div>
         <div class="kucuk">Sonraki adaylar: ${o.oneriler.slice(1).map(a => kac(a.ad) + " " + yuzde(a.puan)).join(", ")}</div></div>`;
     }
-    $("#ac").disabled = !secili;
+    await ikinciAsama();
     $("#atama").innerHTML = atamaKart(o.atama);
     $("#yan").innerHTML = o.yol ? yolKart(o.yol) : '<div class="kart kucuk">Konu seçilince kime gideceği ve geçmişte nasıl çözüldüğü burada görünür.</div>';
   }
@@ -276,7 +323,7 @@ CIZ.cagri = async (veri) => {
       <select id="diger"><option value="">Seç…</option>${T.kategoriler.map(k => `<option value="${kac(k.id)}">${kac(k.birim)} · ${kac(k.ad)}</option>`).join("")}</select>`;
   }
   async function konuSec(id) {
-    secili = id; manuel = true; $("#ac").disabled = false;
+    secili = id; manuel = true; await ikinciAsama();
     const o = await api("cagri/onizle", {...parametre(), kategori_id: id});
     $("#atama").innerHTML = atamaKart(o.atama); $("#yan").innerHTML = yolKart(o.yol);
   }
@@ -288,13 +335,30 @@ CIZ.cagri = async (veri) => {
     const or = e.target.closest("[data-ornek]"); if (or) { metin.value = or.dataset.ornek; manuel = false; oner(); return; }
     const k = e.target.closest("[data-kat]");
     if (k) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", b === k)); if ($("#diger")) $("#diger").value = ""; konuSec(+k.dataset.kat); return; }
-    if (e.target.id === "ac") {
+    const sec = e.target.closest("[data-cevap],[data-etki],[data-kapsam],[data-nezaman]");
+    if (sec) {
+      sec.parentElement.querySelectorAll(".cip").forEach(b => b.setAttribute("aria-pressed", b === sec));
+      if (sec.dataset.cevap) { const [kod, ...d] = sec.dataset.cevap.split("|"); F.cevaplar[kod] = d.join("|"); }
+      if (sec.dataset.etki) F.etki = sec.dataset.etki;
+      if (sec.dataset.kapsam) F.kapsam = sec.dataset.kapsam;
+      if (sec.dataset.nezaman) F.ne_zaman = sec.dataset.nezaman;
+      return oncelikGuncelle();
+    }
+    if (e.target.id === "kc") {
       e.target.disabled = true;
-      const c = await api("cagri", {...parametre(), kategori_id: secili});
+      await api("cagri/kendin-cozdu/" + F.kategori_id, {});
+      $("#ana").innerHTML = `<h2>Güzel, çağrı açılmadı</h2><p class="alt">Sorun kendi adımlarınla çözüldü; kimsenin işi bölünmedi. Tekrar ederse çağrı aç: cevapların konusuna göre ilk bakılacak yeri gösterir.</p>
+        <p><button class="dugme" data-sayfa="cagri">Yeni çağrı</button> <button class="dugme ikincil" data-sayfa="bugun">Bugün</button></p>`;
+      return;
+    }
+    if (e.target.id === "ac") {
+      if (!hazir()) return;
+      e.target.disabled = true;
+      const c = await api("cagri", {...parametre(), kategori_id: secili, ...formGovde()});
       $("#ana").innerHTML = `
         <h2>Çağrı #${c.id} açıldı</h2>
         <div class="iki genis"><div>
-          <div class="kart"><p>${kac(c.metin)}</p><p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)}</p>
+          <div class="kart"><p>${kac(c.metin)}</p><p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)}</p>${ekBilgi(c)}
             <p><button class="dugme" data-cagri="${kac(c.id)}">Çağrı detayı</button> <button class="dugme ikincil" data-sayfa="cagri">Yeni çağrı</button>
             ${c.atama.uzman ? `<button class="dugme ikincil" data-sayfa="giderse" data-veri="${kac(c.atama.uzman.ad)}">${kac(c.atama.uzman.ad)} giderse?</button>` : ""}</p></div>
           ${atamaKart(c.atama, "Atanan kişi")}</div>
@@ -302,9 +366,25 @@ CIZ.cagri = async (veri) => {
           ${otoKart(c.otomasyon)}${yolKart(c.yol)}</div></div>`;
     }
   };
-  $("#ana").onchange = e => { if (e.target.id === "diger" && e.target.value) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", false)); konuSec(+e.target.value); } };
-  if (veri === "senaryo") { metin.value = ORNEKLER[0]; $("#vard").value = "gece"; $("#acil").value = "3"; $("#acan").value = "Sevkiyat"; oner(); }
+  $("#ana").onchange = e => {
+    if (e.target.id === "diger" && e.target.value) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", false)); konuSec(+e.target.value); }
+    if (e.target.id === "sevk") { F.sevkiyat = e.target.checked; oncelikGuncelle(); }
+  };
+  $("#ana").oninput = e => {
+    if (e.target.dataset.metinCevap && F) F.cevaplar[e.target.dataset.metinCevap] = e.target.value;
+    if (e.target.id === "yer") yerDegisti();
+  };
+  if (veri === "senaryo") { metin.value = ORNEKLER[0]; $("#vard").value = "gece"; $("#acan").value = "Sevkiyat"; oner(); }
 };
+
+const oncelikRozet = c => rozet(c.aciliyet === 3 ? "kirmizi" : c.aciliyet === 2 ? "sari" : "gri", "Öncelik: " + ["", "Düşük", "Orta", "Yüksek"][c.aciliyet]);
+function ekBilgi(c) {
+  const e = c.ek; if (!e && !c.yer) return "";
+  const satir = [c.yer && ["Yer", c.yer], ...((e && e.cevaplar) || []).map(x => [x.soru, x.cevap]),
+    e && e.etki && ["İşin durumu", e.etki], e && e.kapsam && ["Etkilenen", e.kapsam], e && e.sevkiyat && ["Sevkiyat", "Bekleyen araç ya da yakın sevkiyat saati var"],
+    e && e.ne_zaman && ["Ne zamana", e.ne_zaman]].filter(Boolean);
+  return `<dl class="ek">${satir.map(([a, b]) => `<dt>${kac(a)}</dt><dd>${kac(b)}</dd>`).join("")}</dl>${e && e.oncelik_gerekce ? `<p class="kucuk">Öncelik neden böyle: ${kac(e.oncelik_gerekce)}</p>` : ""}`;
+}
 
 /* ---------------------------------------------------------------- Kuyruk */
 CIZ.kuyruk = async () => {
@@ -335,7 +415,8 @@ CIZ.detay = async (id) => {
   <div class="iki genis">
     <div>
       <div class="kart"><p>${kac(c.metin)}</p>
-        <p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} <span class="kucuk">Açan: ${kac(c.acan_birim)}${c.vardiya ? " · " + VARDIYA[c.vardiya] + " vardiyası" : ""}${c.guven != null ? " · konu olasılığı " + yuzde(c.guven) : ""}</span></p>
+        <p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)} <span class="kucuk">Açan: ${kac(c.acan_birim)}${c.vardiya ? " · " + VARDIYA[c.vardiya] + " vardiyası" : ""}${c.guven != null ? " · konu olasılığı " + yuzde(c.guven) : ""}</span></p>
+        ${ekBilgi(c)}
         <p><b>${acik ? "Atanan" : "Çözen"}:</b> ${kac((acik ? c.atanan : c.cozen) || (c.otomatik ? "Otomasyon" : "-"))}${c.sure_dk ? ` · ${c.sure_dk} dk` : ""}${c.acan_kisi ? ` <span class="kucuk">· Açan: ${kac(c.acan_kisi)}</span>` : ""}${c.teyit === 1 ? " " + rozet("yesil", "Açan kişi teyit etti") : c.teyit === 0 ? " " + rozet("kirmizi", "Açan kişi çözülmedi dedi") : ""}</p>
         ${c.cozum_notu ? `<h3 style="margin-top:.6rem">Nasıl çözüldü</h3>${adimlar(c.cozum_notu)}` : ""}
         <h3 style="margin-top:.7rem">Geçmiş</h3>
@@ -702,7 +783,8 @@ CIZ.devir = async (id) => {
     <h2>Devir: ${kac(d.kisi.ad)}</h2>
     <p class="alt">${kac(d.kisi.birim)} · son çalışma günü <b>${kac(tarihKisa(d.cikis_tarihi))}</b> · <b>${d.gun_kaldi} gün kaldı</b>${d.durum !== "acik" ? " · " + rozet("yesil", "Tamamlandı") : ""}</p>
     <div class="ilerleme" role="progressbar" aria-valuenow="${yuzdeI}" aria-valuemin="0" aria-valuemax="100"><span style="width:${yuzdeI}%"></span></div>
-    <p class="kucuk">${d.ozet.tamam}/${d.ozet.konu} konu devredildi · ${d.ozet.madde_tamam}/${d.ozet.madde} madde tamam</p>
+    <p class="kucuk">${d.ozet.tamam - d.ozet.zaten}/${d.ozet.konu - d.ozet.zaten} konu devredildi${d.ozet.zaten ? ` (${d.ozet.zaten} konuda devralan işi zaten biliyor)` : ""} · ${d.ozet.madde_tamam}/${d.ozet.madde} madde tamam</p>
+    ${d.durum === "acik" ? buHafta(d) : ""}
     ${d.uyarilar.map(u => `<div class="not ${u.seviye === "kirmizi" ? "uyari" : ""}">${kac(u.metin)}${u.seviye === "kirmizi" && d.onerilen_sinir && d.durum === "acik" ? ` <button class="dugme kucuk" data-dsinir-ata="${d.onerilen_sinir}">Haftada ${sy(d.onerilen_sinir)} saate çıkar</button>` : ""}</div>`).join("")}
     <div class="kart"><h3>Konular</h3>
       <p class="kucuk">Her konu dört durumdan geçer. “İzledi”yi sen işaretlersin (sistem göremez); sonrası kapanan çağrılarla kendiliğinden ilerler: devralanın ilk çağrısı “birlikte”, üçüncüsü “tek başına”.</p>
@@ -724,10 +806,10 @@ CIZ.devir = async (id) => {
       ${m.kod.startsWith("kart:") && !m.yapildi ? `<button class="dugme kucuk ikincil" data-sayfa="kartlar">Kart yaz</button>` : ""}
     </li>`).join("")}</ul>
     <p class="kucuk">Yuvarlak işaretliler kendiliğinden ölçülür (açık çağrı kalmadı mı, kart yazıldı mı); kutulu olanları sen işaretlersin.</p></div>
-    <div class="kart"><h3>Bilgi aktarım görüşmesi</h3>
+    <div class="kart"><details ${d.gorusme.some(g => g.cevap) ? "open" : ""}><summary><h3 style="display:inline">Bilgi aktarım görüşmesi</h3> <span class="kucuk">· ${d.gorusme.filter(g => g.cevap.trim()).length}/${d.gorusme.length} soru cevaplandı</span></summary>
       <p class="kucuk">Sistemin çağrılardan çıkaramayacağı bilgi: dışarıdan kimler aranır, yazılmamış püf noktaları, dönemsel işler. Ayrılan kişiyle 30-45 dakikalık bir görüşmede doldurun.</p>
       ${d.gorusme.map(g => `<label for="gr${g.no}">${g.no + 1}. ${kac(g.soru)}</label><textarea id="gr${g.no}" data-gorusme="${g.no}" rows="2" maxlength="2000">${kac(g.cevap)}</textarea>`).join("")}
-      <p><button class="dugme kucuk ikincil" id="grkaydet">Cevapları kaydet</button></p></div>
+      <p><button class="dugme kucuk ikincil" id="grkaydet">Cevapları kaydet</button></p></details></div>
     <div class="kart"><h3>Devir takvimi</h3>
       ${d.takvim && d.takvim.oturumlar.length ? `<p class="kucuk">Kalan kart yazma ve öğretme oturumları; ayrılan kişi haftada en fazla <b>${sy(d.haftalik_sinir)} saat</b> devire ayırıyor.
         <button class="dugme kucuk ikincil" data-dsinir="-1" aria-label="Haftalık devir saatini azalt">−</button> <button class="dugme kucuk ikincil" data-dsinir="1" aria-label="Haftalık devir saatini artır">+</button></p>
@@ -761,8 +843,30 @@ CIZ.devir = async (id) => {
 function devirTakvimi(d) {
   const haftalar = new Map();
   for (const o of d.takvim.oturumlar) { if (!haftalar.has(o.hafta)) haftalar.set(o.hafta, []); haftalar.get(o.hafta).push(o); }
-  return [...haftalar].map(([h, os]) => `<div class="hafta-kisa"><b>${h}. hafta</b> <span class="kucuk">· ${os.length} oturum</span>
-    <ul class="oturumlar">${os.map(o => `<li><span class="kucuk">${gunAy(o.tarih)}${o.tarih > d.cikis_tarihi ? " · " + rozet("kirmizi", "çıkıştan sonra") : ""}</span> <b>${kac(o.kategori)}</b> · ${planCumlesi(o)}${(o.gundem || []).length ? `<ul class="gundem">${o.gundem.map(m => `<li>${kac(m)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul></div>`).join("");
+  const hafta = ([h, os]) => {
+    let onceki = "";
+    return `<div class="hafta-kisa"><b>${h}. hafta</b> <span class="kucuk">· ${os.length} oturum</span>
+    <ul class="oturumlar">${os.map(o => {
+      const is = o.kategori + "|" + o.tur, ayni = is === onceki; onceki = is;
+      return `<li><span class="kucuk">${gunAy(o.tarih)}${o.tarih > d.cikis_tarihi ? " · " + rozet("kirmizi", "çıkıştan sonra") : ""}</span> ${ayni ? '<span class="kucuk">devam</span>' : `<b>${kac(o.kategori)}</b> · ${planCumlesi(o)}`}${(o.gundem || []).length ? `<ul class="gundem">${o.gundem.map(m => `<li>${kac(m)}</li>`).join("")}</ul>` : ""}</li>`;
+    }).join("")}</ul></div>`;
+  };
+  const L = [...haftalar], ilk = L.slice(0, 2), kalan = L.slice(2);
+  return ilk.map(hafta).join("") + (kalan.length ? `<details><summary class="kucuk"><b>Sonraki ${kalan.length} hafta</b> · ${kalan.reduce((t, [, os]) => t + os.length, 0)} oturum, son oturum ${gunAy(kalan.at(-1)[1].at(-1).tarih)}</summary>${kalan.map(hafta).join("")}</details>` : "");
+}
+/* Devir sayfasının üstü: yönetici "bu hafta ne yapılacak?" sorusunun cevabını aramasın */
+function buHafta(d) {
+  const os = d.takvim ? d.takvim.oturumlar.filter(o => o.hafta === 1) : [];
+  const isler = [...new Set(os.map(o => `${o.kategori}: ${o.tur === "kart" ? o.ogreten + " kartı yazar" : o.ogreten + " → " + o.ogrenen}`))];
+  const bekleyen = [
+    ...d.konular.filter(k => k.asama === 0 && k.devralan_id).map(k => `${k.devralan} ustayı izlesin (${k.ad})`),
+    ...d.maddeler.filter(m => !m.yapildi && m.kod === "acik").map(m => m.metin),
+    ...d.maddeler.filter(m => !m.yapildi && m.kod === "gorusme").map(() => "Bilgi aktarım görüşmesini yapın"),
+  ];
+  if (!isler.length && !bekleyen.length) return "";
+  return `<div class="kart"><h3>Bu hafta</h3>
+    ${isler.length ? `<p>${os.length} oturum (${gunAy(os[0].tarih)} – ${gunAy(os.at(-1).tarih)}): ${isler.map(kac).join("; ")}.</p>` : ""}
+    ${bekleyen.length ? `<ul class="gundem">${bekleyen.map(b => `<li>${kac(b)}</li>`).join("")}</ul>` : ""}</div>`;
 }
 
 CIZ.izin = async () => {
@@ -994,9 +1098,9 @@ function planKonulari(satirlar) {
 function planCumlesi(s) {
   const o = `<b>${kac(s.ogreten || "-")}</b>`, l = `<b>${kac(s.ogrenen || "-")}</b>`;
   return {kart: `${o} çözümü adım adım karta yazar; herkes okuyabilir.`,
-          egitim: `${o}, ${l} kişisine bu konuyu öğretir.`,
-          tazeleme: `${o}, eskiden bu işi yapan ${l} kişisinin bilgisini tazeler.`,
-          gecis: `${o}, ${l} kişisini yeni sisteme geçirir.`}[s.tur] || kac(s.neden);
+          egitim: `${o} öğretir, ${l} öğrenir.`,
+          tazeleme: `${o} ile ${l} eski bilgiyi tazeler (${l} bu işi eskiden yapıyordu).`,
+          gecis: `${o} yeni sistemi ${l} ile birlikte uygular.`}[s.tur] || kac(s.neden);
 }
 function planOzeti(p) {
   if (!p.satirlar.length) return "Bu bütçeyle yapılabilecek bir adım yok; bütçeyi artırın.";
