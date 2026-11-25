@@ -52,6 +52,19 @@ YERLER = ["A koridoru", "B koridoru", "C koridoru", "mezanin katı", "paketleme 
           "paketleme hattı 4", "mal kabul rampası 3", "sevkiyat rampası 7", "iade alanı",
           "toplama istasyonu 5", "yüksek raf bölgesi", "ofis katı"]
 
+# Cihaz envanteri (demo). Gerçekte demirbaş/envanter sisteminden gelir; yerel kurulumda boştur ve
+# formda model sorulur. Numara cihazın üstündeki etikettir; tekrarlayan arıza bu numarayla izlenir.
+YAZICI_MODELLERI = ["Zebra ZT410", "Zebra ZD621", "Honeywell PM43"]
+TERMINAL_MODELLERI = ["Zebra TC52", "Honeywell CT40"]
+CIHAZLAR: dict[str, dict] = {
+    **{f"YZ-{i:02d}": dict(tur="yazici", model=YAZICI_MODELLERI[0 if i <= 6 else 1 if i <= 10 else 2],
+                           yer=YERLER[[4, 5, 6, 7, 8, 9, 4, 3, 5, 6, 7, 8][i - 1]]) for i in range(1, 13)},
+    **{f"EL-{i:03d}": dict(tur="terminal", model=TERMINAL_MODELLERI[0 if i <= 20 else 1], yer=None) for i in range(1, 31)},
+}
+# Demo verisinde son ayda sık arızalanan cihazlar (Bugün sayfasındaki "tekrarlayan arıza" uyarısı için)
+SORUNLU_CIHAZLAR = {"YZ-07": 6, "EL-014": 25}
+CIHAZ_KONULARI = {"ETIKET_YAZICI": "YZ", "EL_TERMINALI": "EL"}
+
 # Ayrıntı vermeyen çağrılar: gerçek hayatta da bir kısmı böyle yazılır. Model bunlarda emin olamaz ve sorar.
 GENEL_SABLONLAR = ["Sistem hata veriyor, devam edemiyorum.", "Ekranda hata çıktı, bakılması lazım.",
                    "Çalışmıyor, acil bakar mısınız?", "Program açılmıyor.", "Bir sorun var, iş durdu.",

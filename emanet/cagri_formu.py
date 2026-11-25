@@ -14,6 +14,7 @@ kişinin yapabileceği şeyler değildir. Kendin dene yalnız kullanıcının g�
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -23,7 +24,8 @@ from .otomasyon import kucult
 # Soru türleri: metin (kısa serbest yazı) | secim (seçeneklerden biri)
 SORULAR: dict[str, list[dict]] = {
     "EL_TERMINALI": [
-        dict(kod="cihaz", soru="Cihaz numarası", tur="metin", ipucu="Arkasındaki etiket, örn. EL-042"),
+        dict(kod="cihaz", soru="Cihaz numarası", tur="metin", ipucu="Arkasındaki etiket, örn. EL-014", zorunlu=True,
+             neden="Aynı cihaz sık arızalanıyorsa değişim gerekir; bu numarayla izlenir."),
         dict(kod="belirti", soru="Ne oluyor?", tur="secim",
              secenekler=["Ağa bağlanmıyor", "Oturum açılmıyor", "Ekran donuyor", "Şarj olmuyor"]),
         dict(kod="baska", soru="Başka bir terminal denedin mi?", tur="secim",
@@ -31,7 +33,10 @@ SORULAR: dict[str, list[dict]] = {
              neden="İkisi de çalışmıyorsa sorun cihazda değil ağda ya da sistemdedir."),
     ],
     "ETIKET_YAZICI": [
-        dict(kod="cihaz", soru="Yazıcı numarası", tur="metin", ipucu="Yazıcının üstündeki etiket, örn. YZ-07"),
+        dict(kod="cihaz", soru="Yazıcı numarası", tur="metin", ipucu="Yazıcının üstündeki etiket, örn. YZ-07", zorunlu=True,
+             neden="Aynı yazıcı sık arızalanıyorsa değişim gerekir; bu numarayla izlenir."),
+        dict(kod="model", soru="Yazıcı modeli", tur="secim", secenekler=K.YAZICI_MODELLERI + ["Bilmiyorum"],
+             neden="Ribon, sürücü ve yedek parça modele göre değişir. Numara envanterde kayıtlıysa kendiliğinden gelir."),
         dict(kod="belirti", soru="Ne oluyor?", tur="secim",
              secenekler=["Hiç basmıyor ya da çevrimdışı", "Boş ya da soluk basıyor", "Kayık ya da yanlış basıyor", "Kâğıt sıkıştı"]),
         dict(kod="etiket", soru="Hangi baskı?", tur="secim", secenekler=["Koli etiketi", "Raf etiketi", "İrsaliye ya da A4"]),
@@ -152,12 +157,37 @@ def aciliyet_hesapla(etki: str | None = None, kapsam: str | None = None, sevkiya
     return dict(seviye=seviye, ad=ACILIYET_AD[seviye], gerekce=" + ".join(neden).capitalize() + f" → {ACILIYET_AD[seviye]}")
 
 
-def cevaplari_dogrula(kod: str | None, cevaplar: dict | None) -> dict:
-    """Yalnız konunun sorularına ait, sınırlı uzunlukta cevaplar kalır; seçim cevabı seçeneklerden olmalı."""
+def cihaz_no(metin: str | None) -> str | None:
+    """Etiket numarasını tek biçime getirir: "yz 7", "YZ07", "yz-007" → "YZ-07". Bilinmeyen biçim büyük harfle kalır."""
+    if not metin or not metin.strip():
+        return None
+    s = metin.strip().upper().replace("İ", "I")
+    m = re.match(r"^([A-Z]{1,4})[\s\-_./]*0*(\d{1,5})$", s)
+    if not m:
+        return re.sub(r"\s+", "-", s)[:30]
+    genislik = {"YZ": 2, "EL": 3}.get(m.group(1), 0)
+    return f"{m.group(1)}-{int(m.group(2)):0{genislik}d}"
+
+
+def cihaz_kaydi(no: str | None) -> dict | None:
+    return dict(K.CIHAZLAR[no], no=no) if no and no in K.CIHAZLAR else None
+
+
+def cevaplari_dogrula(kod: str | None, cevaplar: dict | None, zorunlu_denetle: bool = True) -> dict:
+    """Yalnız konunun sorularına ait, sınırlı uzunlukta cevaplar kalır; seçim cevabı seçeneklerden olmalı.
+    Zorunlu soru boşsa hata. Cihaz numarası tek biçime getirilir; envanterde kayıtlıysa model oradan gelir."""
     temiz = {}
+    cevaplar = dict(cevaplar or {})
+    if cevaplar.get("cihaz"):
+        cevaplar["cihaz"] = cihaz_no(cevaplar["cihaz"])
+        kayit = cihaz_kaydi(cevaplar["cihaz"])
+        if kayit and any(s["kod"] == "model" for s in sorular(kod)):
+            cevaplar["model"] = kayit["model"]
     for s in sorular(kod):
-        v = str((cevaplar or {}).get(s["kod"], "")).strip()[:200]
+        v = str(cevaplar.get(s["kod"], "")).strip()[:200]
         if not v:
+            if s.get("zorunlu") and zorunlu_denetle:
+                raise ValueError(f"'{s['soru']}' gerekli")
             continue
         if s["tur"] == "secim" and v not in s["secenekler"]:
             raise ValueError(f"'{s['soru']}' için geçersiz seçim")
@@ -227,3 +257,34 @@ def ek_bilgi_json(kod: str | None, cevaplar: dict, etki: str | None, kapsam: str
                            etki=ETKI[etki][0] if etki in ETKI else None, kapsam=KAPSAM[kapsam][0] if kapsam in KAPSAM else None,
                            sevkiyat=sevkiyat, ne_zaman=NE_ZAMAN[ne_zaman][0] if ne_zaman in NE_ZAMAN else None,
                            oncelik_gerekce=oncelik["gerekce"]), ensure_ascii=False)
+
+
+TEKRAR_GUN, TEKRAR_ESIK = 30, 3   # 30 günde 3 ve üzeri çağrı: tekrarlayan arıza
+
+
+def cihaz_gecmisi(con: sqlite3.Connection, no: str, gun: int = 90, simdi: datetime | None = None) -> dict:
+    """Bir cihazın kaydı ve son çağrıları. Formda numara yazılınca ve çağrı detayında gösterilir."""
+    no = cihaz_no(no)
+    simdi = simdi or datetime.now()
+    esik = (simdi - timedelta(days=gun)).isoformat(timespec="minutes")
+    cagrilar = [dict(r) for r in con.execute(
+        "SELECT c.id, c.metin, c.acilis, c.durum, c.cozum_notu, k.ad AS kategori, p.ad AS cozen FROM cagri c "
+        "JOIN kategori k ON k.id=c.kategori_id LEFT JOIN kisi p ON p.id=c.cozen_kisi_id "
+        "WHERE c.cihaz=? AND c.acilis>=? ORDER BY c.acilis DESC", (no, esik))]
+    son30 = (simdi - timedelta(days=TEKRAR_GUN)).isoformat(timespec="minutes")
+    return dict(no=no, kayit=cihaz_kaydi(no), gun=gun, cagrilar=cagrilar[:10], toplam=len(cagrilar),
+                son_30_gun=sum(1 for c in cagrilar if c["acilis"] >= son30),
+                tekrarlayan=sum(1 for c in cagrilar if c["acilis"] >= son30) >= TEKRAR_ESIK)
+
+
+def tekrarlayan_cihazlar(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]:
+    """Son 30 günde 3 ve üzeri çağrısı olan cihazlar: onarım yerine değişim ya da bakım konuşulmalı."""
+    simdi = simdi or datetime.now()
+    esik = (simdi - timedelta(days=TEKRAR_GUN)).isoformat(timespec="minutes")
+    out = []
+    for r in con.execute("SELECT cihaz, COUNT(*) n, MAX(acilis) son FROM cagri WHERE cihaz IS NOT NULL AND acilis>=? "
+                         "GROUP BY cihaz HAVING COUNT(*)>=? ORDER BY n DESC, cihaz", (esik, TEKRAR_ESIK)):
+        kayit = cihaz_kaydi(r["cihaz"])
+        out.append(dict(no=r["cihaz"], cagri=r["n"], son=r["son"], model=kayit["model"] if kayit else None,
+                        yer=kayit["yer"] if kayit else None))
+    return out

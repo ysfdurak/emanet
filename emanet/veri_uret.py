@@ -22,15 +22,20 @@ from __future__ import annotations
 import csv
 import io
 import random
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 
 import json
 
-from . import ice_aktar, otomasyon
+from . import cagri_formu, ice_aktar, otomasyon
+from .ogrenme import kucult
 from . import katalog as K
 from .db import bosalt, meta_yaz
 
+# Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
+# (2: cihaz numaraları)
+VERI_SURUMU = 2
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -118,6 +123,36 @@ def bakim_dokumu_csv(bugun: date, tohum: int = 42, adet: int = 650, gun: int = 1
         w.writerow([an.strftime("%Y-%m-%d %H:%M"), k["birim"], k["ad"], cozen, max(3, round(sure)),
                     kisi_vardiya[cozen], k["kritiklik"], k["ogrenme"], int(bool(k.get("kart")))])
     return cikti.getvalue()
+
+
+def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
+    """Yazıcı ve terminal çağrılarına envanterden cihaz numarası verir. Ayrı tohum: diğer verinin
+    sırası değişmesin. Son 30 günde birkaç cihaz sık arızalanır (tekrarlayan arıza uyarısı için)."""
+    rnd = random.Random(tohum + 7)
+    son30 = (datetime.combine(bugun, datetime.min.time()) - timedelta(days=30)).isoformat(timespec="minutes")
+    for kod, onek in K.CIHAZ_KONULARI.items():
+        cihazlar = [n for n in K.CIHAZLAR if n.startswith(onek + "-")]
+        for c in con.execute("SELECT c.id, c.acilis, c.metin FROM cagri c JOIN kategori k ON k.id=c.kategori_id WHERE k.kod=?",
+                             (kod,)).fetchall():
+            # Metinde yer geçiyorsa o yerdeki cihazlardan biri (yazıcı sabittir; geçmişte yer çelişmesin)
+            m = kucult(c["metin"])
+            if "irsaliye" in m or "yeni etiket" in m:   # A4 yazıcı ya da henüz envantere girmemiş yeni cihaz
+                continue
+            no = re.search(r"(\d+)\s*(?:no|numara)", m)   # "17 no'lu", "8 numaralı": metindeki numara esas
+            if no:
+                n = cagri_formu.cihaz_no(f"{onek}{no.group(1)}")
+                if n in K.CIHAZLAR:
+                    con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (n, c["id"]))
+                continue                                    # envanterde yoksa uydurma numara verme
+            yer = next((y for y in K.YERLER if kucult(y) in m), None)
+            if not yer and any(max(kucult(y).split(), key=len)[:4] in m for y in K.YERLER):
+                continue                                    # yer yazım hatalı geçiyor: emin olmadan cihaz verme
+            aday = [n for n in cihazlar if yer and K.CIHAZLAR[n]["yer"] == yer] or \
+                   [n for n in cihazlar if not yer or K.CIHAZLAR[n]["yer"] is None]
+            if not aday:   # metindeki yerde bu türden cihaz yok: yeri bilinen bir cihaza değil, yersiz kalsın
+                continue
+            agirlik = [K.SORUNLU_CIHAZLAR.get(n, 1) if c["acilis"] >= son30 else 1 for n in aday]
+            con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (rnd.choices(aday, weights=agirlik)[0], c["id"]))
 
 
 def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
@@ -236,6 +271,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         cid = cur.lastrowid
         olay(cid, acilis, "acildi")
         olay(cid, acilis, "atandi", kisi_id[atanan])
+    _cihaz_ata(con, bugun, tohum)
     con.commit()
 
     # --- Teknik konular: bakım sisteminden gelen döküm, içe aktarma yoluyla
@@ -270,6 +306,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
     con.commit()
 
     meta_yaz(con, "uretim_tarihi", bugun.isoformat())
+    meta_yaz(con, "veri_surumu", str(VERI_SURUMU))
     meta_yaz(con, "tohum", str(tohum))
     return {"usta_cagri": adet + 12, "dokum_kaydi": dokum["satir"], "kisi": len(K.KISILER),
             "kategori": len(K.KATEGORILER), "birim": len(K.BIRIMLER), "tarih": bugun.isoformat(), "sorter_id": sorter}

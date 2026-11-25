@@ -155,7 +155,8 @@ ziyaretciler = Ziyaretciler(DB_YOLU.parent / "ziyaretci")
 def gunluk_kontrol() -> None:
     """Veri yoksa ya da dünden kalmaysa yeniden üretir (gece sıfırlama). Yerel veride hiçbir şey yapmaz."""
     with KILIT:
-        if not yerel_mi() and meta_al(ana_con, "uretim_tarihi") != date.today().isoformat():
+        if not yerel_mi() and (meta_al(ana_con, "uretim_tarihi") != date.today().isoformat()
+                               or meta_al(ana_con, "veri_surumu") != str(veri_uret.VERI_SURUMU)):
             veri_uret.uret(ana_con)
             ziyaretciler.temizle()
 
@@ -541,8 +542,27 @@ def cagri_ac(i: CagriIstek):
             onc = _oncelik(i.kategori_id, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman)
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(kod["kod"], cevap, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman, onc)
+            cihaz = cevap.get("cihaz")
+            yer = i.yer or ((cagri_formu.cihaz_kaydi(cihaz) or {}).get("yer"))   # envanterdeki yer
+        else:
+            cihaz, yer = None, i.yer
         return usta.cagri_ac(con, i.metin, i.acan_birim, aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi,
-                             yer=i.yer, ek_bilgi=ek)
+                             yer=yer, ek_bilgi=ek, cihaz=cihaz)
+
+
+@api.get("/api/cihaz/{no}")
+def cihaz(no: str):
+    """Formda numara yazılınca: envanter kaydı (model, yer) ve son 90 günün çağrıları."""
+    if len(no) > 30:
+        raise HTTPException(400, "Cihaz numarası çok uzun")
+    with KILIT:
+        return cagri_formu.cihaz_gecmisi(con, no)
+
+
+@api.get("/api/cihazlar/tekrarlayan")
+def cihazlar_tekrarlayan():
+    with KILIT:
+        return cagri_formu.tekrarlayan_cihazlar(con)
 
 
 @api.get("/api/cagri/form/{kategori_id}")

@@ -123,14 +123,18 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
                                  for x in o["oneriler"]) + ". 'konu' parametresiyle yeniden çağır.")
         kid_son = kid or usta.kategori_oner(con, metin)["oneriler"][0]["kategori_id"]
         k = con.execute("SELECT kod, kritiklik FROM kategori WHERE id=?", (kid_son,)).fetchone()
-        cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar)
+        # MCP'de zorunlu soru eksikse çağrı yine açılır; eksikler 'sorulmayanlar'da döner (Claude sorabilsin)
+        cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar, zorunlu_denetle=False)
         ek, onc = None, None
         if etki or kapsam or cevap or yer:
             onc = cagri_formu.aciliyet_hesapla(etki, kapsam, sevkiyat, k["kritiklik"], k["kod"] in cagri_formu.TALEP_KONULARI)
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(k["kod"], cevap, etki, kapsam, sevkiyat, None, onc)
-        c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer, ek_bilgi=ek)
-        sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"))
+        cihaz = cevap.get("cihaz")
+        yer = yer or ((cagri_formu.cihaz_kaydi(cihaz) or {}).get("yer"))
+        c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer,
+                          ek_bilgi=ek, cihaz=cihaz)
+        sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"), zorunlu=bool(s.get("zorunlu")))
                       for s in cagri_formu.sorular(k["kod"]) if s["kod"] not in cevap]
     o = c.get("otomasyon")
     return dict(otomasyon=(dict(recete=o["recete"], durum=o["durum"], son_adim=o["gunluk"][-1]["metin"],
@@ -374,6 +378,17 @@ def konu_suresi_ayarla(konu: str, kart_saat: float, ogretme_saat: float) -> dict
     with KILIT:
         c = baglanti()
         return egitim.sure_kaydet(c, _konu_bul(c, konu), kart_saat, ogretme_saat)
+
+
+@arac
+def cihaz_gecmisi(no: str | None = None) -> dict:
+    """Bir cihazın (yazıcı YZ-07, el terminali EL-014 gibi) envanter kaydı ve son 90 günlük çağrıları.
+    no boşsa son 30 günde 3 ve üzeri çağrısı olan, yani tekrar tekrar arızalanan cihazları listeler."""
+    with KILIT:
+        con = baglanti()
+        if not no:
+            return dict(tekrarlayan=cagri_formu.tekrarlayan_cihazlar(con))
+        return cagri_formu.cihaz_gecmisi(con, no)
 
 
 @arac

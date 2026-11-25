@@ -70,7 +70,7 @@ const ALT_AD = {cagri: "Çağrı aç", kuyruk: "Kuyruk", kartlar: "Çözüm notl
   risk: "Risk haritası", giderse: "Biri yoksa", degisim: "Değişimler", ekibim: "Kendi verinle dene",
   nasil: "Nasıl çalışır", ogrenme: "Model nasıl öğreniyor"};
 // Alt sekmesi olmayan sayfalar hangi alt sekmeye sayılır
-const ESDEGER = {izin: "giderse", devir: "giderse", detay: "kuyruk"};
+const ESDEGER = {izin: "giderse", devir: "giderse", detay: "kuyruk", cihaz: "kuyruk"};
 const sonSayfa = {};
 const alanBul = sayfa => (ALANLAR.find(([, , ss]) => ss.includes(ESDEGER[sayfa] || sayfa)) || ALANLAR[0]);
 function navCiz() {
@@ -217,7 +217,7 @@ CIZ.genel = async () => {
   </div></details>`;
   const tur = $("#tur"); if (tur) tur.ontoggle = () => sessionStorageYaz("tur", !tur.open);
 };
-const DIKKAT_EYLEM = {devir: "Devre bak", otomasyon: "Otomasyona bak", degisim: "İncele", giderse: "Ne olur, gör", izin: "İzinlere bak", risk: "Haritada gör", plan: "Plana bak", kuyruk: "Çağrılara bak"};
+const DIKKAT_EYLEM = {devir: "Devre bak", otomasyon: "Otomasyona bak", degisim: "İncele", giderse: "Ne olur, gör", izin: "İzinlere bak", risk: "Haritada gör", plan: "Plana bak", kuyruk: "Çağrılara bak", cihaz: "Cihaza bak"};
 // Tur bir kez kapatılınca o oturumda kapalı kalsın (tarayıcı depolaması yoksa sessizce geç)
 function sessionStorageAl(k) { try { return sessionStorage.getItem("emanet_" + k) === "1"; } catch { return false; } }
 function sessionStorageYaz(k, v) { try { sessionStorage.setItem("emanet_" + k, v ? "1" : "0"); } catch { /* yok */ } }
@@ -253,7 +253,8 @@ CIZ.cagri = async (veri) => {
   const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value});
   const formGovde = () => ({cevaplar: F.cevaplar, yer: ($("#yer")?.value || "").trim() || null, etki: F.etki, kapsam: F.kapsam,
     sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
-  const hazir = () => !!(secili && F && F.kategori_id === secili && (F.form.talep ? F.ne_zaman : F.etki && F.kapsam));
+  const eksikZorunlu = () => F.form.sorular.filter(s => s.zorunlu && !(F.cevaplar[s.kod] || "").trim());
+  const hazir = () => !!(secili && F && F.kategori_id === secili && (F.form.talep ? F.ne_zaman : F.etki && F.kapsam) && !eksikZorunlu().length);
   const secimGrubu = (ad, veri, secenekler, secili_) => `<div class="secim" role="group" aria-label="${kac(ad)}">${secenekler.map(s =>
     `<button type="button" class="cip" data-${veri}="${kac(s.kod)}" aria-pressed="${s.kod === secili_}">${kac(s.ad)}</button>`).join("")}</div>`;
   // Dar ekranda ikinci aşama ilk ekranın altında kalır: açıldığını söyle
@@ -276,14 +277,16 @@ CIZ.cagri = async (veri) => {
       ${f.talep ? "" : `<label for="yer">Nerede?</label><input id="yer" list="yerler" maxlength="60" placeholder="örn. paketleme hattı 2" autocomplete="off">
       <datalist id="yerler">${f.yerler.map(y => `<option value="${kac(y)}">`).join("")}</datalist>`}
       ${f.sorular.map(s => s.tur === "secim"
-        ? `<label>${kac(s.soru)}</label>${secimGrubu(s.soru, "cevap", s.secenekler.map(x => ({kod: s.kod + "|" + x, ad: x})), null)}${s.neden ? `<div class="kucuk">${kac(s.neden)}</div>` : ""}`
-        : `<label for="s-${kac(s.kod)}">${kac(s.soru)}</label><input id="s-${kac(s.kod)}" data-metin-cevap="${kac(s.kod)}" maxlength="200" placeholder="${kac(s.ipucu || "")}">`).join("")}
+        ? `<div data-soru="${kac(s.kod)}"><label>${kac(s.soru)}</label>${secimGrubu(s.soru, "cevap", s.secenekler.map(x => ({kod: s.kod + "|" + x, ad: x})), null)}${s.neden ? `<div class="kucuk">${kac(s.neden)}</div>` : ""}</div>`
+        : `<label for="s-${kac(s.kod)}">${kac(s.soru)}${s.zorunlu ? ' <span class="kucuk">(gerekli)</span>' : ""}</label><input id="s-${kac(s.kod)}" data-metin-cevap="${kac(s.kod)}" maxlength="${s.kod === "cihaz" ? 30 : 200}" placeholder="${kac(s.ipucu || "")}" ${s.zorunlu ? 'aria-required="true"' : ""}>
+           ${s.kod === "cihaz" ? `<div id="cihazbilgi" class="kucuk" aria-live="polite">${kac(s.neden || "")}</div>` : ""}`).join("")}
       ${f.talep
         ? `<label>Ne zamana lazım?</label>${secimGrubu("Ne zamana lazım", "nezaman", f.ne_zaman, null)}`
         : `<label>İşin durumu</label>${secimGrubu("İşin durumu", "etki", f.etki, null)}
            <label>Kimi etkiliyor?</label>${secimGrubu("Kimi etkiliyor", "kapsam", f.kapsam, null)}
            <p><label class="satir"><input type="checkbox" id="sevk"> Bekleyen araç ya da yakın sevkiyat saati var</label></p>`}
       <div id="oncelik" class="kucuk" aria-live="polite">${f.talep ? "Ne zamana lazım olduğunu seç; öncelik buna göre belirlenir." : "Öncelik için iş durumu ve kimi etkilediğini seç."}</div>
+      <div id="eksik" class="kucuk"></div>
       <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>`;
     benzerCiz(f.benzer);
   }
@@ -298,8 +301,29 @@ CIZ.cagri = async (veri) => {
     yerBekle = setTimeout(async () => { if (!F) return; const y = ($("#yer").value || "").trim();
       const f = await api("cagri/form/" + F.kategori_id + (y ? "?yer=" + encodeURIComponent(y) : "")); benzerCiz(f.benzer); }, 400);
   }
+  /* Cihaz numarası: envanterdeki model ve yer kendiliğinden gelir; geçmişi gösterilir (tekrarlayan arıza) */
+  let cihazBekle;
+  function cihazBak(no) {
+    clearTimeout(cihazBekle);
+    cihazBekle = setTimeout(async () => {
+      const el = $("#cihazbilgi"), model = document.querySelector('[data-soru="model"]');
+      if (!el) return;
+      if (!no.trim()) { el.textContent = ""; if (model) model.hidden = false; return; }
+      const g = await api("cihaz/" + encodeURIComponent(no.trim()));
+      if (g.kayit) {
+        if (model) { model.hidden = true; F.cevaplar.model = g.kayit.model; }
+        if (g.kayit.yer && $("#yer") && !$("#yer").value.trim()) { $("#yer").value = g.kayit.yer; yerDegisti(); }
+      } else if (model) { model.hidden = false; delete F.cevaplar.model; }
+      el.innerHTML = `<b>${kac(g.no)}</b>${g.kayit ? ` · ${kac(g.kayit.model)}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}` : " · envanterde kayıtlı değil" + (model ? "; modeli seç" : "")}
+        ${g.toplam ? ` · son ${g.gun} günde ${g.toplam} çağrı` : " · son 90 günde çağrısı yok"}
+        ${g.tekrarlayan ? `<div class="not uyari">Bu cihaz son 30 günde ${g.son_30_gun} kez arızalandı. Çağrıyı aç; çözen kişi geçmişi görür ve değişim konuşulur.</div>` : ""}`;
+      oncelikGuncelle();
+    }, 450);
+  }
   async function oncelikGuncelle() {
     $("#ac").disabled = !hazir();
+    const ek = F ? eksikZorunlu() : [];
+    if ($("#eksik")) $("#eksik").textContent = ek.length ? "Gerekli: " + ek.map(s => s.soru).join(", ") : "";
     if (!hazir()) return;
     const o = await api("cagri/oncelik", {kategori_id: F.kategori_id, etki: F.etki, kapsam: F.kapsam, sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
     $("#oncelik").innerHTML = `Öncelik: ${rozet(o.seviye === 3 ? "kirmizi" : o.seviye === 2 ? "sari" : "gri", o.ad)} <span class="kucuk">${kac(o.gerekce)}</span>`;
@@ -379,13 +403,44 @@ CIZ.cagri = async (veri) => {
     if (e.target.id === "sevk") { F.sevkiyat = e.target.checked; oncelikGuncelle(); }
   };
   $("#ana").oninput = e => {
-    if (e.target.dataset.metinCevap && F) F.cevaplar[e.target.dataset.metinCevap] = e.target.value;
+    if (e.target.dataset.metinCevap && F) {
+      F.cevaplar[e.target.dataset.metinCevap] = e.target.value;
+      if (e.target.dataset.metinCevap === "cihaz") cihazBak(e.target.value);
+      $("#ac").disabled = !hazir();
+      if ($("#eksik")) $("#eksik").textContent = eksikZorunlu().length ? "Gerekli: " + eksikZorunlu().map(s => s.soru).join(", ") : "";
+    }
     if (e.target.id === "yer") yerDegisti();
   };
   if (veri === "senaryo") { metin.value = ORNEKLER[0]; $("#vard").value = "gece"; $("#acan").value = "Sevkiyat"; oner(); }
 };
 
 const oncelikRozet = c => rozet(c.aciliyet === 3 ? "kirmizi" : c.aciliyet === 2 ? "sari" : "gri", "Öncelik: " + ["", "Düşük", "Orta", "Yüksek"][c.aciliyet]);
+/* Bir cihazın geçmişi: kaç kez, ne zaman, nasıl çözüldü. Tekrarlıyorsa değişim konuşulur. */
+function cihazKart(g, baslik) {
+  if (!g) return "";
+  return `<div class="kart"><h3>${kac(baslik || "Cihaz " + g.no)}</h3>
+    <p>${g.kayit ? `${kac(g.kayit.model)}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}` : "Envanterde kayıtlı değil"} · son ${g.gun} günde <b>${g.toplam}</b> çağrı, son 30 günde <b>${g.son_30_gun}</b></p>
+    ${g.tekrarlayan ? `<div class="not uyari"><b>Tekrarlayan arıza.</b> Aynı cihaz 30 günde ${g.son_30_gun} kez bildirildi. Her seferinde onarmak yerine değişim, bakım sözleşmesi ya da kök neden (ör. ribon sensörü, pil) konuşulmalı.</div>` : ""}
+    ${g.cagrilar.length ? `<ul class="liste">${g.cagrilar.map(x => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(x.acilis)}</span><div class="govde"><a href="#detay" data-cagri="${kac(x.id)}">#${kac(x.id)}</a> ${kac(x.metin)}
+      ${x.cozum_notu ? `<div class="kucuk">Çözüm: ${kac(x.cozum_notu.split("\n")[0])}${x.cozen ? " · " + kac(x.cozen) : ""}</div>` : x.durum === "acik" ? '<div class="kucuk">Açık</div>' : ""}</div></li>`).join("")}</ul>` : '<p class="kucuk">Başka çağrısı yok.</p>'}</div>`;
+}
+CIZ.cihaz = async (no) => {
+  const T2 = await api("cihazlar/tekrarlayan");
+  $("#ana").innerHTML = `<h2>Cihaz geçmişi</h2>
+    <p class="alt">Yazıcı ve el terminali çağrıları etiket numarasıyla açılır. Aynı cihaz sık arızalanıyorsa her seferinde onarmak yerine değişim konuşulur.</p>
+    <div class="kart"><div class="sira"><div><label for="cno">Cihaz numarası</label><input id="cno" maxlength="30" placeholder="örn. YZ-07" value="${kac(no || "")}"></div>
+      <div style="flex:0 0 auto;align-self:flex-end"><button class="dugme" id="cbak">Geçmişi göster</button></div></div></div>
+    <div id="cgecmis"></div>
+    <div class="kart"><h3>Son 30 günde tekrar tekrar arızalananlar</h3>${T2.length ? `<ul class="liste">${T2.map(c => `<li>${rozet("sari", c.cagri + " çağrı")}<div class="govde"><b>${kac(c.no)}</b> <span class="kucuk">${kac(c.model || "")}${c.yer ? " · " + kac(c.yer) : ""}</span></div>
+      <button class="dugme kucuk ikincil" data-cno="${kac(c.no)}">Geçmiş</button></li>`).join("")}</ul>` : '<p class="kucuk">Son 30 günde 3 ve üzeri çağrısı olan cihaz yok.</p>'}</div>`;
+  const bak = async n => { if (!n.trim()) return; $("#cno").value = n; $("#cgecmis").innerHTML = cihazKart(await api("cihaz/" + encodeURIComponent(n.trim()))); };
+  $("#ana").onclick = e => {
+    if (e.target.id === "cbak") return bak($("#cno").value);
+    const b = e.target.closest("[data-cno]"); if (b) return bak(b.dataset.cno);
+  };
+  $("#cno").onkeydown = e => { if (e.key === "Enter") bak($("#cno").value); };
+  if (no) bak(no);
+};
 function ekBilgi(c) {
   const e = c.ek; if (!e && !c.yer) return "";
   const satir = [c.yer && ["Yer", c.yer], ...((e && e.cevaplar) || []).map(x => [x.soru, x.cevap]),
@@ -424,7 +479,7 @@ CIZ.detay = async (id) => {
     <div>
       <div class="kart"><p>${kac(c.metin)}</p>
         <p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)} <span class="kucuk">Açan: ${kac(c.acan_birim)}${c.vardiya ? " · " + VARDIYA[c.vardiya] + " vardiyası" : ""}${c.guven != null ? " · konu olasılığı " + yuzde(c.guven) : ""}</span></p>
-        ${ekBilgi(c)}
+        ${ekBilgi(c)}${c.cihaz ? `<p class="kucuk">Cihaz: <b>${kac(c.cihaz)}</b>${c.cihaz_gecmisi && c.cihaz_gecmisi.son_30_gun > 1 ? " · " + rozet(c.cihaz_gecmisi.tekrarlayan ? "sari" : "gri", "30 günde " + c.cihaz_gecmisi.son_30_gun + " çağrı") : ""}</p>` : ""}
         <p><b>${acik ? "Atanan" : "Çözen"}:</b> ${kac((acik ? c.atanan : c.cozen) || (c.otomatik ? "Otomasyon" : "-"))}${c.sure_dk ? ` · ${c.sure_dk} dk` : ""}${c.acan_kisi ? ` <span class="kucuk">· Açan: ${kac(c.acan_kisi)}</span>` : ""}${c.teyit === 1 ? " " + rozet("yesil", "Açan kişi teyit etti") : c.teyit === 0 ? " " + rozet("kirmizi", "Açan kişi çözülmedi dedi") : ""}</p>
         ${c.cozum_notu ? `<h3 style="margin-top:.6rem">Nasıl çözüldü</h3>${adimlar(c.cozum_notu)}` : ""}
         <h3 style="margin-top:.7rem">Geçmiş</h3>
@@ -444,6 +499,7 @@ CIZ.detay = async (id) => {
     </div>
     <div>${c.toplu_olay ? `<div class="kart"><h3>Toplu arıza #${c.toplu_olay.olay_id}</h3><p class="kucuk">Bu çağrı aynı sorunu bildiren diğerleriyle birleşti. Biri kapanınca hepsi kapanır.</p>
         <ul class="liste">${c.toplu_olay.cagrilar.map(x => `<li>${rozet(x.durum === "acik" ? "sari" : "yesil", x.durum === "acik" ? "Açık" : "Kapalı")}<div class="govde"><a href="#detay" data-cagri="${kac(x.id)}">#${x.id}</a> ${kac(x.metin)}<div class="kucuk">${kac(x.acan_kisi || "")}</div></div></li>`).join("")}</ul></div>` : ""}
+      ${c.cihaz_gecmisi && c.cihaz_gecmisi.cagrilar.length ? cihazKart(c.cihaz_gecmisi, "Bu cihazın geçmişi: " + c.cihaz) : ""}
       ${otoKart(c.otomasyon)}
       ${c.mesajlar.length ? `<div class="kart"><h3>Teams mesajları</h3>${c.mesajlar.map(mesajKart).join("")}</div>` : ""}
       ${yolKart(c.yol)}

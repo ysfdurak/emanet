@@ -141,11 +141,12 @@ docs/             PROJE.md (yaşayan doküman), HAKIMIYET.md (derin anlatım + s
 Sunucu çalışırken MCP adresi `/mcp` olur (Streamable HTTP) ve anahtar ister: Claude'da özel
 bağlayıcı adresi `https://<alan>/mcp`, anahtar istek başlığında `Authorization: Bearer <anahtar>` (önerilen; `…/mcp/<anahtar>` da çalışır ama anahtar adreste görünür). Anahtarlar
 `.env` içinde `EMANET_MCP_ANAHTARLARI` (virgülle, her biri en az 24 karakter; `openssl rand -hex 32`).
-MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 24 araç:
+MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 25 araç:
 
 | Araç | Ne yapar |
 | --- | --- |
 | `cagri_ac` | Sistemsel çağrı açar; konu, atama ve çözüm yolunu döndürür. Etki ve kapsam verilirse öncelik hesaplanır; sorulmayan konu sorularını döndürür |
+| `cihaz_gecmisi` | Bir yazıcı ya da terminalin kaydı ve son çağrıları; boşsa tekrar tekrar arızalanan cihazlar |
 | `cagrilari_listele` | Birime, kişiye, duruma göre çağrılar |
 | `nasil_cozuldu` | Bir sorun geçmişte nasıl çözülmüş, kaç kez, kim çözmüş |
 | `cagriyi_kapat` | Çağrıyı çözüm notuyla kapatır (istenirse karta dönüştürür) |

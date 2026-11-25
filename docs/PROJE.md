@@ -344,6 +344,20 @@ flowchart TD
   `sevkiyat`, `cevaplar` parametreleri; sonuçta öncelik gerekçesi ve sorulmayan sorular döner (Claude
   kullanıcıya eksikleri sorabilsin).
 
+**Cihaz numarası ve tekrarlayan arıza (kullanıcı isteği):** "Yazıcı modeli bilinmeli, el terminalinde cihaz
+no izlemek için gerekli." Yazıcı ve terminal numarası artık **gerekli** ve ayrı sütunda (`cagri.cihaz`) durur.
+- Numara tek biçime gelir: "yz 7", "YZ07", "yz-007" → `YZ-07` (aynı cihaz farklı yazılınca geçmişi bölünmesin).
+- **Envanter:** numara kayıtlıysa model ve yer kendiliğinden gelir, model sorulmaz (`katalog.CIHAZLAR`; demo).
+  Kayıtlı değilse model sorulur. Gerçekte envanter demirbaş sisteminden içe aktarılır.
+- Numara yazılınca formda o cihazın son 90 günü görünür; 30 günde 3 ve üzeri çağrı **tekrarlayan arıza**
+  sayılır. Çözen kişi çağrı detayında cihazın geçmişini (ne oldu, nasıl çözüldü) görür. Bugün sayfası
+  tek satırda uyarır; "Cihaz geçmişi" sayfası tekrarlayanları listeler. MCP: `cihaz_gecmisi`.
+- Alan uzmanı notu: tekrarlayan arızada her seferinde onarmak yerine değişim, bakım sözleşmesi ya da kök
+  neden (ribon sensörü, pil) konuşulur. Bu kararın verisi ancak numarayla tutulursa oluşur.
+- Demo verisinde numaralar metinle çelişmesin diye: metinde yer geçiyorsa o yerdeki yazıcı, "17 no'lu"
+  geçiyorsa o numara verilir; irsaliye (A4) yazıcısı ve yazım hatalı yerler numarasız kalır.
+  Demo veri biçimi değişince sunucu gece beklemeden yeniden üretir (`VERI_SURUMU`).
+
 **Mülakat sorusu:** *"Önceliği neden kullanıcıya seçtirmedin?"* Seçtirilen öncelik herkesin "yüksek" dediği bir
 alan olur ve sıralamayı anlamsızlaştırır. Kişinin bildiği şeyi soruyorum (iş durdu mu, kaç kişi, araç bekliyor
 mu); önceliği kuralla ben hesaplıyorum ve gerekçesini gösteriyorum. Kural tek dosyada, değiştirmek kolay.
@@ -603,3 +617,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Devir sayfası kullanıcı gözüyle (Bu hafta kutusu, kısa takvim, dürüst durum satırı; 4813 → 2959 px); iki aşamalı çağrı formu (konuya özel sorular, hesaplanan öncelik, aynı sorun uyarısı, önce bunu dene); 123 test |
 | 25 Kasım 2026 | Devirde kartı devralan yazar, ayrılan düzeltir (takvimde adım sırası kuralı); ayrılanın saati 15 → 9; 124 test |
 | 25 Kasım 2026 | Devralanın ayrı haftalık sınırı ve darboğaz cümlesi; çağrı formu telefonda (örnekler gizlenir, "soru açıldı" düğmesi), kuyrukta yer; README ve HAKIMIYET (39–44. sorular) güncel; 125 test |
+| 25 Kasım 2026 | Yazıcı ve terminal numarası gerekli; envanterden model ve yer; cihaz geçmişi ve tekrarlayan arıza uyarısı; MCP `cihaz_gecmisi`; 127 test |

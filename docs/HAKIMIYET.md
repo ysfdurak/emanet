@@ -409,6 +409,7 @@ Sorular:
 42. Önceliği neden kullanıcıya seçtirmiyorsun?
 43. Form cevaplarını neden çağrı metnine eklemiyorsun?
 44. "Önce bunu dene" adımlarını neden çözüm notlarından türetmedin?
+45. Cihaz numarasını neden ayrı sütunda tutup tek biçime getiriyorsun?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -573,3 +574,5 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
     ederek modelin belirleyici sözcüklerini bozar.
 44. Notlar uzmanın uzmana yazdığı adımlar ("entegrasyon günlüğünde belgeyi bul"); çağrıyı açan depo
     çalışanı bunları yapamaz. Yalnız kullanıcının güvenle yapabileceği adımları elle yazdım.
+45. Tekrarlayan arızayı saymak için: "yz 7" ile "YZ-07" aynı cihaz olmalı, yoksa geçmiş bölünür ve 30 günde
+    3 çağrı eşiği hiç tutmaz. Ayrı sütun indekslenir; JSON içinde aramak hem yavaş hem kırılgan olurdu.

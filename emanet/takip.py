@@ -454,6 +454,14 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
         liste.append(dict(seviye="kirmizi", metin=f"{r['ad']}: çağrıların {yuzde(r['yogunlasma'], 'ini')} "
                                                   f"{r['en_cok_cozen']['ad']} çözüyor, yedeği yok.",
                           sayfa="giderse", veri=r["en_cok_cozen"]["ad"]))
+    from .cagri_formu import tekrarlayan_cihazlar
+    tekrar = tekrarlayan_cihazlar(con, simdi)
+    if tekrar:   # tek satır: cihazlar ayrı ayrı listeyi doldurmasın
+        ilk = tekrar[0]
+        liste.append(dict(seviye="sari", metin=(f"{ilk['no']}{' (' + ilk['yer'] + ')' if ilk['yer'] else ''} son 30 günde "
+                          f"{ilk['cagri']} kez arızalandı" + (f"; {len(tekrar) - 1} cihaz daha tekrar tekrar arızalanıyor ("
+                          + ", ".join(f"{c['no']} {c['cagri']}" for c in tekrar[1:4]) + ")" if len(tekrar) > 1 else "")
+                          + ". Tekrar onarmak yerine değişim ya da bakım konuşulmalı."), sayfa="cihaz", veri=ilk["no"]))
     tk = risk.tek_kisiye_kalanlar(con, 7, simdi)
     yedeksiz = [k for k in tk["konular"] if k["durum"] == "yedeksiz"]
     tek = [k for k in tk["konular"] if k["durum"] == "tek kişi" and k["kritiklik"] == 3]
