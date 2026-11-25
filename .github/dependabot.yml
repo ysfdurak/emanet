@@ -8,6 +8,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Python ara sürüm geçişi (3.13 -> 3.14/3.15) elle denenir: CI Docker imajını değil
+      # setup-python'ı test eder. Yalnız yama sürümleri (3.13.x) otomatik gelir.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
