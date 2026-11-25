@@ -122,7 +122,7 @@ güvenliği, MCP). CI'da aynı testler ve `pip-audit`.
 | `tara.py --audit` (#54 sürümü) | Temiz | Temiz | ✅ |
 | Sunucuda bellek (`docker stats`, boşta) | < 500 MB | 120,9 MiB / 768 MiB, CPU %0,28 | ✅ |
 | Claude özel bağlayıcı (başlıkta anahtar) | Araç çağrılır, veri gelir | "En riskli konu" → ERP entegrasyon hatası, 100 puan | ✅ |
-| Canlı adreste başlıklar | CSP, HSTS, nosniff | **[doğrulanacak: `curl -sI` çıktısı bekleniyor]** | ⏳ |
+| Canlı adreste başlıklar (`curl -sI`) | CSP, HSTS | İkisi de geldi | ✅ |
 | İki telefon aynı anda | Biri ötekinin çağrısını görmez | **[doğrulanacak]** | ⏳ |
 
 **Burada bir test daha yapalım:** boştaki 121 MiB, modeller henüz eğitilmeden ölçüldü. Birkaç
