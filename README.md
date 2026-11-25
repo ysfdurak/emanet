@@ -15,7 +15,7 @@ konusu, yaklaşık 900 Usta çağrısı ve 650 kayıtlık bir bakım dökümü b
 | --- | --- | --- |
 | Usta | Bu çağrı hangi konu, kime gitmeli, daha önce nasıl çözülmüştü? | Konu modeli (emin değilse sorar), kişi modeli (izin ve vardiyaya göre), benzer çağrıların çözüm yolları |
 | Otomasyon | Hangi çağrılar insansız çözülebilir? | Talep karşılama (Teams'ten soru ve onay), bilinen çözümü deneme, toplu arıza, kapanış teyidi, işe giriş/çıkış, notlardan reçete önerisi |
-| Emanet | Hangi konu kimin elinde, o giderse ne olur, aldığımız önlem işe yaradı mı? | Risk haritası ve seyri, "ya giderse", devir dosyası, izin kontrolü, bütçeli eğitim planı ve takibi, kendi dökümünü yükleme |
+| Emanet | Hangi konu kimin elinde, o giderse ne olur, aldığımız önlem işe yaradı mı? | Risk haritası ve seyri, "ya giderse", devir dosyası, izin kontrolü, bütçeli eğitim planı, haftalara yayılmış eğitim takvimi (Excel) ve takibi, kendi dökümünü yükleme |
 | Değişimler | Sistem değişti, yeni biri geldi, otomasyon bozuldu: risk bunu nasıl görür? | Sistem geçişi (yeni konu, geçici puan, erken uyarı, geçiş adayları), çırak modu ve işe alışma, otomasyon sağlığı (otomatik askıya alma), gerçek ayrılış kaydı |
 
 **Genel bakış** "Bugün neye bakmalı?" listesiyle açılır: yedeksiz kritik konular, askıdaki otomasyon,
@@ -118,6 +118,7 @@ emanet/
   ice_aktar.py    Döküm (CSV) içe aktarma ve kaydetmeden analiz
   otomasyon.py    Reçeteler, yetki çerçevesi, Teams benzeri mesajlaşma, altı otomasyon akışı, sağlık
   risk.py         Risk puanı, ısı haritası, ya giderse, eğitim planı (kural + optimizasyon)
+  takvim.py       Eğitim planını kişi başı haftalık sınırla haftalara ve günlere yerleştirir
   takip.py        İzin kontrolü, plan takibi, devir dosyası, risk seyri, reçete fırsatları, dikkat listesi
   degisim.py      Sistem geçişi, yeni personel ve işe alışma, gerçek ayrılış
   yerel.py        Kendi çağrı verinle yerel kurulum: içe aktarma, takma ad, rapor

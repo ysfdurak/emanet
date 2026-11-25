@@ -188,3 +188,18 @@ def test_csv_formul_enjeksiyonu():
     from emanet.api import _csv_hucre
     assert _csv_hucre("=HYPERLINK(\"x\")") == "'=HYPERLINK(\"x\")" and _csv_hucre("@SUM(A1)") == "'@SUM(A1)"
     assert _csv_hucre("-5") == "-5" and _csv_hucre("1.250,75") == "1.250,75" and _csv_hucre(42) == 42
+
+
+def test_egitim_takvimi_api_ve_csv():
+    c = TestClient(app)
+    r = c.post("/api/egitim-plani", json={"butce_saat": 20, "haftalik_sinir": 3, "calisma_gunu": 6},
+               headers={"origin": "http://testserver"})
+    assert r.status_code == 200
+    t = r.json()["takvim"]
+    assert t["ayarlar"]["haftalik_sinir"] == 3 and t["oturumlar"] and t["darbogaz"]
+    r = c.post("/api/egitim-plani", json={"butce_saat": 20, "oturum_saat": 4, "haftalik_sinir": 2},
+               headers={"origin": "http://testserver"})
+    assert r.status_code in (400, 422)
+    r = c.get("/api/egitim-plani/takvim.csv?butce_saat=20")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert r.text.startswith("﻿Hafta;Tarih;Gün;Konu")

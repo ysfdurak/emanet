@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import functools
 import threading
+from datetime import date
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import degisim, ogrenme, otomasyon, risk, takip, usta
+from . import degisim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
 
 sunucu = MCPServer(
@@ -284,14 +285,30 @@ def ya_giderse(kisi: str, gun: int = 21, dakika_maliyeti: float = 0) -> dict:
 
 
 @arac
-def egitim_plani_oner(butce_saat: int = 40, yontem: str = "optimum") -> dict:
-    """Verilen eğitim saati bütçesiyle riski en çok düşüren kart yazma ve çapraz eğitim eşleşmeleri.
+def egitim_plani_oner(butce_saat: int = 40, yontem: str = "optimum", haftalik_sinir: float = 2.0,
+                      oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5) -> dict:
+    """Verilen eğitim saati bütçesiyle riski en çok düşüren kart yazma ve çapraz eğitim eşleşmeleri,
+    ve bunların haftalara yayılmış takvimi.
 
     yontem: optimum (çok seçenekli sırt çantası) | kural (saat başına en iyi adımı sırayla seç).
+    haftalik_sinir: bir kişinin haftada eğitimde geçirebileceği en fazla saat (veren ve alan sayılır).
+    oturum_saat: bir oturumun süresi (0,5-4). gunluk_oturum: kişi başı günde en fazla oturum.
+    calisma_gunu: 5 (Pzt-Cum) ya da 6 (Pzt-Cmt). Takvim gelecek pazartesi başlar.
+    Yanıttaki takvim.darbogaz takvimin uzunluğunu belirleyen kişidir.
     """
+    takvim.ayar_dogrula(haftalik_sinir, oturum_saat, gunluk_oturum, calisma_gunu)
     with KILIT:
         p = risk.egitim_plani(baglanti(), butce_saat, yontem)
     p.pop("harita_sonra", None)
+    t = takvim.takvim_olustur(p["satirlar"], takvim.sonraki_pazartesi(date.today()), haftalik_sinir,
+                              oturum_saat, gunluk_oturum, calisma_gunu)
+    # Sohbette okunur kalsın: oturumlar haftaya göre kısa satırlar
+    t["haftalar"] = {}
+    for o in t.pop("oturumlar"):
+        kim = o["ogreten"] + (f" → {o['ogrenen']}" if o["ogrenen"] else "")
+        t["haftalar"].setdefault(f"{o['hafta']}. hafta", []).append(
+            f"{o['gun']} {o['tarih']}: {o['kategori']} · {o['tur_adi']} · {kim} · {o['saat']} sa")
+    p["takvim"] = t
     return p
 
 

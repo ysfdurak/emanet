@@ -80,6 +80,7 @@ flowchart LR
 | `emanet/usta.py` | Konu önerisi, yönlendirme (izin, vardiya, çırak, paylaştırma), çağrı açma/kapatma | Kapanan (geçişli) konuya çağrı açılamaz |
 | `emanet/otomasyon.py` | 8 reçete, Teams akışı, toplu arıza, kapanış teyidi, sağlık ve askıya alma | Yer yazılmamış çağrı yalnız yer yazılmamışlarla birleşir |
 | `emanet/risk.py` | Risk puanı, ya giderse, eğitim planı, tek kişiye kalanlar, veri tazeliği | Formül dosyanın başında |
+| `emanet/takvim.py` | Eğitim planını haftalara ve günlere yerleştirir (saf işlev) | Kişi başı haftalık ve günlük sınır hem vereni hem alanı kapsar; açgözlü yerleştirme, en riskli konu önce |
 | `emanet/takip.py` | İzin kontrolü, plan takibi, devir dosyası, risk seyri, dikkat listesi | |
 | `emanet/degisim.py` | Sistem geçişi, yeni personel, ayrılış | |
 | `emanet/yerel.py` | Kendi verinle yerel kurulum ve rapor | Demo veritabanının üzerine yazmaz |
@@ -227,6 +228,11 @@ Bulunan ve düzeltilen üç takılma:
    itip "Genel Bakış"ı gizliyordu. 900 px üstünde sekmeler iki satıra sarılıyor; kaydırma ve solma
    yalnız telefonda.
 
+9. **"Çok eğitim planı gibi durmuyor" (kullanıcı):** ekran ne yapılacağını söylüyor ama ne zaman ve kimin
+   saatinden olduğunu söylemiyordu; depoda personel iş varken uzun süre eğitime çekilemez. Takvim eklendi
+   (`takvim.py`): kişi başı haftalık sınır, oturum süresi, günlük oturum, çalışma günleri ve başlangıç
+   ayarlanabilir; hafta hafta görünüm, kişi kişi yük, Excel'e indirme. Konu konu görünüm üçüncü sekmeye geçti.
+
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
 
@@ -238,6 +244,12 @@ görev odaklı bakış buldu.
 4. **Ziyaretçiler neden birbirini görmüyor?** İlk değişiklikte kendi kopyası açılır, çerezle tanınır; 24 saatte silinir.
 5. **Güvenlik için ne yaptın?** CSP ve başlıklar, Origin denetimi, sınırlar, gerçek IP, anahtarlı MCP, sabit ve özetli bağımlılıklar, salt okunur konteyner; haftalık otomatik tarama.
 6. **Yeni sistem geldiğinde ne olur?** Eski konu kapanır, yeni konunun puanı ilk 60 gün geçicidir, bilgi tek kişide toplanırsa erken uyarı.
+
+7. **Eğitim takvimi nasıl çıkıyor, neden en kısa takvimi aramıyorsun?** Plan "hangi adımlar", takvim "ne zaman"
+   sorusunu cevaplar. Adımlar oturumlara bölünür ve iki sınırla yerleşir: kişi başı haftalık saat ve günlük
+   oturum. Açgözlü yerleştirme en kısa takvimi garanti etmez ama "en tehlikeli iş önce" kuralını korur ve
+   sonucu bir amirin kafasında yeniden yapabileceği kadar basittir. Takvimin uzunluğunu genelde tek kişi
+   belirler (darboğaz); ekran onu adıyla gösterir: "Süreyi Kemal belirliyor".
 
 Daha fazlası: HAKIMIYET.md, 1–38. sorular.
 
@@ -259,6 +271,14 @@ CSP `script-src 'self'` olabilsin; araya sızan bir HTML parçası betik çalı�
 
 <details><summary>5. Paylaştırma sipariş dalgasında neden devreye girmez?</summary>
 Vardiyada konuyu bilen ikinci kimse yok; yetkinliği olmayan birine çağrı verilmez. Çare eğitim planı.</details>
+
+<details><summary>6. Haftalık sınır neden eğitim verene de uygulanıyor?</summary>
+Veren de o saatte işinin başında değil. Üstelik veren genelde tek bilen usta; onun saati en kıt kaynak.
+Sınır yalnız alana uygulansaydı Kemal haftada 9 saat eğitime çekilir, sorter arızasında kimse kalmazdı.</details>
+
+<details><summary>7. Varsayılan ayarlarla takvim 9 hafta; nasıl kısaltırsın?</summary>
+Darboğaz Kemal (18 saat). Haftalık sınırı 4 saate çıkarmak takvimi 5 haftaya indirir; ya da sorter
+öğretimini iki ustaya bölmek. Bütçeyi azaltmak da kısaltır ama riski daha az düşürür.</details>
 
 ## 11. Elle yapılacak alıştırma
 
@@ -285,3 +305,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Hesap düğmelerine geri bildirim ("Planı çıkar" sessiz kalıyordu) |
 | 25 Kasım 2026 | Plan ekranı konu konu, düz cümle özetli; sonuç vurgusu ve hesap saati |
 | 25 Kasım 2026 | Eğitim planı sadeleşti (amaç cümlesi, açılır teknik bölümler); masaüstünde sekmeler sarılıyor |
+| 25 Kasım 2026 | Eğitim takvimi: parametrik (haftalık sınır, oturum, gün, başlangıç), darboğaz kişi, CSV, MCP aracına takvim; 96 test |

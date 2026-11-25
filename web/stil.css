@@ -90,3 +90,18 @@ footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--soluk);fon
 /* Yeniden hesaplanan sonuç kısa bir süre vurgulanır: sonuç aynı çıksa da basıldığı görülür */
 @keyframes yenilendi{from{background:#fff3c4}to{background:transparent}}
 .yenilendi{animation:yenilendi 1.6s ease-out}
+
+/* Eğitim takvimi */
+.ayarlar{margin-top:.75rem;border-top:1px solid var(--cizgi);padding-top:.6rem}
+.ayarlar summary{cursor:pointer;font-weight:600}
+.gorunum{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0 .6rem}
+.gorunum a.dugme{text-decoration:none;margin-left:auto}
+.gorunum [aria-pressed=true]{background:var(--vurgu);color:#fff;opacity:1}
+.hafta h3{margin-bottom:.4rem}
+.gun{display:flex;gap:.75rem;padding:.55rem 0;border-top:1px solid var(--cizgi)}
+.gun:first-of-type{border-top:0}
+.gun-ad{flex:0 0 5.6rem;font-size:.85rem;color:var(--soluk,#5b6672);padding-top:.1rem}
+.oturumlar{list-style:none;margin:0;padding:0;flex:1}
+.oturumlar li+li{margin-top:.5rem}
+.tamam{margin:.6rem 0 0;padding:.45rem .6rem;background:#e5f4e4;border-radius:8px}
+@media (max-width:520px){.gun{flex-direction:column;gap:.2rem}.gun-ad{flex:none;font-weight:600}.gorunum a.dugme{margin-left:0}}

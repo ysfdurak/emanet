@@ -25,7 +25,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from . import __version__, degisim, ice_aktar, katalog, ogrenme, otomasyon, risk, takip, usta, veri_uret
+from . import __version__, degisim, ice_aktar, katalog, ogrenme, otomasyon, risk, takip, takvim, usta, veri_uret
 from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
@@ -422,6 +422,12 @@ class PlanIstek(BaseModel):
     butce_saat: int = Field(60, ge=0, le=500)
     yontem: str = Field("optimum", pattern="^(optimum|kural)$")
     kaydet: bool = False
+    # Takvim ayarları (takvim.py): kişi başı haftalık saat, oturum süresi, günlük oturum, çalışma günü, başlangıç
+    haftalik_sinir: float = Field(2.0, ge=0.5, le=40)
+    oturum_saat: float = Field(1.0, ge=0.5, le=4)
+    gunluk_oturum: int = Field(1, ge=1, le=4)
+    calisma_gunu: int = Field(5, ge=5, le=6)
+    baslangic: date | None = None
 
 
 # ------------------------------------------------------------------ ortak
@@ -711,10 +717,42 @@ def ya_giderse(i: YaGiderseIstek):
         return risk.ya_giderse(con, i.kisi_id, i.gun, i.dakika_maliyeti)
 
 
+def _plan_ve_takvim(i: PlanIstek) -> dict:
+    # Ayarlar plan kaydedilmeden önce denetlenir: geçersiz ayar yarım kalmış kayıt bırakmasın
+    takvim.ayar_dogrula(i.haftalik_sinir, i.oturum_saat, i.gunluk_oturum, i.calisma_gunu)
+    with KILIT:
+        p = risk.egitim_plani(con, i.butce_saat, i.yontem, i.kaydet)
+    p["takvim"] = takvim.takvim_olustur(
+        p["satirlar"], i.baslangic or takvim.sonraki_pazartesi(date.today()), i.haftalik_sinir,
+        i.oturum_saat, i.gunluk_oturum, i.calisma_gunu)
+    return p
+
+
 @api.post("/api/egitim-plani")
 def egitim_plani(i: PlanIstek):
-    with KILIT:
-        return risk.egitim_plani(con, i.butce_saat, i.yontem, i.kaydet)
+    return _plan_ve_takvim(i)
+
+
+@api.get("/api/egitim-plani/takvim.csv")
+def egitim_takvimi_csv(butce_saat: int = 60, yontem: str = "optimum", haftalik_sinir: float = 2.0,
+                       oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5,
+                       baslangic: date | None = None):
+    """Eğitim takvimi, Excel'de açılacak biçimde: İK'ya ya da vardiya amirine verilecek liste."""
+    import csv
+    import io
+    i = PlanIstek(butce_saat=butce_saat, yontem=yontem, haftalik_sinir=haftalik_sinir, oturum_saat=oturum_saat,
+                  gunluk_oturum=gunluk_oturum, calisma_gunu=calisma_gunu, baslangic=baslangic)
+    t = _plan_ve_takvim(i)["takvim"]
+    b = io.StringIO()
+    w = csv.writer(b, delimiter=";")
+    w.writerow(["Hafta", "Tarih", "Gün", "Konu", "Ne yapılacak", "Veren", "Alan", "Süre (saat)", "Oturum"])
+    for o in t["oturumlar"]:
+        g = date.fromisoformat(o["tarih"])
+        w.writerow([_csv_hucre(x) for x in [o["hafta"], g.strftime("%d.%m.%Y"), o["gun"], o["kategori"], o["tur_adi"],
+                    o["ogreten"] or "", o["ogrenen"] or "", f"{o['saat']:g}".replace(".", ","),
+                    f"{o['parca']}/{o['parca_sayisi']}"]])
+    return PlainTextResponse("\ufeff" + b.getvalue(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="emanet-egitim-takvimi.csv"'})
 
 
 @api.get("/api/tek-kisiye-kalanlar")
