@@ -530,8 +530,10 @@ def egitim_plani(con: sqlite3.Connection, butce_saat: int = 40, yontem: str = "o
                 neden = f"Geçiş eğitimi: eski sistemde ({v['gecis'][k['id']]['eski_ad']}) bu işi düzenli yapıyordu"
             else:
                 saat = k["ogrenme_saati"]
-                neden = (f"{ {'gunduz': 'Gündüz', 'aksam': 'Akşam', 'gece': 'Gece'}[p['vardiya']] } vardiyasında "
-                         f"bu konuyu bilen {kapsama[p['vardiya']]} kişi var")
+                vardiya = {'gunduz': 'Gündüz', 'aksam': 'Akşam', 'gece': 'Gece'}[p['vardiya']]
+                bilen = kapsama[p['vardiya']]
+                neden = (f"{vardiya} vardiyasında bu konuyu bilen kimse yok" if bilen == 0
+                         else f"{vardiya} vardiyasında bu konuyu yalnız {bilen} kişi biliyor")
             kapsama[p["vardiya"]] += 1
             yuk[p["id"]] = yuk.get(p["id"], 0) + saat
             satirlar.append(dict(kategori_id=k["id"], kategori=k["ad"],
