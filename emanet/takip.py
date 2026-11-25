@@ -479,5 +479,16 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
         if p["kisi"]["gun"] is not None and p["kisi"]["gun"] >= 30 and p["toplam_cozum"] == 0:
             liste.append(dict(seviye="sari", metin=f"{p['kisi']['ad']} {p['kisi']['gun']} gündür ekipte ama hiç çağrı çözmedi.",
                               sayfa="degisim"))
+    from . import devir
+    for dv in devir.acik_devirler(con):
+        d = devir.durum(con, dv["id"], simdi)
+        acik_konu = d["ozet"]["konu"] - d["ozet"]["tamam"]
+        if any(u["seviye"] == "kirmizi" for u in d["uyarilar"]):
+            liste.append(dict(seviye="kirmizi", metin=f"{d['kisi']['ad']} devri çıkış gününe yetişmiyor ({d['gun_kaldi']} gün kaldı).",
+                              sayfa="devir", veri=str(d["id"])))
+        elif acik_konu or d["ozet"]["madde_tamam"] < d["ozet"]["madde"]:
+            liste.append(dict(seviye="sari", metin=f"{d['kisi']['ad']} devri sürüyor: {d['gun_kaldi']} gün kaldı, "
+                              f"{acik_konu} konu ve {d['ozet']['madde'] - d['ozet']['madde_tamam']} madde açık.",
+                              sayfa="devir", veri=str(d["id"])))
     sira = {"kirmizi": 0, "sari": 1, "mavi": 2}
     return sorted(liste, key=lambda x: sira[x["seviye"]])

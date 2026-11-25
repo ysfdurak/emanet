@@ -63,7 +63,7 @@ def oturum_gundemi(gundem: list[str], parca: int, parca_sayisi: int) -> list[str
 def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float = 2.0,
                    oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5,
                    hafta_sinir: dict[int, float] | None = None,
-                   kisi_yok: set[tuple[int, int]] | None = None) -> dict:
+                   kisi_yok: set[tuple[int, int]] | None = None, ilk_gun: date | None = None) -> dict:
     """Plan satırlarını haftalara ve günlere yerleştirir.
 
     satirlar: risk.egitim_plani()["satirlar"] (sırası korunur: en riskli konu önce).
@@ -79,7 +79,10 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
         if not 1 <= h <= EN_FAZLA_HAFTA or not 0 <= v <= 40:
             raise ValueError("Haftaya özel sınır: hafta 1-104, saat 0-40 olmalı")
     kisi_yok = {(int(k), int(h)) for k, h in (kisi_yok or set())}
+    # ilk_gun verilirse (devir: bugün) oturumlar o günden önceye konmaz; hafta sayımı yine pazartesiden
+    ilk = ilk_gun or baslangic
     baslangic = baslangic - timedelta(days=baslangic.weekday())
+    bas_sira = ((ilk - baslangic).days // 7) * calisma_gunu + min(ilk.weekday(), calisma_gunu) if ilk >= baslangic else 0
 
     def sinir(hafta0: int) -> float:
         return hafta_sinir.get(hafta0 + 1, haftalik_sinir)
@@ -93,7 +96,7 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
         kisiler = [k for k in (s.get("ogreten_id"), s.get("ogrenen_id")) if k is not None]
         parca_sayisi = max(1, math.ceil(s["saat"] / oturum_saat - 1e-9))
         kalan = float(s["saat"])
-        gun_sira = 0          # adımın oturumları sırayla ilerler: bir sonraki oturum öncekinden önce olamaz
+        gun_sira = bas_sira   # adımın oturumları sırayla ilerler: bir sonraki oturum öncekinden önce olamaz
         for parca in range(1, parca_sayisi + 1):
             sure = min(oturum_saat, kalan)
             kalan = round(kalan - sure, 2)

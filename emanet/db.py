@@ -211,6 +211,28 @@ CREATE TABLE IF NOT EXISTS gecis (
     olusturma        TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS devir (
+    id           INTEGER PRIMARY KEY,
+    kisi_id      INTEGER NOT NULL REFERENCES kisi(id),   -- ayrılan (ya da uzun süre olmayacak) kişi
+    cikis_tarihi TEXT NOT NULL,                          -- son çalışma günü
+    baslangic    TEXT NOT NULL,                          -- devrin başladığı an; ilerleme bundan sonraki çağrılarla ölçülür
+    durum        TEXT NOT NULL DEFAULT 'acik',           -- acik | tamam | iptal
+    haftalik_sinir REAL NOT NULL DEFAULT 4,              -- devir oturumları için kişi başı haftalık saat
+    gorusme      TEXT NOT NULL DEFAULT '{}'              -- bilgi aktarım görüşmesi: {soru_no: cevap}
+);
+CREATE TABLE IF NOT EXISTS devir_konu (
+    devir_id     INTEGER NOT NULL REFERENCES devir(id),
+    kategori_id  INTEGER NOT NULL REFERENCES kategori(id),
+    devralan_id  INTEGER REFERENCES kisi(id),
+    izledi       INTEGER NOT NULL DEFAULT 0,             -- 1. aşama: devralan ustanın çözümünü en az bir kez izledi
+    PRIMARY KEY (devir_id, kategori_id)
+);
+CREATE TABLE IF NOT EXISTS devir_madde (
+    devir_id     INTEGER NOT NULL REFERENCES devir(id),
+    kod          TEXT NOT NULL,                          -- elle işaretlenen kontrol maddesi
+    yapildi      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (devir_id, kod)
+);
 CREATE TABLE IF NOT EXISTS egitim_plani (
     id           INTEGER PRIMARY KEY,
     kategori_id  INTEGER NOT NULL REFERENCES kategori(id),
@@ -225,7 +247,7 @@ CREATE TABLE IF NOT EXISTS egitim_plani (
 );
 """
 
-TABLOLAR = ["mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
+TABLOLAR = ["devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
             "kategori", "musaitlik", "kisi", "birim", "meta"]
 
 

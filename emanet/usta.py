@@ -95,7 +95,12 @@ def _cirak_sec(con, kat: dict, adaylar: list[dict], olas: dict, aciliyet: int, s
     öğrenen hiç çağrı almaz, pratik kazanamaz. Bu kısır döngüyü kırmak için kritik ve acil olmayan
     çağrılar, aynı vardiyada konuyu bilen bir usta varken öğrenene verilir. Usta takılırsa destek olur."""
     from .risk import yetkin_esigi
-    if not cirak_modu_acik(con) or kat["kritiklik"] >= 3 or aciliyet >= 3:
+    from .devir import devralanlar
+    if not cirak_modu_acik(con) or aciliyet >= 3:
+        return None
+    devralan = devralanlar(con, kat["id"])
+    # Kritik konuda yanında öğrenme yalnız devir sürerken: usta ayrılıyorsa devralanın pratiğe başka yolu yok
+    if kat["kritiklik"] >= 3 and not devralan:
         return None
     bas = (simdi - timedelta(days=90)).isoformat(timespec="minutes")
     say = {r[0]: r[1] for r in con.execute(
@@ -112,14 +117,16 @@ def _cirak_sec(con, kat: dict, adaylar: list[dict], olas: dict, aciliyet: int, s
     acik = {r[0]: r[1] for r in con.execute(
         "SELECT atanan_kisi_id, COUNT(*) FROM cagri WHERE durum='acik' AND atanan_kisi_id IS NOT NULL GROUP BY 1")}
     ciraklar = [u for u in adaylar if say.get(u["id"], 0) < esik
-                and (u["id"] in planli or (u.get("ise_giris") or "") >= yeni_sinir)
+                and (u["id"] in planli or u["id"] in devralan or (u.get("ise_giris") or "") >= yeni_sinir)
+                and (kat["kritiklik"] < 3 or u["id"] in devralan)
                 and acik.get(u["id"], 0) < CIRAK_ACIK_SINIR]
     if not ciraklar:
         return None
     c = min(ciraklar, key=lambda u: (say.get(u["id"], 0), u["id"]))
     usta = max(ustalar, key=lambda u: olas.get(u["id"], 0.0))
     return dict(kisi=c, usta=usta, cozum=say.get(c["id"], 0), kalan=esik - say.get(c["id"], 0),
-                neden=("eğitim planında bu konuyu öğreniyor" if c["id"] in planli else "yeni personel"))
+                neden=("devir sürecinde bu konuyu devralıyor" if c["id"] in devralan
+                       else "eğitim planında bu konuyu öğreniyor" if c["id"] in planli else "yeni personel"))
 
 
 def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None = None, vardiya: str | None = None,

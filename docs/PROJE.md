@@ -233,9 +233,45 @@ olur:** Sorter gibi 40 saatlik bir konu için haftalık 2 saat sınırı gerçek
 kaydetmiyor. Uydurulmuş bir sayı planı gerçekçi gösterir ama yanıltır. Bu yüzden süre işi bilen kişiden
 gelir, girilmeyen her yer açıkça "tahmini" diye işaretlenir.
 
-**Sıradaki (onaylandı):** devir dosyası bir sürece dönüşecek (izle → birlikte → tek başına, çağrıyla ölçülen),
-sonra çağrı açma formu iki aşamalı olacak (konuya özel sorular, aciliyet cevaplardan, açılmadan önce
-"aynı sorun bildirildi" ve "önce bunu dene").
+### Devir süreci (rapordan sürece)
+
+Eleştiri: "Devir dosyası için farklı bir yol olmalı." Eski devir dosyası tek seferlik bir rapordu; gerçekte
+devir, son çalışma gününe kadar süren bir süreç. Yeni `emanet/devir.py`:
+
+```mermaid
+flowchart LR
+  B[Devri başlat<br/>son çalışma günü] --> K[Her konuya devralan<br/>öneri hazır]
+  K --> A0[Başlamadı] --> A1[İzledi<br/>elle işaretlenir] --> A2[Birlikte<br/>devralanın 1. çağrısı] --> A3[Tek başına<br/>3. çağrı]
+  B --> L[Kontrol listesi<br/>açık çağrı · otomatik çözüm sahibi · kart · görüşme · hesap · ekipman]
+  B --> T[Devir takvimi<br/>çıkışa yetişiyor mu?]
+  A3 & L --> M[Devir tutanağı<br/>ayrılan · devralan · yönetici onayı]
+```
+
+- **Aşamalar beyanla değil çağrıyla ölçülür.** "İzledi"yi sistem göremez, elle işaretlenir; devralanın devir
+  başladıktan sonra kapattığı ilk çağrı "birlikte", üçüncüsü "tek başına". Devirden önceki çözümler ayrı
+  sayılır: devralan konuyu zaten biliyorsa (90 günde eşik kadar çözüm) konu baştan tamam sayılır ve ekranda
+  tek satırlık özete iner; dikkat riskli konulara kalır.
+- **Devralan gerçek çağrı alır.** Yanında öğrenme kritik konularda kapalıydı (ERP, dalga, sorter). Devir
+  sürerken bu konularda devralana açıldı: usta ayrılıyorsa devralanın pratiğe başka yolu yok. Devralan
+  ustadan farklı vardiyadaysa ekran uyarır: "vardiyaları birkaç gün çakıştırın".
+- **Çıkışa yetişiyor mu?** Kalan kart ve öğretme saatleri (aşamaya göre azalır; tazeleme üçte bir) ayrılan
+  kişinin haftalık devir saatiyle (varsayılan 4) bugünden itibaren takvime yerleşir. Yetişmeyen konu
+  varsa sistem yetişecek haftalık saati hesaplar ve tek düğmeyle uygular ("Haftada 5 saate çıkar"); 20
+  saat bile yetmiyorsa konuyu bölmeyi ya da çıkışı ertelemeyi önerir.
+- **Kontrol listesi:** açık çağrılar ve kart kendiliğinden ölçülür; ayrılanın bakımını yaptığı otomatik
+  çözümler tek tıkla yeni sahibe verilir; kartı yalnız ayrılan kişinin asıl ustası olduğu konularda (çözümlerin
+  ≥ %40'ı) o yazar; hesaplar ve ekipman elle işaretlenir.
+- **Bilgi aktarım görüşmesi:** beş soru (sık sorunlar, yazılmamış püf noktaları, dışarıdan kimler aranır,
+  dönemsel işler, yarım kalanlar). Çağrılardan çıkmayan bilgi buradan gelir.
+- **Tutanak:** Markdown; konular, aşama ve kanıtı, liste, görüşme, açık riskler ve imza tablosu.
+- Bugün sayfası süren devirleri gösterir (yetişmiyorsa kırmızı). MCP: `devir_baslat`, `devir_durumu`.
+- DEMO: "2 hafta ilerlet" bilerek karışık sonuç üretir (iki haftada "tek başına" gerçekçi değil).
+
+**Mülakat sorusu:** *"Devralanın öğrendiğini nasıl anlıyorsun?"* Beyana bakmıyorum: devir başladıktan sonra
+o konuda kendi kapattığı çağrı sayısına bakıyorum. Yalnız "izledi" elle, çünkü izlemeyi kayıt göremez.
+
+**Sıradaki (onaylandı):** çağrı açma formu iki aşamalı olacak (konuya özel sorular, aciliyet cevaplardan,
+açılmadan önce "aynı sorun bildirildi" ve "önce bunu dene").
 
 ### Gerçek Teams bağlantısı nasıl kurulur?
 
@@ -485,3 +521,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Sayfa içleri kısaldı (Risk 8.744 → 2.140 px), kelimeler sadeleşti, demo düğmeleri etiketlendi |
 | 25 Kasım 2026 | Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); süreler kullanıcıdan, girilmeyen tahmini işaretli; yarım saatlik optimizasyon; 3 MCP aracı |
 | 25 Kasım 2026 | Demo eğitim süreleri alan uzmanı gözüyle (28 konu, gerekçeli tablo); tercih ve beceriye alan uzmanı rolü |
+\n| 25 Kasım 2026 | Devir süreci: aşamalar çağrıyla, devralana yanında öğrenme, çıkışa yetişme ve önerilen haftalık saat, kontrol listesi, görüşme, tutanak; 117 test |\n

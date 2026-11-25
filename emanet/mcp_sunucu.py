@@ -17,6 +17,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from . import degisim, egitim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
+from . import devir as devir_surec
 
 sunucu = MCPServer(
     name="Emanet",
@@ -313,6 +314,32 @@ def egitim_plani_oner(butce_saat: int = 40, yontem: str = "optimum", haftalik_si
             f"{o['gun']} {o['tarih']}: {o['kategori']} · {o['tur_adi']} · {kim} · {o['saat']} sa")
     p["takvim"] = t
     return p
+
+
+@arac
+def devir_baslat(kisi: str, cikis_tarihi: str) -> dict:
+    """Bir kişinin devir sürecini başlatır (cikis_tarihi: son çalışma günü, YYYY-AA-GG). Her konu için
+    devralan önerilir; konular izle → birlikte → tek başına aşamalarından geçer, ilerleme gerçek
+    çağrılarla ölçülür. Kişinin açık devri varsa onu döner."""
+    with KILIT:
+        c = baglanti()
+        d = devir_surec.baslat(c, _kisi_bul(c, kisi), cikis_tarihi)
+    d.pop("takvim", None)
+    return d
+
+
+@arac
+def devir_durumu(kisi: str) -> dict:
+    """Açık bir devrin durumu: kalan gün, konu konu aşama ve kanıt, kontrol listesi, yetişmeyen konular."""
+    with KILIT:
+        c = baglanti()
+        kid = _kisi_bul(c, kisi)
+        r = c.execute("SELECT id FROM devir WHERE kisi_id=? AND durum='acik'", (kid,)).fetchone()
+        if not r:
+            raise ValueError("Bu kişinin açık devri yok; devir_baslat ile başlatın")
+        d = devir_surec.durum(c, r[0])
+    d.pop("takvim", None)
+    return d
 
 
 @arac

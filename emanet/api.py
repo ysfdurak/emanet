@@ -29,6 +29,7 @@ from . import __version__, degisim, egitim, ice_aktar, katalog, ogrenme, otomasy
 from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
+from . import devir as devir_surec
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 log = logging.getLogger("emanet")
@@ -735,6 +736,110 @@ def _plan_ve_takvim(i: PlanIstek) -> dict:
 @api.post("/api/egitim-plani")
 def egitim_plani(i: PlanIstek):
     return _plan_ve_takvim(i)
+
+
+class DevirIstek(BaseModel):
+    kisi_id: int
+    cikis_tarihi: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    haftalik_sinir: float = Field(4, ge=0.5, le=40)
+
+
+class DevirKonuIstek(BaseModel):
+    devralan_id: int | None = None
+    izledi: bool | None = None
+
+
+class DevirMaddeIstek(BaseModel):
+    yapildi: bool
+
+
+class DevirGorusmeIstek(BaseModel):
+    cevap: str = Field(max_length=2000)
+
+
+class DevirSahipIstek(BaseModel):
+    recete_kod: str = Field(max_length=40)
+    yeni_sahip_id: int
+
+
+class DevirSinirIstek(BaseModel):
+    saat: float = Field(ge=0.5, le=40)
+
+
+@api.get("/api/devir-sureci")
+def devir_listesi():
+    with KILIT:
+        return devir_surec.acik_devirler(con)
+
+
+@api.post("/api/devir-sureci")
+def devir_baslat(i: DevirIstek):
+    with KILIT:
+        return devir_surec.baslat(con, i.kisi_id, i.cikis_tarihi, i.haftalik_sinir)
+
+
+@api.get("/api/devir-sureci/{devir_id}")
+def devir_durum(devir_id: int):
+    with KILIT:
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/konu/{kategori_id}")
+def devir_konu(devir_id: int, kategori_id: int, i: DevirKonuIstek):
+    with KILIT:
+        devir_surec.konu_guncelle(con, devir_id, kategori_id, i.devralan_id, i.izledi)
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/madde/{kod}")
+def devir_madde(devir_id: int, kod: str, i: DevirMaddeIstek):
+    with KILIT:
+        devir_surec.madde_isaretle(con, devir_id, kod, i.yapildi)
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/gorusme/{soru_no}")
+def devir_gorusme(devir_id: int, soru_no: int, i: DevirGorusmeIstek):
+    with KILIT:
+        devir_surec.gorusme_kaydet(con, devir_id, soru_no, i.cevap)
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/sahip")
+def devir_sahip(devir_id: int, i: DevirSahipIstek):
+    with KILIT:
+        devir_surec.sahip_degistir(con, devir_id, i.recete_kod, i.yeni_sahip_id)
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/sinir")
+def devir_sinir(devir_id: int, i: DevirSinirIstek):
+    with KILIT:
+        devir_surec.haftalik_sinir_ayarla(con, devir_id, i.saat)
+        return devir_surec.durum(con, devir_id)
+
+
+@api.post("/api/devir-sureci/{devir_id}/kapat")
+def devir_kapat(devir_id: int):
+    with KILIT:
+        devir_surec.kapat(con, devir_id)
+        return {"ok": True}
+
+
+@api.post("/api/devir-sureci/{devir_id}/ilerlet")
+def devir_ilerlet(devir_id: int):
+    """DEMO: devri iki hafta ilerletir."""
+    with KILIT:
+        r = devir_surec.ilerlet_demo(con, devir_id)
+        return {**r, "devir": devir_surec.durum(con, devir_id)}
+
+
+@api.get("/api/devir-sureci/{devir_id}/tutanak.md")
+def devir_tutanak(devir_id: int):
+    with KILIT:
+        md = devir_surec.tutanak(con, devir_id)
+    return PlainTextResponse(md, media_type="text/markdown; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="devir-tutanagi-{devir_id}.md"'})
 
 
 class SureIstek(BaseModel):

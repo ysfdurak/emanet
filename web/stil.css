@@ -142,3 +142,20 @@ details.kart>summary{cursor:pointer}
 .vakalar{list-style:none;padding:0;margin:.3rem 0}.vakalar>li{padding:.45rem .6rem;border:1px solid var(--cizgi);border-radius:8px;margin-bottom:.4rem;background:#faf9f6}
 .uyari-cip{border-color:#c9a24a;color:#6b4e00;background:#f9eeda}
 #pstablo input{width:5.5rem;text-align:right}
+/* Devir süreci */
+.ilerleme{height:.6rem;background:var(--cizgi);border-radius:999px;overflow:hidden;margin:.2rem 0 .3rem}
+.ilerleme span{display:block;height:100%;background:var(--yesil)}
+.asama{list-style:none;display:flex;flex-wrap:wrap;gap:.25rem;padding:0;margin:.4rem 0 .25rem}
+.asama li{font-size:.78rem;padding:.12rem .5rem;border-radius:999px;border:1px solid var(--cizgi);color:var(--soluk)}
+.asama li.gecti{background:#e5f4e4;border-color:#b9dcb7;color:#1f5f2c}
+.asama li.simdi{background:var(--murekkep);border-color:var(--murekkep);color:#fff;font-weight:600}
+.kontrol{list-style:none;padding:0;margin:0}
+.kontrol li{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;padding:.45rem 0;border-top:1px solid var(--cizgi)}
+.kontrol li:first-child{border-top:0}
+.kontrol li.tamam label{color:var(--soluk);text-decoration:line-through}
+.kontrol .isaret{width:1.2rem;text-align:center;color:var(--yesil);font-weight:700}
+.kontrol input[type=checkbox]{width:auto;margin:0}
+.kontrol label{margin:0;flex:1 1 14rem}
+.kontrol .sahip select{width:auto}
+.hafta-kisa{padding:.5rem 0;border-top:1px solid var(--cizgi)}
+textarea[data-gorusme]{width:100%;margin-bottom:.6rem}
