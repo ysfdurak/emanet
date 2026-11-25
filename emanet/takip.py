@@ -466,6 +466,17 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
                           f"{ilk['cagri']} kez arızalandı" + (f"; {len(tekrar) - 1} cihaz daha tekrar tekrar arızalanıyor ("
                           + ", ".join(f"{c['no']} {c['cagri']}" for c in tekrar[1:4]) + ")" if len(tekrar) > 1 else "")
                           + ". Tekrar onarmak yerine değişim ya da bakım konuşulmalı."), sayfa="cihaz", veri=ilk["no"]))
+    # Tesis kapsaması: merkez dışında yerinde BT hangi vardiyalarda yok? (cihaz arızası o saatlerde uzaktan kalır)
+    eksik = []
+    for l in con.execute("SELECT id, ad FROM lokasyon ORDER BY id LIMIT -1 OFFSET 1"):
+        var = {r[0] for r in con.execute("SELECT DISTINCT p.vardiya FROM kisi p JOIN birim b ON b.id=p.birim_id "
+                                         "WHERE p.lokasyon_id=? AND b.ad='BT Destek' AND p.cikis IS NULL", (l["id"],))}
+        yok = [v for v in ("gunduz", "aksam", "gece") if v not in var]
+        if con.execute("SELECT 1 FROM cagri WHERE lokasyon_id=? LIMIT 1", (l["id"],)).fetchone() and yok:
+            eksik.append(f"{l['ad'].split()[0]} ({', '.join({'gunduz': 'gündüz', 'aksam': 'akşam', 'gece': 'gece'}[v] for v in yok)})")
+    if eksik:
+        liste.append(dict(seviye="mavi", metin="Yerinde BT olmayan vardiyalar: " + "; ".join(eksik)
+                          + ". Bu saatlerde cihaz ve ağ arızaları uzaktan yönlendiriliyor.", sayfa="olcum"))
     from .olcum import vardiya_boslugu
     vb = vardiya_boslugu(con, simdi)
     if vb:

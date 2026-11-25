@@ -75,7 +75,7 @@ def _kisi_bul(con, kisi: str) -> int:
 
 def _sade_cagri(c: dict) -> dict:
     d = {k: c.get(k) for k in ("id", "metin", "kategori", "birim", "aciliyet", "durum", "atanan",
-                               "cozen", "acilis", "kapanis", "sure_dk", "guven", "yer", "cihaz")}
+                               "cozen", "acilis", "kapanis", "sure_dk", "guven", "yer", "cihaz", "lokasyon")}
     d["asama"] = usta.ASAMA_AD.get(c.get("asama"), c.get("asama"))
     return d
 
@@ -101,7 +101,7 @@ def _yol_sade(y: dict) -> dict:
 def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiya: str | None = None,
              konu: str | None = None, acan_kisi: str | None = None, yer: str | None = None,
              etki: str | None = None, kapsam: str | None = None, sevkiyat: bool = False,
-             cevaplar: dict[str, str] | None = None) -> dict:
+             cevaplar: dict[str, str] | None = None, tesis: str | None = None) -> dict:
     """Sistemsel bir destek çağrısı (BT veya depo sistemi) açar. Makine öğrenmesi modeli konuyu tahmin eder,
     vardiyada olan en uygun kişiye atar ve geçmişte nasıl çözüldüğünü döndürür.
 
@@ -111,6 +111,7 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
     Öncelik için tercihen kişiye sor ve etki (durdu | yavas | yok) ile kapsam (ben | ekip | alan) ver; o zaman
     aciliyet bunlardan hesaplanır. sevkiyat: bekleyen araç ya da sevkiyat saati varsa True. yer: örn. "paketleme hattı 2".
     cevaplar: konuya özel soruların cevapları (sonuçtaki 'sorulmayanlar' listesindeki kodlarla).
+    tesis: çağrının geldiği depo (örn. "Tuzla"); cihaz ve ağ arızaları önce o tesisteki kişiye gider.
     """
     with KILIT:
         con = baglanti()
@@ -134,8 +135,16 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
             ek = cagri_formu.ek_bilgi_json(k["kod"], cevap, etki, kapsam, sevkiyat, None, onc)
         cihaz = cevap.get("cihaz")
         yer = yer or ((cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("yer"))
+        lok = None
+        if tesis:
+            lok = next((r["id"] for r in con.execute("SELECT id, ad FROM lokasyon")
+                        if usta.kucult(tesis) in usta.kucult(r["ad"])), None)
+            if lok is None:
+                raise ValueError("Tesis bulunamadı: " + ", ".join(r["ad"] for r in con.execute("SELECT ad FROM lokasyon")))
+        elif cihaz:
+            lok = (cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("lokasyon_id")
         c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer,
-                          ek_bilgi=ek, cihaz=cihaz)
+                          ek_bilgi=ek, cihaz=cihaz, lokasyon_id=lok)
         sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"), zorunlu=bool(s.get("zorunlu")))
                       for s in cagri_formu.sorular(k["kod"]) if s["kod"] not in cevap]
     o = c.get("otomasyon")

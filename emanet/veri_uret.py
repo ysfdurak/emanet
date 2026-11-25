@@ -35,8 +35,8 @@ from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
 # (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi,
-#  5: pazar kapalı, ilk tepki kayıtları)
-VERI_SURUMU = 5
+#  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler ve ana kategoriler)
+VERI_SURUMU = 6
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -130,13 +130,16 @@ def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
     """Yazıcı ve terminal çağrılarına envanterden cihaz numarası verir. Ayrı tohum: diğer verinin
     sırası değişmesin. Son 30 günde birkaç cihaz sık arızalanır (tekrarlayan arıza uyarısı için)."""
     rnd = random.Random(tohum + 7)
-    con.executemany("INSERT INTO cihaz(no,tur,model,yer,guncelleme) VALUES(?,?,?,?,?)",
-                    [(n, d["tur"], d["model"], d["yer"], bugun.isoformat()) for n, d in K.CIHAZLAR.items()])
+    lok = {r["ad"]: r["id"] for r in con.execute("SELECT id, ad FROM lokasyon")}
+    con.executemany("INSERT INTO cihaz(no,tur,model,yer,guncelleme,lokasyon_id) VALUES(?,?,?,?,?,?)",
+                    [(n, d["tur"], d["model"], d["yer"], bugun.isoformat(), lok[d["lokasyon"]]) for n, d in K.CIHAZLAR.items()])
+    lok_ad = {v: k for k, v in lok.items()}
     son30 = (datetime.combine(bugun, datetime.min.time()) - timedelta(days=30)).isoformat(timespec="minutes")
     for kod, onek in K.CIHAZ_KONULARI.items():
         cihazlar = [n for n in K.CIHAZLAR if n.startswith(onek + "-")]
-        for c in con.execute("SELECT c.id, c.acilis, c.metin FROM cagri c JOIN kategori k ON k.id=c.kategori_id WHERE k.kod=?",
-                             (kod,)).fetchall():
+        for c in con.execute("SELECT c.id, c.acilis, c.metin, c.lokasyon_id FROM cagri c JOIN kategori k ON k.id=c.kategori_id "
+                             "WHERE k.kod=?", (kod,)).fetchall():
+            tesis = lok_ad.get(c["lokasyon_id"], K.LOKASYONLAR[0])   # cihaz çağrının tesisinde olmalı
             # Metinde yer geçiyorsa o yerdeki cihazlardan biri (yazıcı sabittir; geçmişte yer çelişmesin)
             m = kucult(c["metin"])
             if "irsaliye" in m or "yeni etiket" in m:   # A4 yazıcı ya da henüz envantere girmemiş yeni cihaz
@@ -144,18 +147,38 @@ def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
             no = re.search(r"(\d+)\s*(?:no|numara)", m)   # "17 no'lu", "8 numaralı": metindeki numara esas
             if no:
                 n = cagri_formu.cihaz_no(f"{onek}{no.group(1)}")
-                if n in K.CIHAZLAR:
+                if n in K.CIHAZLAR and K.CIHAZLAR[n]["lokasyon"] == tesis:
                     con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (n, c["id"]))
                 continue                                    # envanterde yoksa uydurma numara verme
             yer = next((y for y in K.YERLER if kucult(y) in m), None)
             if not yer and any(max(kucult(y).split(), key=len)[:4] in m for y in K.YERLER):
                 continue                                    # yer yazım hatalı geçiyor: emin olmadan cihaz verme
-            aday = [n for n in cihazlar if yer and K.CIHAZLAR[n]["yer"] == yer] or \
-                   [n for n in cihazlar if not yer or K.CIHAZLAR[n]["yer"] is None]
+            tesiste = [n for n in cihazlar if K.CIHAZLAR[n]["lokasyon"] == tesis]
+            aday = [n for n in tesiste if yer and K.CIHAZLAR[n]["yer"] == yer] or \
+                   [n for n in tesiste if not yer or K.CIHAZLAR[n]["yer"] is None]
             if not aday:   # metindeki yerde bu türden cihaz yok: yeri bilinen bir cihaza değil, yersiz kalsın
                 continue
             agirlik = [K.SORUNLU_CIHAZLAR.get(n, 1) if c["acilis"] >= son30 else 1 for n in aday]
             con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (rnd.choices(aday, weights=agirlik)[0], c["id"]))
+
+
+def _lokasyon_ata(con: sqlite3.Connection, tohum: int) -> None:
+    """Çağrının tesisi: yerinde bakılan işler (cihaz, ağ) o tesisteki kişi tarafından çözülmüştür; program ve hesap
+    işleri merkezden uzaktan çözülür, bu yüzden bir kısmı diğer tesislerden gelmiştir. Ayrı tohum."""
+    rnd = random.Random(tohum + 13)
+    lok = {r["ad"]: r["id"] for r in con.execute("SELECT id, ad FROM lokasyon")}
+    merkez, diger = lok[K.LOKASYONLAR[0]], [lok[a] for a in K.LOKASYONLAR[1:]]
+    kisi_lok = {r["id"]: r["lokasyon_id"] for r in con.execute("SELECT id, lokasyon_id FROM kisi")}
+    for c in con.execute("SELECT c.id, COALESCE(c.cozen_kisi_id, c.atanan_kisi_id) k, g.grup FROM cagri c "
+                         "JOIN kategori g ON g.id=c.kategori_id WHERE c.kaynak='usta'").fetchall():
+        kl = kisi_lok.get(c["k"], merkez)
+        if kl != merkez:
+            l = kl
+        elif c["grup"] in K.YERINDE_GRUPLAR:
+            l = merkez
+        else:
+            l = rnd.choice(diger) if rnd.random() < 0.2 else merkez
+        con.execute("UPDATE cagri SET lokasyon_id=? WHERE id=?", (l, c["id"]))
 
 
 def _pazari_kaydir(con: sqlite3.Connection, bugun: date) -> None:
@@ -220,9 +243,14 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
     for ad in K.BIRIMLER:
         cur.execute("INSERT INTO birim(ad) VALUES(?)", (ad,))
         birim_id[ad] = cur.lastrowid
+    lok_id = {}
+    for ad in K.LOKASYONLAR:
+        cur.execute("INSERT INTO lokasyon(ad) VALUES(?)", (ad,))
+        lok_id[ad] = cur.lastrowid
     kisi_id, kisi_vardiya, uyeler = {}, {}, {b: [] for b in K.BIRIMLER}
     for ad, birim, rol, vardiya in K.KISILER:
-        cur.execute("INSERT INTO kisi(ad,birim_id,rol,vardiya) VALUES(?,?,?,?)", (ad, birim_id[birim], rol, vardiya))
+        cur.execute("INSERT INTO kisi(ad,birim_id,rol,vardiya,lokasyon_id) VALUES(?,?,?,?,?)",
+                    (ad, birim_id[birim], rol, vardiya, lok_id[K.KISI_LOKASYON.get(ad, K.LOKASYONLAR[0])]))
         kisi_id[ad], kisi_vardiya[ad] = cur.lastrowid, vardiya
         uyeler[birim].append(ad)
 
@@ -235,6 +263,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
             " VALUES(?,?,?,?,?,?,?,?,'usta')",
             (k["kod"], k["ad"], birim_id[k["birim"]], k["kritiklik"], k["anahtar"], k["aciklama"], k["ogrenme"], k["sure"]))
         kid = cur.lastrowid
+        cur.execute("UPDATE kategori SET grup=? WHERE id=?", (K.KONU_GRUBU.get(k["kod"]), kid))
         ust = uyeler[k["birim"]]
         rastgele = {u: rnd.uniform(3, 10) for u in ust}
         genel = _paylar(k, k.get("agirlik"), ust, rnd, rastgele)
@@ -325,8 +354,9 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         cid = cur.lastrowid
         olay(cid, acilis, "acildi")
         olay(cid, acilis, "atandi", kisi_id[atanan])
-    _cihaz_ata(con, bugun, tohum)
     _pazari_kaydir(con, bugun)
+    _lokasyon_ata(con, tohum)
+    _cihaz_ata(con, bugun, tohum)
     _kalite_gecmisi(con, tohum)
     # Durumlar: açık çağrıların bir kısmına başlanmış, birinde açana soru sorulmuş (cevap bekleniyor)
     acik = con.execute("SELECT id, acilis, atanan_kisi_id, acan_kisi FROM cagri WHERE durum='acik' ORDER BY id").fetchall()

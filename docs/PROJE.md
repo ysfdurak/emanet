@@ -425,6 +425,28 @@ ayrılır (`olcum.parcala`): **çalışma** (çözenin vardiyasında ve izinde d
 Demo verisi: geçmiş çağrıların %82'sinde açan onaylamış; kişi başına %1-8 çağrı ilk çözümden sonra yeniden
 açılmış (ayrı tohum; `VERI_SURUMU` 4). Bilinen sınır: süreler takvim dakikasıdır, vardiya dışı saatler düşülmez.
 
+**Ana kategori ve tesis (kullanıcı isteği: "donanım, yazılım, ağ gibi kategoriler; birden fazla lokasyondan çağrı").**
+
+*Ana kategori* (`katalog.GRUPLAR`, `kategori.grup`): Cihaz, Ağ, Program, Hesap/şifre, Talep. Çağrı formunda
+**isteğe bağlı**: çalışan "terminal bağlanmıyor" sorununun cihazdan mı ağdan mı olduğunu çoğu zaman bilemez;
+zorunlu olsaydı yanlış seçer, model de yanlışa kilitlenirdi. Seçilirse tahmin o gruptaki konulara daralır
+ama **olasılıklar yeniden ölçeklenmez**: "Sistem hata veriyor" + Cihaz hâlâ belirsizdir (%37) ve sistem
+sorar; ölçeklenseydi %77'ye şişip sahte kesinlik üretirdi (test bunu yakaladı). Grupta tek konu varsa
+(Ağ) sorulacak bir şey yoktur, o konu seçilir.
+
+*Tesis* (`lokasyon` tablosu; kişi, çağrı ve cihaz bir tesise bağlı). Tesis, tesisin içindeki **yer**den
+(koridor, rampa) ayrı bir katmandır. Demo: Gebze Merkez, Tuzla Aktarma, İzmir Bölge; Tuzla'da Onur (akşam),
+İzmir'de Gizem (gece) yerinde BT.
+- **Atama:** cihaz ve ağ işleri yerinde bakılır (`YERINDE_GRUPLAR`). Tesiste vardiyada konuyu bilen varsa ona
+  gider; yoksa uzaktan en uygun kişiye gider ve not düşülür ("Tuzla'da şu an yerinde kimse yok (Onur akşam
+  vardiyasında); uzaktan yönlendirildi"). Program ve hesap işleri uzaktan çözülür, tesis atamayı değiştirmez.
+- **Toplu arıza ve "zaten bildirildi"** tesis bazında: Gebze'deki Wi-Fi arızasıyla İzmir'deki ayrı olaydır.
+- Form tesisi tarayıcıda hatırlar; cihaz numarası başka tesiste kayıtlıysa tesis cihaza göre değişir.
+- Kuyruk ve Ölçüler tesise göre süzülür; Ölçüler'de "Tesisler" kartı yerinde bakan kişiyi gösterir
+  ("Tek kişi" uyarısı). Bugün: "Yerinde BT olmayan vardiyalar: Tuzla (gündüz, gece); İzmir (gündüz, akşam)".
+  Bu, kişiye bağımlılığın tesis boyutu: Emanet'in risk sorusu "bu tesiste o kişi yoksa ne olur?"a genişler.
+- Envanter CSV'sinde `tesis` sütunu; listede olmayan tesis eklenir. MCP `cagri_ac` `tesis` parametresi.
+
 **Mülakat sorusu:** *"Önceliği neden kullanıcıya seçtirmedin?"* Seçtirilen öncelik herkesin "yüksek" dediği bir
 alan olur ve sıralamayı anlamsızlaştırır. Kişinin bildiği şeyi soruyorum (iş durdu mu, kaç kişi, araç bekliyor
 mu); önceliği kuralla ben hesaplıyorum ve gerekçesini gösteriyorum. Kural tek dosyada, değiştirmek kolay.
@@ -693,3 +715,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Cihaz envanteri tabloda (CSV içe aktarma, tam liste, envanterde olmayan numaralar, modele göre arıza); çağrı durumları (Atandı, İşlemde, Bilgi bekleniyor, Çözüldü, Kapalı; soru, cevap ve onayla kendiliğinden); MCP `cagri_islem`; 130 test |
 | 25 Kasım 2026 | Ölçüler ekranı: kapanma süresi (ortanca, %90, bilgi beklemesi düşülmüş), kişi başı iş yükü ve konuya göre hız, ilk seferde çözme, haftalık akış, konulara göre; MCP `cagri_olculeri`; 133 test |
 | 25 Kasım 2026 | Süre dörde ayrıldı (çalışma, vardiya beklemesi, bilgi, depo kapalı; 6 gün 3 vardiya); ilk tepki; kullanıcının girdiği öncelik hedefleri ve aşım; konu bazında vardiya beklemesi ve Bugün uyarısı; demo pazar kapalı (gürültü ölçütü %78,9, geçiyor); 136 test |
+| 25 Kasım 2026 | Ana kategoriler (isteğe bağlı, olasılık şişirmeden daraltır); tesisler: yerinde atama, tesis bazında toplu arıza ve 'zaten bildirildi', kuyruk ve ölçüler süzgeci, Tesisler kartı, yerinde BT olmayan vardiyalar uyarısı, envanterde tesis; 141 test |

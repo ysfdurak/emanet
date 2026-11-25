@@ -52,6 +52,24 @@ YERLER = ["A koridoru", "B koridoru", "C koridoru", "mezanin katı", "paketleme 
           "paketleme hattı 4", "mal kabul rampası 3", "sevkiyat rampası 7", "iade alanı",
           "toplama istasyonu 5", "yüksek raf bölgesi", "ofis katı"]
 
+# Tesisler (lokasyon). Bir tesisin içindeki alanlar YERLER'dir (koridor, rampa…).
+LOKASYONLAR = ["Gebze Merkez Depo", "Tuzla Aktarma Deposu", "İzmir Bölge Deposu"]
+# Merkez dışındaki tesislerde yerinde çalışan BT personeli; diğer herkes merkezde
+KISI_LOKASYON = {"Onur Yıldız": "Tuzla Aktarma Deposu", "Gizem Arslan": "İzmir Bölge Deposu"}
+
+# Ana kategoriler: çalışanın gözünden "ne ile ilgili?". Çağrı açarken isteğe bağlıdır (çalışan terminal
+# sorununun cihazdan mı ağdan mı olduğunu çoğu zaman bilemez); seçilirse konu tahminini daraltır.
+GRUPLAR = {"donanim": "Cihaz (terminal, yazıcı, bilgisayar, okuyucu)", "ag": "Ağ ve bağlantı",
+           "program": "Program ve sistem (WMS, ERP, e-posta, rapor)", "hesap": "Hesap, şifre, yetki",
+           "talep": "Talep (kurulum, yeni bir şey isteme)"}
+GRUP_KISA = {"donanim": "Cihaz", "ag": "Ağ", "program": "Program", "hesap": "Hesap, şifre", "talep": "Talep"}
+KONU_GRUBU = {"EL_TERMINALI": "donanim", "ETIKET_YAZICI": "donanim", "BILGISAYAR": "donanim", "BARKOD": "donanim",
+              "WIFI": "ag", "EPOSTA": "program", "ADRES_HATASI": "program", "STOK_FARKI": "program",
+              "DALGA": "program", "ENTEGRASYON": "program", "RAPOR": "program", "SIFRE_HESAP": "hesap",
+              "YETKI_TALEBI": "talep", "YAZILIM_KURULUM": "talep"}
+# Yerinde müdahale isteyen gruplar: atama önce o tesisteki kişiye bakar
+YERINDE_GRUPLAR = {"donanim", "ag"}
+
 # Cihaz envanteri (demo). Gerçekte demirbaş/envanter sisteminden gelir; yerel kurulumda boştur ve
 # formda model sorulur. Numara cihazın üstündeki etikettir; tekrarlayan arıza bu numarayla izlenir.
 YAZICI_MODELLERI = ["Zebra ZT410", "Zebra ZD621", "Honeywell PM43"]
@@ -61,6 +79,14 @@ CIHAZLAR: dict[str, dict] = {
                            yer=YERLER[[4, 5, 6, 7, 8, 9, 4, 3, 5, 6, 7, 8][i - 1]]) for i in range(1, 13)},
     **{f"EL-{i:03d}": dict(tur="terminal", model=TERMINAL_MODELLERI[0 if i <= 20 else 1], yer=None) for i in range(1, 31)},
 }
+# Merkez dışındaki cihazlar (gerisi Gebze Merkez Depo)
+for _n, _l in {"YZ-11": "Tuzla Aktarma Deposu", "YZ-12": "İzmir Bölge Deposu", "EL-026": "Tuzla Aktarma Deposu",
+               "EL-027": "Tuzla Aktarma Deposu", "EL-028": "Tuzla Aktarma Deposu", "EL-029": "İzmir Bölge Deposu",
+               "EL-030": "İzmir Bölge Deposu"}.items():
+    CIHAZLAR[_n]["lokasyon"] = _l
+for _d in CIHAZLAR.values():
+    _d.setdefault("lokasyon", LOKASYONLAR[0])
+
 # Demo verisinde son ayda sık arızalanan cihazlar (Bugün sayfasındaki "tekrarlayan arıza" uyarısı için)
 SORUNLU_CIHAZLAR = {"YZ-07": 6, "EL-014": 25}
 CIHAZ_KONULARI = {"ETIKET_YAZICI": "YZ", "EL_TERMINALI": "EL"}

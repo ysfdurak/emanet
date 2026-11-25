@@ -172,7 +172,8 @@ def cihaz_no(metin: str | None) -> str | None:
 def cihaz_kaydi(con: sqlite3.Connection | None, no: str | None) -> dict | None:
     if not no or con is None:
         return None
-    r = con.execute("SELECT * FROM cihaz WHERE no=?", (no,)).fetchone()
+    r = con.execute("SELECT d.*, l.ad AS lokasyon FROM cihaz d LEFT JOIN lokasyon l ON l.id=d.lokasyon_id WHERE d.no=?",
+                    (no,)).fetchone()
     return dict(r) if r else None
 
 
@@ -208,14 +209,16 @@ def cagri_yeri(c) -> str | None:
     return next((y for y in K.YERLER if kucult(y) in k), None)
 
 
-def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simdi: datetime | None = None) -> list[dict]:
+def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simdi: datetime | None = None,
+                lokasyon_id: int | None = None) -> list[dict]:
     """Aynı konuda son 60 dakikada açılmış açık çağrılar (yer verilmişse aynı yer ya da yeri bilinmeyenler)."""
     simdi = simdi or datetime.now()
     esik = (simdi - timedelta(minutes=BENZER_PENCERE_DK)).isoformat(timespec="minutes")
     satir = con.execute(
         "SELECT c.*, p.ad AS atanan FROM cagri c LEFT JOIN kisi p ON p.id=c.atanan_kisi_id "
-        "WHERE c.kaynak='usta' AND c.durum='acik' AND c.kategori_id=? AND c.acilis>=? ORDER BY c.acilis DESC",
-        (kategori_id, esik)).fetchall()
+        "WHERE c.kaynak='usta' AND c.durum='acik' AND c.kategori_id=? AND c.acilis>=? "
+        + ("AND c.lokasyon_id=? " if lokasyon_id else "") + "ORDER BY c.acilis DESC",
+        (kategori_id, esik, lokasyon_id) if lokasyon_id else (kategori_id, esik)).fetchall()
     sonuc = []
     for c in satir:
         cy = cagri_yeri(c)
@@ -226,7 +229,7 @@ def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simd
     return sonuc[:5]
 
 
-def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None) -> dict:
+def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, lokasyon_id: int | None = None) -> dict:
     k = con.execute("SELECT id, kod, ad, kritiklik FROM kategori WHERE id=?", (kategori_id,)).fetchone()
     if not k:
         raise ValueError("Konu bulunamadı")
@@ -235,7 +238,7 @@ def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None) -> d
                       (k["kod"],)).fetchone()
     return dict(kategori_id=k["id"], kategori=k["ad"], kritiklik=k["kritiklik"], talep=k["kod"] in TALEP_KONULARI,
                 sorular=sorular(k["kod"]), kendin_dene=KENDIN_DENE.get(k["kod"], []),
-                kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None, benzer=benzer_acik(con, kategori_id, yer),
+                kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None, benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
                 yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
                 kapsam=[dict(kod=a, ad=b[0]) for a, b in KAPSAM.items()],
                 ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()])
@@ -300,7 +303,7 @@ ENVANTER_SATIR = 20_000
 _ENVANTER_AD = {"no": "no", "numara": "no", "cihaz": "no", "cihaz no": "no", "etiket": "no", "demirbaş no": "no",
                 "demirbas no": "no", "tur": "tur", "tür": "tur", "tip": "tur", "model": "model", "yer": "yer",
                 "konum": "yer", "lokasyon": "yer", "seri no": "seri_no", "seri": "seri_no", "seri_no": "seri_no",
-                "durum": "durum"}
+                "durum": "durum", "tesis": "lokasyon", "lokasyon": "lokasyon", "depo": "lokasyon", "şube": "lokasyon"}
 _TUR = {"yazici": "yazici", "yazıcı": "yazici", "etiket yazıcısı": "yazici", "terminal": "terminal",
         "el terminali": "terminal", "rf terminal": "terminal"}
 
@@ -332,14 +335,20 @@ def envanter_ice_aktar(con: sqlite3.Connection, metin: str, tam: bool = False) -
             continue
         tur = _TUR.get((r.get("tur") or "").strip().lower(), (r.get("tur") or "diğer").strip().lower()[:20] or "diğer")
         durum = "hurda" if (r.get("durum") or "").strip().lower() in ("hurda", "pasif", "kayıttan düşüldü") else "aktif"
+        lok = None
+        if (r.get("lokasyon") or "").strip():   # tesis adı yoksa eklenir (envanter tesisin kaynağıdır)
+            ad = r["lokasyon"].strip()[:60]
+            row = next((x for x in con.execute("SELECT id, ad FROM lokasyon") if kucult(x["ad"]) == kucult(ad)), None)
+            lok = row["id"] if row else con.execute("INSERT INTO lokasyon(ad) VALUES(?)", (ad,)).lastrowid
         vals = [tur, (r.get("model") or "").strip()[:60] or None, (r.get("yer") or "").strip()[:60] or None,
-                (r.get("seri_no") or "").strip()[:60] or None, durum, simdi]
+                (r.get("seri_no") or "").strip()[:60] or None, durum, simdi, lok]
         var = con.execute("SELECT 1 FROM cihaz WHERE no=?", (no,)).fetchone()
         if var:
-            con.execute("UPDATE cihaz SET tur=?, model=?, yer=?, seri_no=?, durum=?, guncelleme=? WHERE no=?", (*vals, no))
+            con.execute("UPDATE cihaz SET tur=?, model=?, yer=?, seri_no=?, durum=?, guncelleme=?, "
+                        "lokasyon_id=COALESCE(?, lokasyon_id) WHERE no=?", (*vals, no))
             guncellenen += 1
         else:
-            con.execute("INSERT INTO cihaz(tur,model,yer,seri_no,durum,guncelleme,no) VALUES(?,?,?,?,?,?,?)", (*vals, no))
+            con.execute("INSERT INTO cihaz(tur,model,yer,seri_no,durum,guncelleme,lokasyon_id,no) VALUES(?,?,?,?,?,?,?,?)", (*vals, no))
             eklenen += 1
         gorulen.add(no)
     hurdaya = 0

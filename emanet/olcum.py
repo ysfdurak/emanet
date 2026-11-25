@@ -135,7 +135,8 @@ def _izinler(con: sqlite3.Connection) -> dict[int, set[date]]:
     return out
 
 
-def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | None = None) -> dict:
+def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | None = None,
+                   lokasyon_id: int | None = None) -> dict:
     simdi = simdi or datetime.now()
     gun = max(7, min(int(gun), 180))
     bas = (simdi - timedelta(days=gun)).isoformat(timespec="minutes")
@@ -145,11 +146,13 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
     hd = hedefler(con)
     kapanan = [dict(r) for r in con.execute(
         "SELECT c.id, c.kategori_id, k.ad AS konu, c.cozen_kisi_id, c.sure_dk, c.otomatik, c.teyit, c.acilis, c.kapanis, "
-        "c.acan_kisi, c.aciliyet FROM cagri c JOIN kategori k ON k.id=c.kategori_id WHERE c.kaynak='usta' "
-        "AND c.durum='kapali' AND c.kapanis>=? AND c.sure_dk IS NOT NULL", (bas,))]
+        "c.acan_kisi, c.aciliyet, c.lokasyon_id FROM cagri c JOIN kategori k ON k.id=c.kategori_id WHERE c.kaynak='usta' "
+        "AND c.durum='kapali' AND c.kapanis>=? AND c.sure_dk IS NOT NULL", (bas,))
+        if not lokasyon_id or r["lokasyon_id"] == lokasyon_id]
     acik = [dict(r) for r in con.execute(
-        "SELECT c.id, c.atanan_kisi_id, c.asama, c.acilis, c.aciliyet, c.kategori_id, k.ad AS konu FROM cagri c "
-        "JOIN kategori k ON k.id=c.kategori_id WHERE c.kaynak='usta' AND c.durum='acik'")]
+        "SELECT c.id, c.atanan_kisi_id, c.asama, c.acilis, c.aciliyet, c.kategori_id, c.lokasyon_id, k.ad AS konu FROM cagri c "
+        "JOIN kategori k ON k.id=c.kategori_id WHERE c.kaynak='usta' AND c.durum='acik'")
+        if not lokasyon_id or r["lokasyon_id"] == lokasyon_id]
     bilgi, ilk_islem = _gecisler(con, [c["id"] for c in kapanan] + [a["id"] for a in acik])
 
     def ayir(c: dict, kisi: int | None, son: datetime) -> dict:
@@ -165,10 +168,13 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
     for a in acik:   # açık çağrının şimdiye kadarki hizmet süresi (hedef aşımı için)
         p = ayir(a, a["atanan_kisi_id"], simdi)
         a["hizmet"] = p["calisma"] + p["bekleme"]
-    acilan = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND acilis>=?", (bas,)).fetchone()[0]
-    onay = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND asama='cozuldu'").fetchone()[0]
+    lk = " AND lokasyon_id=?" if lokasyon_id else ""
+    la = (lokasyon_id,) if lokasyon_id else ()
+    acilan = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND acilis>=?" + lk, (bas, *la)).fetchone()[0]
+    onay = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND asama='cozuldu'" + lk, la).fetchone()[0]
     yeniden = {r["cagri_id"]: r["kisi_id"] for r in con.execute(
-        "SELECT cagri_id, kisi_id FROM cagri_olay WHERE tur='yeniden_acildi' AND zaman>=?", (bas,))}
+        "SELECT o.cagri_id, o.kisi_id FROM cagri_olay o JOIN cagri c ON c.id=o.cagri_id WHERE o.tur='yeniden_acildi' AND o.zaman>=?"
+        + (" AND c.lokasyon_id=?" if lokasyon_id else ""), (bas, *la))}
     sorulan = [c for c in kapanan if c["acan_kisi"]]   # "çözüldü mü?" sorusu gidenler
 
     def yas_saat(iso: str) -> float:
@@ -251,10 +257,23 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
     for i in range(7, -1, -1):
         hb = (simdi - timedelta(days=7 * (i + 1))).isoformat(timespec="minutes")
         hs = (simdi - timedelta(days=7 * i)).isoformat(timespec="minutes")
-        a = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND acilis>=? AND acilis<?", (hb, hs)).fetchone()[0]
-        k = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND kapanis>=? AND kapanis<?", (hb, hs)).fetchone()[0]
+        a = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND acilis>=? AND acilis<?" + lk, (hb, hs, *la)).fetchone()[0]
+        k = con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND kapanis>=? AND kapanis<?" + lk, (hb, hs, *la)).fetchone()[0]
         haftalar.append(dict(bitis=hs[:10], acilan=a, kapanan=k))
-    return dict(ozet=ozet, kisiler=kisiler, konular=konular, haftalar=haftalar)
+    # Tesis başına: açılan, yerinde bakılan işler (cihaz, ağ) ve tesiste bu işlere bakabilen kişi
+    tesisler = []
+    for l in con.execute("SELECT id, ad FROM lokasyon ORDER BY id"):
+        if lokasyon_id and l["id"] != lokasyon_id:
+            continue
+        kc = [c for c in kapanan if c["lokasyon_id"] == l["id"]]
+        yerinde = [k for k in con.execute(
+            "SELECT DISTINCT p.ad, p.vardiya FROM kisi p JOIN cagri c ON c.cozen_kisi_id=p.id JOIN kategori g ON g.id=c.kategori_id "
+            "WHERE p.lokasyon_id=? AND p.cikis IS NULL AND g.grup IN ('donanim','ag') AND c.kapanis>=?", (l["id"], bas))]
+        tesisler.append(dict(lokasyon_id=l["id"], ad=l["ad"], kapanan=len(kc),
+                             ortanca_hizmet_dk=round(median([c["hizmet"] for c in kc])) if kc else None,
+                             acik=sum(1 for a in acik if a["lokasyon_id"] == l["id"]),
+                             yerinde_kisi=[dict(ad=k["ad"], vardiya=k["vardiya"]) for k in yerinde]))
+    return dict(ozet=ozet, kisiler=kisiler, konular=konular, haftalar=haftalar, tesisler=tesisler)
 
 
 def vardiya_boslugu(con: sqlite3.Connection, simdi: datetime | None = None, esik_saat: float = 8) -> dict | None:

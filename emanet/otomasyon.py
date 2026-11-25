@@ -585,8 +585,9 @@ def toplu_kontrol(con: sqlite3.Connection, cagri_id: int, simdi: datetime | None
     yer = _cagri_yer(c)
     esik = (simdi - timedelta(minutes=TOPLU_PENCERE_DK)).isoformat(timespec="minutes")
     adaylar = [dict(r) for r in con.execute(
-        "SELECT * FROM cagri WHERE kaynak='usta' AND durum='acik' AND kategori_id=? AND acilis>=? ORDER BY acilis, id",
-        (c["kategori_id"], esik))]
+        "SELECT * FROM cagri WHERE kaynak='usta' AND durum='acik' AND kategori_id=? AND acilis>=? "
+        "AND COALESCE(lokasyon_id, 0)=COALESCE(?, 0) ORDER BY acilis, id",   # başka tesisteki aynı arıza ayrı olaydır
+        (c["kategori_id"], esik, c["lokasyon_id"]))]
     if yer:
         adaylar = [a for a in adaylar if _cagri_yer(a) in (yer, None)]
     else:

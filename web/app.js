@@ -229,6 +229,10 @@ function sessionStorageYaz(k, v) { try { sessionStorage.setItem("emanet_" + k, v
 /* ---------------------------------------------------------------- Çağrı Aç */
 const ORNEKLER = ["Sipariş dalgası açılmıyor, toplama görevleri düşmedi", "Yazıcı çevrimdışı görünüyor, etiket basmıyor", "Yazıcı etiketleri boş çıkarıyor, ribon bitmiş olabilir",
   "Mezanin katına hiç yerleştirme önerilmiyor", "Sistem hata veriyor, devam edemiyorum", "Sorter durdu, koliler şutlara gitmiyor"];
+/* Kişinin tesisi tarayıcıda hatırlanır (yalnız kolaylık; depolama yoksa ilk tesis) */
+function tesisAl() { try { return +localStorage.getItem("emanet_tesis") || (T.lokasyonlar[0] || {}).id; } catch { return (T.lokasyonlar[0] || {}).id; } }
+function tesisYaz(id) { try { localStorage.setItem("emanet_tesis", String(id)); } catch { /* yok */ } }
+const tesisSec = (id, secili, bos) => `<select id="${id}">${bos ? `<option value="">${kac(bos)}</option>` : ""}${(T.lokasyonlar || []).map(l => `<option value="${kac(l.id)}" ${l.id === secili ? "selected" : ""}>${kac(l.ad)}</option>`).join("")}</select>`;
 CIZ.cagri = async (veri) => {
   $("#ana").innerHTML = `
   <h2>Çağrı aç</h2>
@@ -237,8 +241,11 @@ CIZ.cagri = async (veri) => {
     <div>
       <div class="kart">
         <h3>1. Sorunu yaz</h3>
+        ${(T.lokasyonlar || []).length > 1 ? `<div class="sira"><div><label for="lok">Tesis</label>${tesisSec("lok", tesisAl())}</div></div>` : ""}
         <label for="metin">Sorun</label>
         <textarea id="metin" maxlength="600" placeholder="Örn. Yazıcı çevrimdışı görünüyor, etiket basmıyor"></textarea>
+        ${(T.gruplar || []).length && T.kategoriler.some(k => k.grup) ? `<div class="grup-sec"><span class="kucuk">Ne ile ilgili? <span class="soluk">(istersen)</span></span>
+        ${T.gruplar.map(g => `<button type="button" class="cip" data-grup="${kac(g.kod)}" aria-pressed="false" title="${kac(g.ad)}">${kac(g.kisa)}</button>`).join("")}</div>` : ""}
         <div id="ornekler"><span class="kucuk">Örnek:</span> ${(T.mod === "yerel" && T.ornek_metinler.length ? T.ornek_metinler : ORNEKLER).map(o => `<button class="cip" data-ornek="${kac(o)}">${kac(o)}</button>`).join("")}</div>
         <div class="sira">
           <div><label for="acan">Açan birim</label><select id="acan">${T.acan_birimler.map(b => `<option>${kac(b)}</option>`).join("")}</select></div>
@@ -253,8 +260,10 @@ CIZ.cagri = async (veri) => {
   </div>`;
   let secili = null, sayac = 0, manuel = false;   // manuel: konuyu kullanıcı seçti
   let F = null;   // ikinci aşama: {form, kategori_id, cevaplar, etki, kapsam, ne_zaman, sevkiyat}
+  let grup = null;  // ana kategori (isteğe bağlı)
   const metin = $("#metin");
-  const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value});
+  const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value,
+    lokasyon_id: $("#lok") ? +$("#lok").value : null, grup});
   const formGovde = () => ({cevaplar: F.cevaplar, yer: ($("#yer")?.value || "").trim() || null, etki: F.etki, kapsam: F.kapsam,
     sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
   const eksikZorunlu = () => F.form.sorular.filter(s => s.zorunlu && !(F.cevaplar[s.kod] || "").trim());
@@ -270,7 +279,7 @@ CIZ.cagri = async (veri) => {
   async function ikinciAsama() {
     if (!secili) { F = null; $("#asama2").innerHTML = `<h3>2. Birkaç soru</h3><p class="kucuk">${metin.value.trim().length < 5 ? "Sorunu yazınca konusuna göre sorular burada açılır." : "Önce konuyu seç; sorular konuya göre açılır."}</p>`; return; }
     if (F && F.kategori_id === secili) return;
-    const f = await api("cagri/form/" + secili);
+    const f = await api("cagri/form/" + secili + ($("#lok") ? "?lokasyon_id=" + $("#lok").value : ""));
 
     F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false};
     $("#asama2").innerHTML = `<h3>2. Birkaç soru <span class="kucuk">· ${kac(f.kategori)}</span></h3>
@@ -303,7 +312,8 @@ CIZ.cagri = async (veri) => {
   async function yerDegisti() {
     clearTimeout(yerBekle);
     yerBekle = setTimeout(async () => { if (!F) return; const y = ($("#yer").value || "").trim();
-      const f = await api("cagri/form/" + F.kategori_id + (y ? "?yer=" + encodeURIComponent(y) : "")); benzerCiz(f.benzer); }, 400);
+      const q = [y && "yer=" + encodeURIComponent(y), $("#lok") && "lokasyon_id=" + $("#lok").value].filter(Boolean).join("&");
+      const f = await api("cagri/form/" + F.kategori_id + (q ? "?" + q : "")); benzerCiz(f.benzer); }, 400);
   }
   /* Cihaz numarası: envanterdeki model ve yer kendiliğinden gelir; geçmişi gösterilir (tekrarlayan arıza) */
   let cihazBekle;
@@ -314,11 +324,16 @@ CIZ.cagri = async (veri) => {
       if (!el) return;
       if (!no.trim()) { el.textContent = ""; if (model) model.hidden = false; return; }
       const g = await api("cihaz/" + encodeURIComponent(no.trim()));
+      let tesisNotu = "";
+      if (g.kayit && g.kayit.lokasyon_id && $("#lok") && +$("#lok").value !== g.kayit.lokasyon_id) {
+        $("#lok").value = g.kayit.lokasyon_id; tesisYaz(g.kayit.lokasyon_id); tesisNotu = ` · tesis cihaza göre <b>${kac(g.kayit.lokasyon)}</b> yapıldı`;
+        if (F && F.kategori_id) { yerDegisti(); manuel && secili ? konuSec(secili) : oner(); }
+      }
       if (g.kayit) {
         if (model) { model.hidden = true; F.cevaplar.model = g.kayit.model; }
         if (g.kayit.yer && $("#yer") && !$("#yer").value.trim()) { $("#yer").value = g.kayit.yer; yerDegisti(); }
       } else if (model) { model.hidden = false; delete F.cevaplar.model; }
-      el.innerHTML = `<b>${kac(g.no)}</b>${g.kayit ? ` · ${kac(g.kayit.model)}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}` : " · envanterde kayıtlı değil" + (model ? "; modeli seç" : "")}
+      el.innerHTML = `<b>${kac(g.no)}</b>${g.kayit ? ` · ${kac(g.kayit.model)}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}${tesisNotu}` : " · envanterde kayıtlı değil" + (model ? "; modeli seç" : "")}
         ${g.toplam ? ` · son ${g.gun} günde ${g.toplam} çağrı` : " · son 90 günde çağrısı yok"}
         ${g.tekrarlayan ? `<div class="not uyari">Bu cihaz son 30 günde ${g.son_30_gun} kez arızalandı. Çağrıyı aç; çözen kişi geçmişi görür ve değişim konuşulur.</div>` : ""}`;
       oncelikGuncelle();
@@ -370,6 +385,12 @@ CIZ.cagri = async (veri) => {
     const or = e.target.closest("[data-ornek]"); if (or) { metin.value = or.dataset.ornek; manuel = false; oner(); return; }
     const k = e.target.closest("[data-kat]");
     if (k) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", b === k)); if ($("#diger")) $("#diger").value = ""; konuSec(+k.dataset.kat); return; }
+    const gr = e.target.closest("[data-grup]");
+    if (gr) {
+      grup = grup === gr.dataset.grup ? null : gr.dataset.grup;   // ikinci tık seçimi kaldırır
+      document.querySelectorAll("[data-grup]").forEach(b => b.setAttribute("aria-pressed", b.dataset.grup === grup));
+      manuel = false; if (metin.value.trim().length >= 5) oner(); return;
+    }
     const sec = e.target.closest("[data-cevap],[data-etki],[data-kapsam],[data-nezaman]");
     if (sec) {
       sec.parentElement.querySelectorAll(".cip").forEach(b => b.setAttribute("aria-pressed", b === sec));
@@ -394,7 +415,7 @@ CIZ.cagri = async (veri) => {
       $("#ana").innerHTML = `
         <h2>Çağrı #${c.id} açıldı</h2>
         <div class="iki genis"><div>
-          <div class="kart"><p>${kac(c.metin)}</p><p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)}</p>${ekBilgi(c)}
+          <div class="kart"><p>${kac(c.metin)}</p><p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)}${c.lokasyon ? " " + rozet("gri", c.lokasyon) : ""}</p>${ekBilgi(c)}
             <p><button class="dugme" data-cagri="${kac(c.id)}">Çağrı detayı</button> <button class="dugme ikincil" data-sayfa="cagri">Yeni çağrı</button>
             ${c.atama.uzman ? `<button class="dugme ikincil" data-sayfa="giderse" data-veri="${kac(c.atama.uzman.ad)}">${kac(c.atama.uzman.ad)} giderse?</button>` : ""}</p></div>
           ${atamaKart(c.atama, "Atanan kişi")}</div>
@@ -405,6 +426,10 @@ CIZ.cagri = async (veri) => {
   $("#ana").onchange = e => {
     if (e.target.id === "diger" && e.target.value) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", false)); konuSec(+e.target.value); }
     if (e.target.id === "sevk") { F.sevkiyat = e.target.checked; oncelikGuncelle(); }
+    if (e.target.id === "lok") {   // cevaplar korunur; atama ve "zaten bildirildi" yeni tesise göre yenilenir
+      tesisYaz(+e.target.value); if (F) yerDegisti();
+      if (metin.value.trim().length >= 5) (manuel && secili ? konuSec(secili) : oner());
+    }
   };
   $("#ana").oninput = e => {
     if (e.target.dataset.metinCevap && F) {
@@ -423,7 +448,7 @@ const oncelikRozet = c => rozet(c.aciliyet === 3 ? "kirmizi" : c.aciliyet === 2 
 function cihazKart(g, baslik) {
   if (!g) return "";
   return `<div class="kart"><h3>${kac(baslik || "Cihaz " + g.no)}</h3>
-    <p>${g.kayit ? `${kac(g.kayit.model)}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}` : "Envanterde kayıtlı değil"} · son ${g.gun} günde <b>${g.toplam}</b> çağrı, son 30 günde <b>${g.son_30_gun}</b></p>
+    <p>${g.kayit ? `${kac(g.kayit.model)}${g.kayit.lokasyon ? " · " + kac(g.kayit.lokasyon) : ""}${g.kayit.yer ? " · " + kac(g.kayit.yer) : ""}` : "Envanterde kayıtlı değil"} · son ${g.gun} günde <b>${g.toplam}</b> çağrı, son 30 günde <b>${g.son_30_gun}</b></p>
     ${g.tekrarlayan ? `<div class="not uyari"><b>Tekrarlayan arıza.</b> Aynı cihaz 30 günde ${g.son_30_gun} kez bildirildi. Her seferinde onarmak yerine değişim, bakım sözleşmesi ya da kök neden (ör. ribon sensörü, pil) konuşulmalı.</div>` : ""}
     ${g.cagrilar.length ? `<ul class="liste">${g.cagrilar.map(x => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(x.acilis)}</span><div class="govde"><a href="#detay" data-cagri="${kac(x.id)}">#${kac(x.id)}</a> ${kac(x.metin)}
       ${x.cozum_notu ? `<div class="kucuk">Çözüm: ${kac(x.cozum_notu.split("\n")[0])}${x.cozen ? " · " + kac(x.cozen) : ""}</div>` : x.durum === "acik" ? '<div class="kucuk">Açık</div>' : ""}</div></li>`).join("")}</ul>` : '<p class="kucuk">Başka çağrısı yok.</p>'}</div>`;
@@ -444,7 +469,7 @@ CIZ.cihaz = async (no) => {
     ${O.kayitsiz.length ? `<div class="kart"><h3>Envanterde olmayan numaralar</h3><p class="kucuk">Çağrıda yazıldı ama envanterde yok: yazım hatası ya da envantere girmemiş yeni cihaz. Envanteri güncelleyin.</p>
       <ul class="liste">${O.kayitsiz.map(k => `<li><div class="govde"><b>${kac(k.no)}</b> <span class="kucuk">${k.cagri} çağrı · son ${tarih(k.son)}</span></div><button class="dugme kucuk ikincil" data-cno="${kac(k.no)}">Geçmiş</button></li>`).join("")}</ul></div>` : ""}
     <details class="kart"><summary><b>Envanteri içe aktar</b> <span class="kucuk">· demirbaş sisteminden CSV</span></summary>
-      <p class="kucuk">Sütunlar: <code>no</code> (gerekli), <code>tür</code>, <code>model</code>, <code>yer</code>, <code>seri no</code>, <code>durum</code>. Ayraç virgül, noktalı virgül ya da sekme. Var olan numara güncellenir. Numara tek biçime gelir (yz 7 → YZ-07).</p>
+      <p class="kucuk">Sütunlar: <code>no</code> (gerekli), <code>tür</code>, <code>model</code>, <code>tesis</code>, <code>yer</code>, <code>seri no</code>, <code>durum</code>. Ayraç virgül, noktalı virgül ya da sekme. Var olan numara güncellenir. Numara tek biçime gelir (yz 7 → YZ-07).</p>
       <textarea id="envcsv" rows="5" placeholder="no;tür;model;yer&#10;YZ-13;yazıcı;Zebra ZT410;sevkiyat rampası 7"></textarea>
       <label class="satir"><input type="checkbox" id="envtam"> Bu tam liste: listede olmayan cihazları hurdaya ayır</label>
       <p><button class="dugme kucuk" id="envyukle">İçe aktar</button> <span id="envsonuc" class="kucuk" aria-live="polite"></span></p></details>`;
@@ -498,14 +523,16 @@ function hedefKart(z) {
       <td><input type="number" min="0.5" step="0.5" max="336" id="hc${o}" value="${h[o] && h[o].cozum_dk ? h[o].cozum_dk / 60 : ""}" style="max-width:6rem" aria-label="Çözüm hedefi, saat"></td>
       <td><button class="dugme kucuk ikincil" data-hedef="${o}">Kaydet</button></td></tr>`).join("")}</tbody></table></div></details>`;
 }
+let olcumTesis = "";
 CIZ.olcum = async (gun) => {
   gun = +gun || 30;
-  const o = await api("olcumler?gun=" + gun), z = o.ozet;
+  const o = await api("olcumler?gun=" + gun + (olcumTesis ? "&lokasyon_id=" + olcumTesis : "")), z = o.ozet;
   const enCok = Math.max(1, ...o.haftalar.flatMap(h => [h.acilan, h.kapanan]));
   const cubuk = (n, r) => `<span class="cubuk ${r}" style="width:calc((100% - 5.5rem) * ${(n / enCok).toFixed(3)})"></span>`;
   $("#ana").innerHTML = `<h2>Ölçüler</h2>
     <p class="alt">Çağrılar ne kadar sürede kapanıyor, kimin üzerinde ne var, ilk seferde çözülüyor mu. Depo 6 gün, 3 vardiya çalışır. Süreler ortanca (tipik çağrı) ve %90'lık dilimle verilir.</p>
-    <div class="secim" role="group" aria-label="Dönem">${[7, 30, 90].map(g => `<button class="dugme kucuk${g === gun ? "" : " ikincil"}" data-sayfa="olcum" data-veri="${g}" aria-pressed="${g === gun}">Son ${g} gün</button>`).join("")}</div>
+    <div class="sira" style="align-items:flex-end"><div class="secim" role="group" aria-label="Dönem">${[7, 30, 90].map(g => `<button class="dugme kucuk${g === gun ? "" : " ikincil"}" data-sayfa="olcum" data-veri="${g}" aria-pressed="${g === gun}">Son ${g} gün</button>`).join("")}</div>
+      ${(T.lokasyonlar || []).length > 1 ? `<div style="max-width:16rem"><label for="ot">Tesis</label>${tesisSec("ot", +olcumTesis || null, "Bütün tesisler")}</div>` : ""}</div>
     <div class="izgara">
       <div class="olcu"><b>${z.acilan} / ${z.kapanan}</b><span>Açılan / kapanan</span></div>
       <div class="olcu"><b>${dk(z.hizmet_ortanca_dk)}</b><span>Açanın beklediği, ortanca (%90: ${dk(z.hizmet_p90_dk)})</span></div>
@@ -516,6 +543,10 @@ CIZ.olcum = async (gun) => {
       <div class="olcu"><b>${saatYas(z.en_eski_acik_saat)}</b><span>En eski açık çağrının yaşı</span></div>
       <div class="olcu"><b>${z.onaylanan_pay == null ? "-" : yuzde(z.onaylanan_pay)}</b><span>Açanın "çözüldü" dediği</span></div>
     </div>
+    ${(o.tesisler || []).length > 1 ? `<div class="kart"><h3>Tesisler</h3><p class="kucuk">Cihaz ve ağ arızaları yerinde bakılır: tesiste bu işlere bakan kişi yoksa ya da tek kişiyse, o kişinin vardiyası dışında arıza uzaktan yönlendirilir.</p>
+      <ul class="liste">${o.tesisler.map(t => `<li><div class="govde"><b>${kac(t.ad)}</b> <span class="kucuk">· ${t.kapanan} kapandı · açanın beklediği ${dk(t.ortanca_hizmet_dk)} · ${t.acik} açık</span>
+        <div class="kucuk">Yerinde cihaz/ağ işine bakan: ${t.yerinde_kisi.length ? t.yerinde_kisi.map(k => kac(k.ad) + " (" + kac(VARDIYA[k.vardiya] || k.vardiya) + ")").join(", ") : "kimse yok"}</div></div>
+        ${t.yerinde_kisi.length <= 1 ? rozet("sari", t.yerinde_kisi.length ? "Tek kişi" : "Yerinde kimse yok") : ""}</li>`).join("")}</ul></div>` : ""}
     ${sureNereye(z, o.konular)}
     ${hedefKart(z)}
     <div class="kart"><h3>Kimin üzerinde ne var</h3>
@@ -533,6 +564,7 @@ CIZ.olcum = async (gun) => {
       <div class="akis">${o.haftalar.map(h => `<div class="akis-satir"><span class="kucuk">${kac(tarihKisa(h.bitis))}</span><div>${cubuk(h.acilan, "acilan")}<span class="kucuk">${h.acilan} açıldı</span></div><div>${cubuk(h.kapanan, "kapanan")}<span class="kucuk">${h.kapanan} kapandı</span></div></div>`).join("")}</div></div>
     <div class="kart"><h3>Konulara göre</h3><div class="tablo-sar"><table><thead><tr><th>Konu</th><th class="sayi">Kapanan</th><th class="sayi">Ortanca</th><th class="sayi">%90</th><th class="sayi">Vardiya beklemesi</th><th class="sayi">Açık</th></tr></thead><tbody>
       ${o.konular.map(k => `<tr><td>${kac(k.ad)}</td><td class="sayi">${k.kapanan}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${dk(k.p90_dk)}</td><td class="sayi">${k.bekleme_saat ? sy(k.bekleme_saat) + " sa" : "-"}</td><td class="sayi">${k.acik}</td></tr>`).join("")}</tbody></table></div></div>`;
+  if ($("#ot")) $("#ot").onchange = e => { olcumTesis = e.target.value; CIZ.olcum(gun); };
   $("#ana").onclick = async e => {
     const h = e.target.closest("[data-hedef]"); if (!h) return;
     const o = +h.dataset.hedef, t = $("#ht" + o).value, c = $("#hc" + o).value;
@@ -551,17 +583,18 @@ CIZ.kuyruk = async () => {
   <div class="kart"><div class="sira">
     <div><label for="fd">Durum</label><select id="fd"><option value="acik">Açık (hepsi)</option><option value="atandi">Atandı, başlanmadı</option><option value="islemde">İşlemde</option>
       <option value="bilgi_bekleniyor">Bilgi bekleniyor</option><option value="cozuldu">Çözüldü, onay bekleniyor</option><option value="kapali">Kapalı (son 50)</option></select></div>
+    ${(T.lokasyonlar || []).length > 1 ? `<div><label for="fl">Tesis</label>${tesisSec("fl", null, "Hepsi")}</div>` : ""}
     <div><label for="fb">Birim</label><select id="fb"><option value="">Hepsi</option>${T.birimler.filter(b => T.usta_birimleri.includes(b.ad)).map(b => `<option value="${kac(b.id)}">${kac(b.ad)}</option>`).join("")}</select></div>
   </div><div id="kl"></div></div>`;
   async function yukle() {
-    const l = await api(`cagri?durum=${$("#fd").value}${$("#fb").value ? "&birim_id=" + $("#fb").value : ""}`);
+    const l = await api(`cagri?durum=${$("#fd").value}${$("#fb").value ? "&birim_id=" + $("#fb").value : ""}${$("#fl") && $("#fl").value ? "&lokasyon_id=" + $("#fl").value : ""}`);
     $("#kl").innerHTML = l.length ? `<ul class="liste">${l.map(c => `<li>
       ${rozet(c.aciliyet === 3 ? "kirmizi" : c.aciliyet === 2 ? "sari" : "gri", ["", "Düşük", "Orta", "Yüksek"][c.aciliyet])}
       <div class="govde"><a href="#detay" data-cagri="${kac(c.id)}">#${c.id} ${kac(c.metin)}</a> ${c.asama !== "kapali" ? asamaRozet(c.asama) : ""}
-      <div class="kucuk">${kac(c.kategori)}${c.yer ? " · " + kac(c.yer) : ""} · ${c.durum === "acik" ? "Atanan: " + kac(c.atanan || "-") : "Çözen: " + kac(c.cozen || "-") + " · " + c.sure_dk + " dk" + (c.cozum_notu ? " · notlu" : "")} · ${tarih(c.acilis)}</div></div></li>`).join("")}</ul>`
+      <div class="kucuk">${kac(c.kategori)}${c.lokasyon && (T.lokasyonlar || []).length > 1 ? " · " + kac(c.lokasyon.split(" ")[0]) : ""}${c.yer ? " · " + kac(c.yer) : ""} · ${c.durum === "acik" ? "Atanan: " + kac(c.atanan || "-") : "Çözen: " + kac(c.cozen || "-") + " · " + c.sure_dk + " dk" + (c.cozum_notu ? " · notlu" : "")} · ${tarih(c.acilis)}</div></div></li>`).join("")}</ul>`
       : '<p class="kucuk">Bu süzgeçte çağrı yok.</p>';
   }
-  $("#fd").onchange = $("#fb").onchange = yukle; yukle();
+  $("#fd").onchange = $("#fb").onchange = yukle; if ($("#fl")) $("#fl").onchange = yukle; yukle();
 };
 
 /* Çağrının neresinde olduğumuz ve sıradaki adım: kim ne bekliyor */
@@ -596,7 +629,7 @@ CIZ.detay = async (id) => {
   <div class="iki genis">
     <div>
       <div class="kart"><p>${kac(c.metin)}</p>
-        <p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)} <span class="kucuk">Açan: ${kac(c.acan_birim)}${c.vardiya ? " · " + VARDIYA[c.vardiya] + " vardiyası" : ""}${c.guven != null ? " · konu olasılığı " + yuzde(c.guven) : ""}</span></p>
+        <p>${rozet("mavi", c.kategori)} ${rozet("gri", c.birim)} ${oncelikRozet(c)}${c.lokasyon ? " " + rozet("gri", c.lokasyon) : ""} <span class="kucuk">Açan: ${kac(c.acan_birim)}${c.vardiya ? " · " + VARDIYA[c.vardiya] + " vardiyası" : ""}${c.guven != null ? " · konu olasılığı " + yuzde(c.guven) : ""}</span></p>
         ${ekBilgi(c)}${c.cihaz ? `<p class="kucuk">Cihaz: <b>${kac(c.cihaz)}</b>${c.cihaz_gecmisi && c.cihaz_gecmisi.son_30_gun > 1 ? " · " + rozet(c.cihaz_gecmisi.tekrarlayan ? "sari" : "gri", "30 günde " + c.cihaz_gecmisi.son_30_gun + " çağrı") : ""}</p>` : ""}
         <p><b>${acik ? "Atanan" : "Çözen"}:</b> ${kac((acik ? c.atanan : c.cozen) || (c.otomatik ? "Otomasyon" : "-"))}${c.sure_dk ? ` · ${c.sure_dk} dk` : ""}${c.acan_kisi ? ` <span class="kucuk">· Açan: ${kac(c.acan_kisi)}</span>` : ""}${c.teyit === 1 ? " " + rozet("yesil", "Açan kişi teyit etti") : c.teyit === 0 ? " " + rozet("kirmizi", "Açan kişi çözülmedi dedi") : ""}</p>
         ${c.cozum_notu ? `<h3 style="margin-top:.6rem">Nasıl çözüldü</h3>${adimlar(c.cozum_notu)}` : ""}

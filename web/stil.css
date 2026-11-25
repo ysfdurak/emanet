@@ -183,3 +183,5 @@ dl.ek dd{margin:0}
 .y-calisma{background:var(--vurgu)}.y-bekleme{background:#c98a2b}.y-bilgi{background:#8aa3b8}.y-kapali{background:#c9c5ba}
 .lejant{list-style:none;padding:0;margin:.3rem 0;display:flex;flex-wrap:wrap;gap:.3rem 1rem;font-size:.85rem}
 .lejant .nokta{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
+.grup-sec{margin:.35rem 0 .2rem;display:flex;flex-wrap:wrap;align-items:center;gap:.1rem .2rem}
+.grup-sec .soluk{color:var(--soluk)}
