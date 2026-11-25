@@ -1,6 +1,6 @@
 # Emanet + Usta. Bağımlılıklar requirements.txt'te sürüm VE özet (hash) ile sabit: pip başka bir dosya indirirse kurulum durur.
 #   docker build -t emanet .
-FROM python:3.13.18-slim-trixie
+FROM python:3.15.1-slim-trixie
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PORT=8000 \
     EMANET_DB=/veri/emanet.db OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 WORKDIR /app
