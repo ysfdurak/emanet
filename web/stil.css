@@ -105,3 +105,11 @@ footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--soluk);fon
 .oturumlar li+li{margin-top:.5rem}
 .tamam{margin:.6rem 0 0;padding:.45rem .6rem;background:#e5f4e4;border-radius:8px}
 @media (max-width:520px){.gun{flex-direction:column;gap:.2rem}.gun-ad{flex:none;font-weight:600}.gorunum a.dugme{margin-left:0}}
+.hafta-ayar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.7rem;padding-top:.6rem;border-top:1px dashed var(--cizgi)}
+.saat-ayar{display:inline-flex;align-items:center;gap:.35rem}
+.saat-ayar .dugme{min-width:2.2rem}
+.hafta-ayar select{width:auto;font-size:.85rem;padding:.3rem .5rem}
+.hafta.bos{background:#faf9f6;border-style:dashed}
+.cip{font:inherit;font-size:.82rem;border:1px solid var(--vurgu);background:#fff;color:var(--vurgu);border-radius:999px;padding:.15rem .6rem;cursor:pointer;margin:.15rem .1rem}
+.degisiklik{margin-bottom:.8rem}
+.gizli-etiket{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

@@ -200,6 +200,12 @@ def test_egitim_takvimi_api_ve_csv():
     r = c.post("/api/egitim-plani", json={"butce_saat": 20, "oturum_saat": 4, "haftalik_sinir": 2},
                headers={"origin": "http://testserver"})
     assert r.status_code in (400, 422)
+    r = c.post("/api/egitim-plani", json={"butce_saat": 20, "hafta_sinir": {"1": 0}, "kisi_yok": [[13, 2]]},
+               headers={"origin": "http://testserver"})
+    assert r.status_code == 200 and all(o["hafta"] > 1 for o in r.json()["takvim"]["oturumlar"])
+    r = c.get('/api/egitim-plani/takvim.csv?butce_saat=20&degisiklik={"hafta_sinir":{"1":0}}')
+    assert r.status_code == 200 and "\n1;" not in r.text
+    assert c.get("/api/egitim-plani/takvim.csv?degisiklik=[1]").status_code == 400
     r = c.get("/api/egitim-plani/takvim.csv?butce_saat=20")
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
     assert r.text.startswith("﻿Hafta;Tarih;Gün;Konu")

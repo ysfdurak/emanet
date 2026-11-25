@@ -86,3 +86,39 @@ def test_bos_plan():
 def test_gecersiz_ayar(ayar):
     with pytest.raises(ValueError):
         takvim.takvim_olustur(PLAN, PZT, **ayar)
+
+
+def test_hafta_otelenir():
+    t = takvim.takvim_olustur(PLAN, PZT, hafta_sinir={2: 0})
+    duz = takvim.takvim_olustur(PLAN, PZT)
+    assert all(o["hafta"] != 2 for o in t["oturumlar"])
+    assert t["hafta_sayisi"] == duz["hafta_sayisi"] + 1
+    assert t["degisiklikler"]["hafta_sinir"] == {"2": 0.0}
+
+
+def test_haftaya_ozel_sinir_artirilir():
+    t = takvim.takvim_olustur(PLAN, PZT, hafta_sinir={1: 5})
+    h1 = defaultdict(float)
+    for o in t["oturumlar"]:
+        if o["hafta"] == 1:
+            for k in (o["ogreten_id"], o["ogrenen_id"]):
+                if k is not None:
+                    h1[k] += o["saat"]
+    assert max(h1.values()) == 5   # Elif ilk hafta 5 gün x 1 oturum
+    assert sinirlar_tutuyor(dict(oturumlar=[o for o in t["oturumlar"] if o["hafta"] > 1]), 2, 1)
+    assert t["hafta_sayisi"] < takvim.takvim_olustur(PLAN, PZT)["hafta_sayisi"]
+
+
+def test_kisi_o_hafta_yok():
+    t = takvim.takvim_olustur(PLAN, PZT, kisi_yok={(3, 1), (3, 2)})   # Elif iki hafta izinde
+    assert all(not (3 in (o["ogreten_id"], o["ogrenen_id"]) and o["hafta"] in (1, 2)) for o in t["oturumlar"])
+    # Murat'ın oturumları yerinde kalır
+    assert any(o["ogreten_id"] == 1 and o["hafta"] == 1 for o in t["oturumlar"])
+    assert t["degisiklikler"]["kisi_yok"] == [[3, 1], [3, 2]]
+
+
+def test_gecersiz_degisiklik():
+    with pytest.raises(ValueError):
+        takvim.takvim_olustur(PLAN, PZT, hafta_sinir={0: 2})
+    with pytest.raises(ValueError):
+        takvim.takvim_olustur(PLAN, PZT, haftalik_sinir=2, hafta_sinir={h: 0 for h in range(1, 105)})

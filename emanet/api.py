@@ -428,6 +428,9 @@ class PlanIstek(BaseModel):
     gunluk_oturum: int = Field(1, ge=1, le=4)
     calisma_gunu: int = Field(5, ge=5, le=6)
     baslangic: date | None = None
+    # Elle değişiklikler: haftaya özel sınır (0 = ötelendi) ve o hafta olmayan kişiler
+    hafta_sinir: dict[int, float] = Field(default_factory=dict, max_length=104)
+    kisi_yok: list[tuple[int, int]] = Field(default_factory=list, max_length=500)
 
 
 # ------------------------------------------------------------------ ortak
@@ -724,7 +727,7 @@ def _plan_ve_takvim(i: PlanIstek) -> dict:
         p = risk.egitim_plani(con, i.butce_saat, i.yontem, i.kaydet)
     p["takvim"] = takvim.takvim_olustur(
         p["satirlar"], i.baslangic or takvim.sonraki_pazartesi(date.today()), i.haftalik_sinir,
-        i.oturum_saat, i.gunluk_oturum, i.calisma_gunu)
+        i.oturum_saat, i.gunluk_oturum, i.calisma_gunu, i.hafta_sinir, set(i.kisi_yok))
     return p
 
 
@@ -736,12 +739,22 @@ def egitim_plani(i: PlanIstek):
 @api.get("/api/egitim-plani/takvim.csv")
 def egitim_takvimi_csv(butce_saat: int = 60, yontem: str = "optimum", haftalik_sinir: float = 2.0,
                        oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5,
-                       baslangic: date | None = None):
-    """Eğitim takvimi, Excel'de açılacak biçimde: İK'ya ya da vardiya amirine verilecek liste."""
+                       baslangic: date | None = None, degisiklik: str = ""):
+    """Eğitim takvimi, Excel'de açılacak biçimde: İK'ya ya da vardiya amirine verilecek liste.
+
+    degisiklik: ekrandaki elle değişiklikler, JSON: {"hafta_sinir": {"3": 0}, "kisi_yok": [[13, 2]]}.
+    """
     import csv
     import io
+    import json
+    if len(degisiklik) > 20000:
+        raise ValueError("Değişiklik listesi çok uzun")
+    d = json.loads(degisiklik) if degisiklik else {}
+    if not isinstance(d, dict):
+        raise ValueError("Değişiklik biçimi geçersiz")
     i = PlanIstek(butce_saat=butce_saat, yontem=yontem, haftalik_sinir=haftalik_sinir, oturum_saat=oturum_saat,
-                  gunluk_oturum=gunluk_oturum, calisma_gunu=calisma_gunu, baslangic=baslangic)
+                  gunluk_oturum=gunluk_oturum, calisma_gunu=calisma_gunu, baslangic=baslangic,
+                  hafta_sinir=d.get("hafta_sinir", {}), kisi_yok=d.get("kisi_yok", []))
     t = _plan_ve_takvim(i)["takvim"]
     b = io.StringIO()
     w = csv.writer(b, delimiter=";")

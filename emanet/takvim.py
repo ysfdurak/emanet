@@ -43,14 +43,28 @@ def ayar_dogrula(haftalik_sinir: float, oturum_saat: float, gunluk_oturum: int, 
 
 
 def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float = 2.0,
-                   oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5) -> dict:
+                   oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5,
+                   hafta_sinir: dict[int, float] | None = None,
+                   kisi_yok: set[tuple[int, int]] | None = None) -> dict:
     """Plan satırlarını haftalara ve günlere yerleştirir.
 
     satirlar: risk.egitim_plani()["satirlar"] (sırası korunur: en riskli konu önce).
     baslangic: takvimin ilk haftasının pazartesisi (başka bir gün verilirse o haftanın pazartesisine çekilir).
+    Elle değişiklikler (hafta numaraları 1'den başlar, başlangıca göre sabittir):
+      hafta_sinir: {hafta: saat} o hafta için kişi başı sınır; 0 = o hafta eğitim yok (ötelendi).
+      kisi_yok: {(kişi, hafta)} o kişi o hafta eğitime giremez (izin, yoğunluk).
+    Hafta numarası takvim kayınca değişmez: "3. hafta" hep başlangıçtan sonraki üçüncü haftadır.
     """
     ayar_dogrula(haftalik_sinir, oturum_saat, gunluk_oturum, calisma_gunu)
+    hafta_sinir = {int(h): float(v) for h, v in (hafta_sinir or {}).items()}
+    for h, v in hafta_sinir.items():
+        if not 1 <= h <= EN_FAZLA_HAFTA or not 0 <= v <= 40:
+            raise ValueError("Haftaya özel sınır: hafta 1-104, saat 0-40 olmalı")
+    kisi_yok = {(int(k), int(h)) for k, h in (kisi_yok or set())}
     baslangic = baslangic - timedelta(days=baslangic.weekday())
+
+    def sinir(hafta0: int) -> float:
+        return hafta_sinir.get(hafta0 + 1, haftalik_sinir)
 
     haftalik: dict[tuple[int, int], float] = defaultdict(float)   # (kişi, hafta) → saat
     gunluk: dict[tuple[int, int], int] = defaultdict(int)          # (kişi, gün sırası) → oturum
@@ -69,8 +83,8 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
                 hafta, gun_ici = divmod(gun_sira, calisma_gunu)
                 if hafta >= EN_FAZLA_HAFTA:
                     raise ValueError("Bu ayarlarla takvim iki yıldan uzun sürüyor; haftalık sınırı artırın")
-                if all(haftalik[(k, hafta)] + sure <= haftalik_sinir + 1e-9 and gunluk[(k, gun_sira)] < gunluk_oturum
-                       for k in kisiler):
+                if all(haftalik[(k, hafta)] + sure <= sinir(hafta) + 1e-9 and gunluk[(k, gun_sira)] < gunluk_oturum
+                       and (k, hafta + 1) not in kisi_yok for k in kisiler):
                     break
                 gun_sira += 1
             for k in kisiler:
@@ -114,6 +128,8 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
     return dict(
         ayarlar=dict(baslangic=baslangic.isoformat(), haftalik_sinir=haftalik_sinir, oturum_saat=oturum_saat,
                      gunluk_oturum=gunluk_oturum, calisma_gunu=calisma_gunu),
+        degisiklikler=dict(hafta_sinir={str(h): v for h, v in sorted(hafta_sinir.items())},
+                           kisi_yok=sorted([k, h] for k, h in kisi_yok)),
         oturumlar=oturumlar, kisiler=kisi_ozet, konular=konular,
         hafta_sayisi=hafta_sayisi, bitis=bitis, toplam_saat=round(sum(s["saat"] for s in satirlar), 1),
         darbogaz=kisi_ozet[0] if kisi_ozet else None)

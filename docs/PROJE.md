@@ -233,6 +233,14 @@ Bulunan ve düzeltilen üç takılma:
    (`takvim.py`): kişi başı haftalık sınır, oturum süresi, günlük oturum, çalışma günleri ve başlangıç
    ayarlanabilir; hafta hafta görünüm, kişi kişi yük, Excel'e indirme. Konu konu görünüm üçüncü sekmeye geçti.
 
+10. **"Daha dinamik olsun" (kullanıcı):** takvim hesaplanıp bırakılıyordu. Artık her hafta kartında
+    **ötele** (o hafta eğitim yok, oturumlar kayar), **kişi başı saat −/+** (yalnız o hafta) ve **"bu hafta
+    yok"** (izindeki kişi) var. Değişiklikler üstte geri alınabilir etiketler olarak durur; Excel çıktısı
+    değiştirilmiş takvimi verir. Hafta numarası başlangıca göre sabittir: 2. haftayı ötelersen 3. hafta
+    yine 3. haftadır, bu yüzden değişiklikler takvim kaysa da doğru haftada kalır. Takvim ayarları
+    başlangıçta açık. **Sınır:** değişiklikler sayfa yenilenince sıfırlanır (kalıcı hali Excel);
+    **şöyle daha iyi olur:** "Bu planı kaydet" takvim değişikliklerini de saklasın.
+
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
 
@@ -280,6 +288,11 @@ Sınır yalnız alana uygulansaydı Kemal haftada 9 saat eğitime çekilir, sort
 Darboğaz Kemal (18 saat). Haftalık sınırı 4 saate çıkarmak takvimi 5 haftaya indirir; ya da sorter
 öğretimini iki ustaya bölmek. Bütçeyi azaltmak da kısaltır ama riski daha az düşürür.</details>
 
+<details><summary>8. 2. haftayı öteledin; değişiklik neden 3. haftaya kaymıyor?</summary>
+Hafta numarası takvimin başlangıcına göre sabit (`hafta_sinir={2: 0}`), oturumların sırasına göre değil.
+Değişiklik "takvimin 2. haftası" demek; oturumlar kayar ama haftalar kaymaz. Aksi hâlde her değişiklik
+öncekileri yanlış haftaya taşırdı.</details>
+
 ## 11. Elle yapılacak alıştırma
 
 **Kod:** `emanet/ogrenme.py` içinde `PAY_ESIGI = 0.60` değerini `0.70` yap. `python -m pytest -q
@@ -305,4 +318,5 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Hesap düğmelerine geri bildirim ("Planı çıkar" sessiz kalıyordu) |
 | 25 Kasım 2026 | Plan ekranı konu konu, düz cümle özetli; sonuç vurgusu ve hesap saati |
 | 25 Kasım 2026 | Eğitim planı sadeleşti (amaç cümlesi, açılır teknik bölümler); masaüstünde sekmeler sarılıyor |
-| 25 Kasım 2026 | Eğitim takvimi: parametrik (haftalık sınır, oturum, gün, başlangıç), darboğaz kişi, CSV, MCP aracına takvim; 96 test |
+| 25 Kasım 2026 | Eğitim takvimi: parametrik (haftalık sınır, oturum, gün, başlangıç), darboğaz kişi, CSV, MCP aracına takvim; 100 test |
+| 25 Kasım 2026 | Takvimde elle değişiklik: hafta ötele, haftaya özel saat, kişi o hafta yok; geri alınabilir etiketler; ayarlar açık |

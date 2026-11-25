@@ -738,10 +738,27 @@ function sonrakiPazartesi() {
   const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+// Takvimde elle yapılan değişiklikler: haftaya özel sınır (0 = ötelendi) ve o hafta olmayan kişiler.
+// Sayfa yenilenince sıfırlanır; kalıcı hali Excel çıktısıdır.
+const planDeg = {hafta_sinir: {}, kisi_yok: []};
+let planGor = "takvim";
 function planIstegi() {
   return {butce_saat: +$("#pb").value || 0, yontem: $("#py").value, haftalik_sinir: +$("#tsin").value || 2,
           oturum_saat: +$("#tot").value, gunluk_oturum: +$("#tgo").value, calisma_gunu: +$("#tcg").value,
-          baslangic: $("#tbas").value || null};
+          baslangic: $("#tbas").value || null, hafta_sinir: planDeg.hafta_sinir, kisi_yok: planDeg.kisi_yok};
+}
+function csvAdresi() {
+  const {hafta_sinir, kisi_yok, ...r} = planIstegi();
+  const q = new URLSearchParams(Object.entries(r).filter(([, v]) => v !== null));
+  if (Object.keys(hafta_sinir).length || kisi_yok.length) q.set("degisiklik", JSON.stringify({hafta_sinir, kisi_yok}));
+  return "/api/egitim-plani/takvim.csv?" + q.toString();
+}
+function degisiklikSeridi(t) {
+  const adi = id => (t.kisiler.find(k => k.kisi_id === id) || T.kisiler.find(k => k.id === id) || {ad: "#" + id}).ad;
+  const p = [
+    ...Object.entries(planDeg.hafta_sinir).map(([h, v]) => `<button class="cip" data-dsil="h:${kac(h)}" title="Geri al">${kac(h)}. hafta ${+v === 0 ? "ötelendi" : "kişi başı " + sy(+v) + " sa"} ✕</button>`),
+    ...planDeg.kisi_yok.map(([k, h]) => `<button class="cip" data-dsil="k:${kac(k)}:${kac(h)}" title="Geri al">${kac(adi(k))} ${kac(h)}. hafta yok ✕</button>`)];
+  return p.length ? `<div class="not degisiklik"><b>Elle değişiklikler:</b> ${p.join(" ")} <button class="dugme kucuk ikincil" data-dsil="hepsi">Hepsini geri al</button></div>` : "";
 }
 const kisaTarih = iso => new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {day: "numeric", month: "long"});
 const gunAy = iso => new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {weekday: "short", day: "numeric", month: "short"});
@@ -752,11 +769,32 @@ function takvimOzeti(t) {
     + `Süreyi <b>${kac(d.ad)}</b> belirliyor: toplam ${sy(d.toplam)} saat eğitimde (${d.verdigi ? sy(d.verdigi) + " saat veriyor" : ""}${d.verdigi && d.aldigi ? ", " : ""}${d.aldigi ? sy(d.aldigi) + " saat alıyor" : ""}). `
     + `Haftalık sınırı artırmak ya da onun öğreteceği konuyu başka biriyle paylaştırmak takvimi kısaltır.`;
 }
+function haftaKontrolleri(t, h, os) {
+  const sinir = planDeg.hafta_sinir[h] ?? t.ayarlar.haftalik_sinir;
+  const yoklar = planDeg.kisi_yok.filter(([, hh]) => hh === h).map(([k]) => k);
+  const adaylar = [...new Map(os.flatMap(o => [[o.ogreten_id, o.ogreten], [o.ogrenen_id, o.ogrenen]]).filter(([id]) => id != null)).entries()]
+    .filter(([id]) => !yoklar.includes(id));
+  return `<div class="hafta-ayar">
+    <button class="dugme kucuk ikincil" data-hotele="${h}" title="Bu hafta eğitim yapılmaz, oturumlar sonraki haftalara kayar">Bu haftayı ötele</button>
+    <span class="saat-ayar"><span class="kucuk">Kişi başı</span>
+      <button class="dugme kucuk ikincil" data-hsaat="${h}" data-fark="-${t.ayarlar.oturum_saat}" aria-label="${h}. hafta saati azalt" ${sinir <= t.ayarlar.oturum_saat ? "disabled" : ""}>−</button>
+      <b>${sy(sinir)} sa</b>
+      <button class="dugme kucuk ikincil" data-hsaat="${h}" data-fark="${t.ayarlar.oturum_saat}" aria-label="${h}. hafta saati artır" ${sinir >= 40 ? "disabled" : ""}>+</button></span>
+    ${adaylar.length ? `<label class="gizli-etiket" for="hy${h}">${h}. hafta olmayan kişi</label><select id="hy${h}" class="kisi-yok" data-hafta="${h}"><option value="">Bu hafta yok…</option>${adaylar.map(([id, ad]) => `<option value="${kac(id)}">${kac(ad)}</option>`).join("")}</select>` : ""}
+  </div>`;
+}
 function takvimGorunumu(t) {
   const haftalar = new Map();
-  for (const o of t.oturumlar) { if (!haftalar.has(o.hafta)) haftalar.set(o.hafta, []); haftalar.get(o.hafta).push(o); }
+  const son = Math.max(t.hafta_sayisi, ...Object.keys(planDeg.hafta_sinir).map(Number).filter(h => h <= t.hafta_sayisi + 1), ...planDeg.kisi_yok.map(([, h]) => h).filter(h => h <= t.hafta_sayisi));
+  for (let h = 1; h <= son; h++) haftalar.set(h, []);
+  for (const o of t.oturumlar) haftalar.get(o.hafta).push(o);
   const biten = h => t.konular.filter(k => k.bitis_haftasi === h);
   return [...haftalar].map(([h, os]) => {
+    if (!os.length) {
+      const otelendi = +planDeg.hafta_sinir[h] === 0;
+      return `<div class="kart hafta bos"><h3>${h}. hafta <span class="kucuk">· ${otelendi ? "ötelendi, eğitim yok" : "oturum yok"}</span></h3>
+        ${otelendi ? `<button class="dugme kucuk ikincil" data-dsil="h:${h}">Geri al</button>` : `<p class="kucuk">Bu haftaya sığan oturum kalmadı (sınır ya da izin).</p>`}</div>`;
+    }
     const gunler = new Map();
     for (const o of os) { if (!gunler.has(o.tarih)) gunler.set(o.tarih, []); gunler.get(o.tarih).push(o); }
     const pzt = new Date(t.ayarlar.baslangic + "T12:00:00"); pzt.setDate(pzt.getDate() + (h - 1) * 7);
@@ -766,6 +804,7 @@ function takvimGorunumu(t) {
       ${[...gunler].map(([g, gos]) => `<div class="gun"><div class="gun-ad">${gunAy(g)}</div><ul class="oturumlar">${gos.map(o => `<li>
         <b>${kac(o.kategori)}</b> <span class="kucuk">${sy(o.saat)} sa${o.parca_sayisi > 1 ? ` · ${o.parca}/${o.parca_sayisi}` : ""}</span><br>
         ${planCumlesi(o)}</li>`).join("")}</ul></div>`).join("")}
+      ${haftaKontrolleri(t, h, os)}
       ${biten(h).length ? `<p class="kucuk tamam">Bu hafta tamamlanır: ${biten(h).map(k => `<b>${kac(k.kategori)}</b> (${k.puan_once} → ${k.puan_sonra})`).join(", ")}</p>` : ""}
     </div>`;
   }).join("");
@@ -816,7 +855,7 @@ CIZ.plan = async (butce) => {
     <div><label for="pb">Eğitim bütçesi (saat)</label><input id="pb" type="number" min="0" max="500" value="${+butce || 60}"></div>
     <div><label for="py">Yöntem</label><select id="py"><option value="optimum">Optimizasyon</option><option value="kural">Basit kural</option></select></div>
     <div style="flex:0 0 auto"><button class="dugme" id="ph">Planı çıkar</button></div></div>
-    <details class="ayarlar"><summary>Takvim ayarları <span class="kucuk" id="pozet"></span></summary>
+    <details class="ayarlar" open><summary>Takvim ayarları <span class="kucuk" id="pozet"></span></summary>
       <p class="kucuk">Depoda personel iş varken uzun süre eğitime çekilemez. Takvim adımları kısa oturumlara böler ve kişi başı sınırı aşmadan haftalara yayar. Sınır, eğitim veren ve alan için ayrı ayrı geçerlidir.</p>
       <div class="sira">
         <div><label for="tsin">Kişi başı haftada en fazla (saat)</label><input id="tsin" type="number" min="0.5" max="40" step="0.5" value="2"></div>
@@ -840,13 +879,11 @@ CIZ.plan = async (butce) => {
     </div>
     <div class="not"><b>Bu plan ne diyor?</b> ${planOzeti(p)}${t.oturumlar.length ? `<p style="margin:.5rem 0 0"><b>Ne zaman?</b> ${takvimOzeti(t)}</p>` : ""} <span class="kucuk">Hesaplandı: ${new Date().toLocaleTimeString("tr-TR")}</span></div>
     ${t.oturumlar.length ? `<div class="gorunum" role="group" aria-label="Görünüm">
-      <button class="dugme kucuk" data-gor="takvim" aria-pressed="true">Takvim</button>
-      <button class="dugme kucuk ikincil" data-gor="kisi" aria-pressed="false">Kişi kişi</button>
-      <button class="dugme kucuk ikincil" data-gor="konu" aria-pressed="false">Konu konu</button>
-      <a class="dugme kucuk ikincil" href="/api/egitim-plani/takvim.csv?${new URLSearchParams(Object.entries(planIstegi()).filter(([, v]) => v !== null)).toString()}" download>Excel'e indir</a></div>
-    <div data-gorunum="takvim">${takvimGorunumu(t)}</div>
-    <div data-gorunum="kisi" hidden>${kisiGorunumu(t)}</div>
-    <div data-gorunum="konu" hidden>` : `<div>`}
+      ${[["takvim", "Takvim"], ["kisi", "Kişi kişi"], ["konu", "Konu konu"]].map(([g, a]) => `<button class="dugme kucuk${planGor === g ? "" : " ikincil"}" data-gor="${g}" aria-pressed="${planGor === g}">${a}</button>`).join("")}
+      <a class="dugme kucuk ikincil" href="${kac(csvAdresi())}" download>Excel'e indir</a></div>
+    <div data-gorunum="takvim" ${planGor === "takvim" ? "" : "hidden"}>${degisiklikSeridi(t)}${takvimGorunumu(t)}</div>
+    <div data-gorunum="kisi" ${planGor === "kisi" ? "" : "hidden"}>${kisiGorunumu(t)}</div>
+    <div data-gorunum="konu" ${planGor === "konu" ? "" : "hidden"}>` : `<div>`}
     <div class="kart"><h3>Konu konu ne yapılacak?</h3>
       <p class="kucuk">Her konuda soldaki puan bugünkü risk, sağdaki bu konunun bütün adımları bitince beklenen risk. Altındaki adımlar o düşüşü birlikte sağlar.</p>
       ${p.satirlar.length ? `<ul class="liste">${planKonulari(p.satirlar).map(g => `<li>
@@ -873,14 +910,39 @@ CIZ.plan = async (butce) => {
   $("#ana").onclick = async e => {
     const gor = e.target.closest("[data-gor]");
     if (gor) {
+      planGor = gor.dataset.gor;
       document.querySelectorAll("[data-gor]").forEach(b => { const on = b === gor; b.setAttribute("aria-pressed", on); b.classList.toggle("ikincil", !on); });
       document.querySelectorAll("[data-gorunum]").forEach(d => { d.hidden = d.dataset.gorunum !== gor.dataset.gor; });
       return;
+    }
+    const ot = e.target.closest("[data-hotele]"), hs = e.target.closest("[data-hsaat]"), ds = e.target.closest("[data-dsil]");
+    if (ot) { planDeg.hafta_sinir[ot.dataset.hotele] = 0; return degistir(`${ot.dataset.hotele}. hafta ötelendi; oturumlar sonraki haftalara kaydı.`); }
+    if (hs) {
+      const h = hs.dataset.hsaat, v = Math.max(0, Math.min(40, (planDeg.hafta_sinir[h] ?? +$("#tsin").value) + +hs.dataset.fark));
+      if (v === +$("#tsin").value) delete planDeg.hafta_sinir[h]; else planDeg.hafta_sinir[h] = v;
+      return degistir(`${h}. hafta kişi başı ${sy(v)} saat.`);
+    }
+    if (ds) {
+      const [tur, a, b] = ds.dataset.dsil.split(":");
+      if (tur === "hepsi") { planDeg.hafta_sinir = {}; planDeg.kisi_yok = []; }
+      else if (tur === "h") delete planDeg.hafta_sinir[a];
+      else planDeg.kisi_yok = planDeg.kisi_yok.filter(([k, h]) => !(k === +a && h === +b));
+      return degistir("Değişiklik geri alındı.");
     }
     if (e.target.id === "pkay") { await api("egitim-plani", {...planIstegi(), kaydet: true}); bildir("Plan kaydedildi."); takipYukle(); $("#ptk").scrollIntoView({behavior: "smooth"}); }
   };
   $("#ph").onclick = () => dugmeyleHesapla($("#ph"), hesapla,
     () => `Plan hesaplandı: ${$("#pb").value || 0} saat, ${$("#py").selectedOptions[0].textContent.toLowerCase()}.`, "#ps");
+  // Elle değişiklik: yeniden hesapla, kaydırma yerini koru, kısa bildirim
+  async function degistir(ileti) {
+    const y = scrollY; await hesapla(); scrollTo(0, y); bildir(ileti);
+  }
+  $("#ana").onchange = e => {
+    const s = e.target.closest("select.kisi-yok");
+    if (!s || !s.value) return;
+    planDeg.kisi_yok.push([+s.value, +s.dataset.hafta]);
+    degistir(`${s.selectedOptions[0].textContent} ${s.dataset.hafta}. hafta eğitimden çıkarıldı.`);
+  };
   // Takvim ayarı değişince plan yeniden hesaplanır (aynı plan, yeni takvim)
   ["#tsin", "#tot", "#tgo", "#tcg", "#tbas"].forEach(id => { $(id).onchange = () => $("#ph").click(); });
   hesapla(); takipYukle();
