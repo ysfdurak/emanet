@@ -45,8 +45,9 @@ GUVENLI_CEREZ = os.environ.get("EMANET_GUVENLI_CEREZ", "1") == "1"   # yalnız y
 
 # Her yanıtta tarayıcı korumaları. HTML sayfası kendi dosyalarından betik ve stil yükler (satır içi betik yok);
 # satır içi style="" öznitelikleri için style-src 'unsafe-inline' gerekir (betik çalıştırmaz).
-CSP_SAYFA = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-             "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
+# Ortak ölçüm servisi (olcum.ysfdurak.com): yalnız betik ve olay gönderimi; betik yalnız resmî adreste yüklenir (web/app.js).
+CSP_SAYFA = ("default-src 'self'; script-src 'self' https://olcum.ysfdurak.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+             "connect-src 'self' https://olcum.ysfdurak.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
              "frame-ancestors 'none'")
 BASLIKLAR = [
     (b"x-content-type-options", b"nosniff"),
