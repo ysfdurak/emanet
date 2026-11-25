@@ -47,7 +47,14 @@ const SAYFALAR = [
 function navCiz() {
   $("#nav").innerHTML = SAYFALAR.map(([k, a]) => k === "-" ? (a ? `<span class="grup">${a}</span>` : "") :
     `<button data-sayfa="${kac(k)}" ${durum.sayfa === k ? 'aria-current="page"' : ""}>${a}</button>`).join("");
+  const n = $("#nav"), etkin = n.querySelector("[aria-current]");
+  if (etkin) etkin.scrollIntoView({block: "nearest", inline: "nearest"});
+  navKenar();
 }
+// Sağda gizli sekme kaldıysa kenarı soldur; sona gelince solmayı kaldır
+function navKenar() { const n = $("#nav"); n.classList.toggle("son", n.scrollLeft + n.clientWidth >= n.scrollWidth - 4); }
+$("#nav").addEventListener("scroll", navKenar, {passive: true});
+window.addEventListener("resize", navKenar);
 let _geri = false;
 window.addEventListener("popstate", e => { const s = (e.state && e.state.sayfa) || location.hash.slice(1) || "genel"; if (!CIZ[s]) return; _geri = true; git(s, e.state && e.state.veri && !SENARYO[e.state.veri] ? e.state.veri : undefined).finally(() => { _geri = false; }); });
 async function git(sayfa, veri) {
@@ -663,6 +670,11 @@ function takipKart(t) {
 
 /* ---------------------------------------------------------------- Ya giderse */
 CIZ.giderse = async (ad) => {
+  // Doğrudan sekmeden gelinirse boş sayfa yerine en riskli konunun ustasıyla başla
+  let varsayilan = false;
+  if (!ad) {
+    try { ad = (await api("risk")).konular.find(k => k.en_cok_cozen)?.en_cok_cozen.ad; varsayilan = !!ad; } catch { /* boş kalır */ }
+  }
   const gruplar = T.birimler.map(b => `<optgroup label="${kac(b.ad)}">${T.kisiler.filter(p => p.birim_id === b.id).map(p => `<option value="${kac(p.id)}" ${p.ad === ad ? "selected" : ""}>${kac(p.ad)} · ${kac(p.rol)}</option>`).join("")}</optgroup>`).join("");
   $("#ana").innerHTML = `
   <h2>Ya giderse?</h2>
@@ -672,7 +684,8 @@ CIZ.giderse = async (ad) => {
     <div><label for="gg">Kaç gün yok?</label><input id="gg" type="number" min="1" max="365" value="21"></div>
     <div><label for="gm">Bekleme maliyeti (TL/dk)</label><input id="gm" type="number" min="0" value="0"></div>
     <div style="flex:0 0 auto"><button class="dugme" id="gh">Hesapla</button></div></div>
-    <p class="kucuk">Maliyet isteğe bağlıdır; bir çağrının beklediği her dakikanın işe maliyetini sen girersin.</p></div>
+    <p class="kucuk">Maliyet isteğe bağlıdır; bir çağrının beklediği her dakikanın işe maliyetini sen girersin.</p>
+    ${varsayilan ? `<p class="kucuk">Örnek olarak en riskli konunun ustası seçildi; başka birini seçip <b>Hesapla</b>'ya bas.</p>` : ""}</div>
   <div id="gs"></div>`;
   async function hesapla() {
     const y = await api("ya-giderse", {kisi_id: +$("#gk").value, gun: +$("#gg").value || 21, dakika_maliyeti: +$("#gm").value || 0});
@@ -734,10 +747,9 @@ CIZ.plan = async (butce) => {
       : '<p class="kucuk">Bu bütçeyle yapılabilecek bir adım yok.</p>'}
     </div>
     <div class="kart"><h3>İki yöntemin karşılaştırması</h3>
-      <div class="tablo-sar"><table><thead><tr><th>Yöntem</th><th class="sayi">Saat</th><th class="sayi">Amaç puanı</th><th class="sayi">Toplam risk düşüşü</th></tr></thead><tbody>
-      <tr><td>Basit kural <span class="kucuk">(saat başına en iyi adımı sırayla seç)</span></td><td class="sayi">${k.kural.saat}</td><td class="sayi">${sy(k.kural.amac_puani)}</td><td class="sayi">${sy(k.kural.risk_dususu)}</td></tr>
-      <tr><td>Optimizasyon <span class="kucuk">(tüm birleşimleri tarayan sırt çantası çözümü)</span></td><td class="sayi">${k.optimum.saat}</td><td class="sayi">${sy(k.optimum.amac_puani)}</td><td class="sayi">${sy(k.optimum.risk_dususu)}</td></tr></tbody></table></div>
-      <p class="kucuk">Amaç puanı, önce yeşil sınırının (35) üzerindeki riski düşürmeyi ödüllendirir; plan bu yüzden önce kırmızı konulara gider. Optimizasyon hiçbir zaman basit kuraldan kötü çıkmaz; fark bütçe dar olduğunda büyür.</p></div>
+      <ul class="liste">${[["Basit kural", "saat başına en iyi adımı sırayla seçer", k.kural], ["Optimizasyon", "tüm birleşimleri tarar (sırt çantası)", k.optimum]].map(([ad, ac, v]) => `<li><div class="govde"><b>${ad}</b> <span class="kucuk">· ${ac}</span>
+        <div>Risk düşüşü <b>${sy(v.risk_dususu)}</b> · amaç puanı ${sy(v.amac_puani)} · ${v.saat} saat</div></div></li>`).join("")}</ul>
+      <p class="kucuk">Amaç puanı, önce yeşil sınırının (35) üzerindeki riski düşürmeyi ödüllendirir; plan bu yüzden önce kırmızı konulara gider. Optimizasyon <b>amaç puanında</b> hiçbir zaman basit kuraldan kötü çıkmaz; fark bütçe dar olduğunda büyür. Toplam risk düşüşü kuralda daha yüksek görünebilir: kural zaten yeşil olan konuları da düşürür, bu da toplamı şişirir ama riski azaltmaz.</p></div>
     <p><button class="dugme" id="pkay">Bu planı kaydet</button> <span class="kucuk">Kaydedilen plan aşağıda takip edilir: kim öğrenmeye başladı, hangi kart yazıldı, risk hedefe indi mi?</span></p>
     <div class="kart"><h3>Plan sonrası harita</h3><ul class="liste">${p.harita_sonra.slice(0, 10).map(r => `<li>${puanKutu(r)}<div class="govde">${kac(r.ad)} <span class="kucuk">· ${kac(r.birim)}</span></div></li>`).join("")}</ul>
       <p class="kucuk">Varsayım: eğitilen kişi konuyu diğer yetkinlerle eşit paylaşır. İlk 10 konu gösteriliyor.</p></div>`;

@@ -162,6 +162,51 @@ Hiçbiri başka kişiye ya da şirket verisine bağlı değil.
 | 3 | İlk kez gelen biri yardımsız kullanır | Claude temiz tarayıcıyla 5 görev: en riskli konu, ya giderse, çağrı aç, devir dosyası, eğitim planı. Takılınan her yer düzeltilir | 5 görevin 5'i sayfa dışı açıklama olmadan |
 | 4 | Proje sana geçti | Bölüm 11'deki 5 dakikalık demo ve Bölüm 10'daki soruların 10'u, bakmadan | Demo akıcı, 10 sorudan en az 8'i doğru |
 
+**Durum (25 Kasım 2026):** 2 ve 3 tamam; 1 ve 4 süreye bağlı (9 Aralık).
+
+**Ölçüt 2 — gürültü testi** (`python -m araclar.gurultu_testi`, ayrıca `tests/test_gurultu.py`).
+Yanlış etiket yalnız eğitime konuldu, test etiketleri doğru: "kirli geçmişten öğrenen model yeni
+çağrıda doğruyu buluyor mu?" ölçülür.
+
+| Senaryo | Konu | Kişi 1. sırada | Kişi ilk 3 |
+| --- | --- | --- | --- |
+| Temiz | %90,6 | %63,3 | %92,2 |
+| Yazım hatası %40 | %91,1 | %61,1 | %92,2 |
+| Kısa metin %30 | %87,2 | %61,7 | %93,9 |
+| Yanlış etiket %15 | %86,1 | %62,8 | %94,4 |
+| **Hepsi birlikte (ölçüt)** | **%80,6** | %59,4 | **%88,9** |
+| Sert (etiket %25, yarısı kısa) | %70,6 | %47,8 | %89,4 |
+
+Karşılaştırma tabanı: rastgele 3 kişi %50, "konuda en çok çözen 3 kişi" kuralı %69. Yani ilk 3'teki
+%89 birimlerin küçük olmasından gelen bir kolaylık değil; model kuraldan 20 puan önde.
+Yazım hatası neredeyse hiç etkilemiyor: model sözcük yerine 3–5 harflik parçalara baktığı için
+(`char_wb`) "termnal" ile "terminal" büyük ölçüde aynı parçaları paylaşıyor. En çok zarar veren
+yanlış etiket ve kısa metin. **Şöyle daha iyi olur:** gerçekte en sık yanlışlık kısa metin
+("sistem çalışmıyor") olduğundan, emin olmadığında soru sorma eşiği (`SORU_ESIGI`) zaten bunu
+yakalıyor; sert senaryoda konu %71'e düştüğü için soru oranı gerçek veride izlenmeli.
+
+**Ölçüt 3 — ilk kez gelen kullanıcı** (temiz tarayıcı, 390 px, yardım metni okunmadan):
+
+| Görev | Yol | Sonuç |
+| --- | --- | --- |
+| En riskli konu | Genel Bakış'ta "Bugün neye bakmalı?" ilk satır | ✅ ilk ekranda |
+| Ya giderse | Ana sayfa "Simülasyonu gör" ya da sekme | ✅ (sekmeden boş geliyordu → düzeltildi) |
+| Çağrı aç | Sekme → metin yaz → konu, kişi, çözüm kartı canlı | ✅ |
+| Devir dosyası | Ya Giderse → "Devir dosyası hazırla" → Markdown indir | ✅ |
+| Eğitim planı | Ana sayfa "Planı çıkar" | ✅ (karşılaştırma notu çelişkiliydi → düzeltildi) |
+
+Bulunan ve düzeltilen üç takılma:
+1. **Ya Giderse sekmeden açılınca boş sayfa:** artık en riskli konunun ustasıyla hesaplanmış gelir,
+   "örnek olarak seçildi" notu görünür.
+2. **Sekme şeridinde 13 sekme var ama telefonda 4'ü görünüyor, kaydırılabildiği anlaşılmıyordu:** sağ
+   kenar soluklaşır (CSS `mask-image`), sona gelince solma kalkar; seçili sekme görünür alana kayar.
+3. **Plan karşılaştırması:** dar ekranda tablo kesiliyordu, satırlara çevrildi. Not "optimizasyon
+   hiçbir zaman kötü çıkmaz" diyordu ama ekranda kuralın risk düşüşü daha büyüktü (302 / 290). Not
+   düzeltildi: üstünlük amaç puanında; kural yeşil konuları da düşürdüğü için toplamı şişirir.
+
+Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
+görev odaklı bakış buldu.
+
 ## 9. Mülakat soruları
 
 1. **Neden büyük dil modeli değil de klasik makine öğrenmesi?** Veri azken daha iyi ya da eşit, açıklanabilir, saniyede eğitilir, şirket verisi dışarı çıkmaz.
@@ -213,3 +258,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 16 Kasım 2026 | İlk sürüm; makine öğrenmesi; altı otomasyon; Emanet'e altı ekleme; değişimler ve denetim; kişi modeline kalite ağırlığı ve paylaştırma; yerel kurulum |
 | 24 Kasım 2026 | Güvenlik temeli: PolyForm Shield, ziyaretçi başına veri kopyası, CSP (sayfa üç dosyaya ayrıldı), Origin denetimi, gövde ve hız sınırları, gerçek IP, `/docs` kapalı, anahtarlı MCP, CSV formül enjeksiyonu, öznitelik kaçışı, sabit ve özetli bağımlılıklar, Python servis şablonuna uygun Docker/compose, CI ve dependabot; ysfdurak.com PR #55; bu doküman |
 | 25 Kasım 2026 | Depo açıldı ve gönderildi; dependabot: Python imajında yalnız yama sürümleri, pytest 9.2; VPS'e kuruldu; Claude bağlayıcısı başlıkta anahtarla bağlandı; MCP anahtarı yenilendi (bkz. Testler: Ders) |
+| 25 Kasım 2026 | Pilot bitiş ölçütleri; gürültü testi (ölçüt 2 geçti); ilk kullanıcı testi (ölçüt 3 geçti, 3 düzeltme) |

@@ -19,6 +19,8 @@ a{color:var(--vurgu)}
 .demo{margin-left:auto;font-size:.78rem;opacity:.8}
 nav{max-width:1100px;margin:0 auto;display:flex;gap:.15rem;overflow-x:auto;padding:.5rem .6rem 0;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
+/* Sekme şeridi kaydırılabilir: sağ kenarda solma, daha fazla sekme olduğunu gösterir */
+@media (max-width:1100px){nav{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}nav.son{-webkit-mask-image:none;mask-image:none}}
 nav button{flex:none;background:none;border:0;color:#c9d1da;font:inherit;font-size:.9rem;padding:.55rem .7rem;border-radius:8px 8px 0 0;cursor:pointer;white-space:nowrap}
 nav button[aria-current=page]{background:var(--zemin);color:var(--murekkep);font-weight:600}
 nav .grup{flex:none;align-self:center;font-size:.68rem;letter-spacing:.08em;color:#8fa0b0;padding:0 .35rem 0 .6rem}
