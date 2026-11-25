@@ -761,8 +761,13 @@ function planOzeti(p) {
 }
 CIZ.plan = async (butce) => {
   $("#ana").innerHTML = `
-  <h2>Çapraz eğitim planı</h2>
-  <p class="alt">Elindeki eğitim saatiyle riski en çok ne düşürür? Plan üç araç kullanır: konunun çözümünü karta yazdırmak (2 saat), bir kişiye o konuyu öğretmek ve eskiden bilen ama pratiği kalmamış birini tazelemek (öğrenme süresinin üçte biri) ve sistem değiştiyse eski sistemde bu işi yapanı yenisine geçirmek (yarısı).</p>
+  <h2>Eğitim planı</h2>
+  <p class="alt">Elindeki eğitim saatiyle, tek kişiye bağlı işleri en çok azaltacak adımları seçer: kim, neyi, kime öğretecek ve sonunda ne değişecek.</p>
+  <details class="kart"><summary><b>Plan hangi adımları kullanır?</b></summary>
+    <ul><li><b>Karta yaz</b> (2 saat): işi bilen kişi çözümü adım adım yazar; herkes okuyabilir.</li>
+    <li><b>Öğret</b>: işi bilen kişi, aynı birimden birine konuyu öğretir. Süre konunun zorluğuna göre değişir.</li>
+    <li><b>Tazele</b> (öğretmenin üçte biri): eskiden bu işi yapan ama uzun süredir yapmayan birinin bilgisi tazelenir.</li>
+    <li><b>Yeni sisteme geçir</b> (öğretmenin yarısı): sistem değiştiyse, eski sistemde bu işi yapan yenisine alıştırılır.</li></ul></details>
   <div class="kart"><div class="sira">
     <div><label for="pb">Eğitim bütçesi (saat)</label><input id="pb" type="number" min="0" max="500" value="${+butce || 60}"></div>
     <div><label for="py">Yöntem</label><select id="py"><option value="optimum">Optimizasyon</option><option value="kural">Basit kural</option></select></div>
@@ -787,10 +792,11 @@ CIZ.plan = async (butce) => {
           <ol class="adim">${g.adimlar.map(s => `<li>${planCumlesi(s)} <span class="kucuk">(${s.saat} sa · ${kac(s.neden)})</span></li>`).join("")}</ol></div></li>`).join("")}</ul>`
       : '<p class="kucuk">Bu bütçeyle yapılabilecek bir adım yok.</p>'}
     </div>
-    <div class="kart"><h3>İki yöntemin karşılaştırması</h3>
+    <details class="kart"><summary><b>Nasıl hesaplandı?</b> <span class="kucuk">(teknik ayrıntı)</span></summary>
+      <p class="kucuk">Bütçeye sığan adımlar arasından riski en çok düşüren birleşim seçilir. Aynı soru iki yolla çözülür ve karşılaştırılır:</p>
       <ul class="liste">${[["Basit kural", "saat başına en iyi adımı sırayla seçer", k.kural], ["Optimizasyon", "tüm birleşimleri tarar (sırt çantası)", k.optimum]].map(([ad, ac, v]) => `<li><div class="govde"><b>${ad}</b> <span class="kucuk">· ${ac}</span>
         <div>Risk düşüşü <b>${sy(v.risk_dususu)}</b> · amaç puanı ${sy(v.amac_puani)} · ${v.saat} saat</div></div></li>`).join("")}</ul>
-      <p class="kucuk">Amaç puanı, önce yeşil sınırının (35) üzerindeki riski düşürmeyi ödüllendirir; plan bu yüzden önce kırmızı konulara gider. Optimizasyon <b>amaç puanında</b> hiçbir zaman basit kuraldan kötü çıkmaz; fark bütçe dar olduğunda büyür. Toplam risk düşüşü kuralda daha yüksek görünebilir: kural zaten yeşil olan konuları da düşürür, bu da toplamı şişirir ama riski azaltmaz.</p></div>
+      <p class="kucuk">Amaç puanı, önce yeşil sınırının (35) üzerindeki riski düşürmeyi ödüllendirir; plan bu yüzden önce kırmızı konulara gider. Optimizasyon <b>amaç puanında</b> hiçbir zaman basit kuraldan kötü çıkmaz; fark bütçe dar olduğunda büyür. Toplam risk düşüşü kuralda daha yüksek görünebilir: kural zaten yeşil olan konuları da düşürür, bu da toplamı şişirir ama riski azaltmaz.</p></details>
     <p><button class="dugme" id="pkay">Bu planı kaydet</button> <span class="kucuk">Kaydedilen plan aşağıda takip edilir: kim öğrenmeye başladı, hangi kart yazıldı, risk hedefe indi mi?</span></p>
     <div class="kart"><h3>Plan sonrası harita</h3><ul class="liste">${p.harita_sonra.slice(0, 10).map(r => `<li>${puanKutu(r)}<div class="govde">${kac(r.ad)} <span class="kucuk">· ${kac(r.birim)}</span></div></li>`).join("")}</ul>
       <p class="kucuk">Varsayım: eğitilen kişi konuyu diğer yetkinlerle eşit paylaşır. İlk 10 konu gösteriliyor.</p></div>`;

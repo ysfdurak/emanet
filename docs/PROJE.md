@@ -218,6 +218,15 @@ Bulunan ve düzeltilen üç takılma:
 6. **Bildirim telefonda gözden kaçtı:** sonuç kutusunda "Hesaplandı: saat" yazıyor ve kutu kısa bir süre
    sarı vurgulanıyor; geri bildirim artık yalnız alttaki bildirime bağlı değil.
 
+7. **"Burada ne yapıyoruz?" (canlıda kullanıcı sordu):** sayfa hesap ayrıntısıyla açılıyordu. Başlık
+   "Eğitim planı" oldu, altında tek cümle amaç var; adım türleri ("Plan hangi adımları kullanır?") ve
+   yöntem karşılaştırması ("Nasıl hesaplandı?", teknik ayrıntı) varsayılan kapalı açılır bölümlere
+   taşındı. Ekran artık üç soruyu cevaplıyor: ne yapılacak, kim yapacak, sonunda ne değişecek.
+   Karşılaştırma silinmedi; mülakatta "optimizasyonu neden kullandım" sorusunun kanıtı o.
+8. **Masaüstünde sekme şeridi kayıyordu:** seçili sekmeyi görünür yapma kodu geniş ekranda şeridi sağa
+   itip "Genel Bakış"ı gizliyordu. 900 px üstünde sekmeler iki satıra sarılıyor; kaydırma ve solma
+   yalnız telefonda.
+
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
 
@@ -275,3 +284,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Pilot bitiş ölçütleri; gürültü testi (ölçüt 2 geçti); ilk kullanıcı testi (ölçüt 3 geçti, 3 düzeltme) |
 | 25 Kasım 2026 | Hesap düğmelerine geri bildirim ("Planı çıkar" sessiz kalıyordu) |
 | 25 Kasım 2026 | Plan ekranı konu konu, düz cümle özetli; sonuç vurgusu ve hesap saati |
+| 25 Kasım 2026 | Eğitim planı sadeleşti (amaç cümlesi, açılır teknik bölümler); masaüstünde sekmeler sarılıyor |
