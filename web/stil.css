@@ -20,12 +20,19 @@ a{color:var(--vurgu)}
 nav{max-width:1100px;margin:0 auto;display:flex;gap:.15rem;overflow-x:auto;padding:.5rem .6rem 0;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
 /* Sekme şeridi kaydırılabilir: sağ kenarda solma, daha fazla sekme olduğunu gösterir */
-@media (min-width:900px){nav{flex-wrap:wrap;overflow-x:visible}}
-@media (max-width:899px){nav{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}nav.son{-webkit-mask-image:none;mask-image:none}}
+/* Ana menü: 5 alan, telefonda da tek satıra sığar */
+#nav{justify-content:flex-start}
+@media (max-width:420px){#nav{gap:0;padding:.45rem .3rem 0}#nav button{padding:.55rem .55rem;font-size:.86rem}}
+/* Alt sekmeler: açık zeminde hap düğmeler */
+.altnav{max-width:1100px;margin:0 auto;display:flex;gap:.4rem;overflow-x:auto;padding:.8rem 1rem 0;scrollbar-width:none}
+.altnav::-webkit-scrollbar{display:none}
+.altnav[hidden]{display:none}
+.altnav button{flex:none;font:inherit;font-size:.88rem;border:1px solid var(--cizgi);background:var(--kagit);color:var(--murekkep);border-radius:999px;padding:.35rem .85rem;cursor:pointer;white-space:nowrap}
+.altnav button[aria-current=page]{background:var(--murekkep);border-color:var(--murekkep);color:#fff}
 nav button{flex:none;background:none;border:0;color:#c9d1da;font:inherit;font-size:.9rem;padding:.55rem .7rem;border-radius:8px 8px 0 0;cursor:pointer;white-space:nowrap}
 nav button[aria-current=page]{background:var(--zemin);color:var(--murekkep);font-weight:600}
 nav .grup{flex:none;align-self:center;font-size:.68rem;letter-spacing:.08em;color:#8fa0b0;padding:0 .35rem 0 .6rem}
-main{max-width:1100px;margin:0 auto;padding:1.1rem 1rem 4rem}
+main{max-width:1100px;margin:0 auto;padding:1rem 1rem 4rem}
 .alt{color:var(--soluk);margin:0 0 1rem;max-width:70ch}
 .kart{background:var(--kagit);border:1px solid var(--cizgi);border-radius:10px;padding:1rem;box-shadow:var(--golge);margin-bottom:.9rem}
 .izgara{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:.9rem}
@@ -122,3 +129,7 @@ footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--soluk);fon
 .dugme.kucuk.ikincil{color:var(--vurgu)}
 .teams{color:var(--murekkep)}
 .teams .ust-satir{color:#3f418a}
+.secim{display:flex;flex-wrap:wrap;gap:.4rem;margin:-.2rem 0 .7rem}
+.hizli{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1rem}
+.hizli .dugme{flex:1 1 9rem}
+details.kart>summary{cursor:pointer}

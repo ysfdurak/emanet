@@ -41,22 +41,30 @@ const puanKutu = r => `<span class="puan ${r.seviye}" title="Risk puanı">${r.pu
 const rozet = (s, m) => `<span class="rozet ${s}">${kac(m)}</span>`;
 const adimlar = a => `<ol class="adim">${(Array.isArray(a) ? a : a.split("\n")).map(x => `<li>${kac(x)}</li>`).join("")}</ol>`;
 
-const SAYFALAR = [
-  ["genel", "Genel Bakış"], ["-", "USTA"], ["cagri", "Çağrı Aç"], ["kuyruk", "Çağrı Kuyruğu"], ["otomasyon", "Otomasyon"], ["kartlar", "Çözümler"], ["ogrenme", "Öğrenme"],
-  ["-", "EMANET"], ["risk", "Risk Haritası"], ["giderse", "Ya Giderse?"], ["izin", "İzin Kontrolü"], ["plan", "Eğitim Planı"], ["degisim", "Değişimler"], ["ekibim", "Kendi Verinle Dene"],
-  ["-", ""], ["nasil", "Nasıl Çalışır"]];
-
+// Menü kullanıcının sorusuna göre dört alan + "Daha fazla". Sayfa kimlikleri (#risk, #plan…) değişmedi:
+// eski bağlantılar ve MCP/doküman adresleri çalışmaya devam eder.
+const ALANLAR = [
+  ["bugun", "Bugün", ["genel"]],
+  ["cagrilar", "Çağrılar", ["cagri", "kuyruk", "kartlar", "otomasyon"]],
+  ["riskler", "Riskler", ["risk", "giderse"]],
+  ["egitim", "Eğitim", ["plan"]],
+  ["fazla", "Daha fazla", ["degisim", "ekibim", "nasil", "ogrenme"]]];
+const ALT_AD = {cagri: "Çağrı aç", kuyruk: "Kuyruk", kartlar: "Çözüm notları", otomasyon: "Otomatik çözümler",
+  risk: "Risk haritası", giderse: "Biri yoksa", degisim: "Değişimler", ekibim: "Kendi verinle dene",
+  nasil: "Nasıl çalışır", ogrenme: "Model nasıl öğreniyor"};
+// Alt sekmesi olmayan sayfalar hangi alt sekmeye sayılır
+const ESDEGER = {izin: "giderse", detay: "kuyruk"};
+const sonSayfa = {};
+const alanBul = sayfa => (ALANLAR.find(([, , ss]) => ss.includes(ESDEGER[sayfa] || sayfa)) || ALANLAR[0]);
 function navCiz() {
-  $("#nav").innerHTML = SAYFALAR.map(([k, a]) => k === "-" ? (a ? `<span class="grup">${a}</span>` : "") :
-    `<button data-sayfa="${kac(k)}" ${durum.sayfa === k ? 'aria-current="page"' : ""}>${a}</button>`).join("");
-  const n = $("#nav"), etkin = n.querySelector("[aria-current]");
-  if (etkin) etkin.scrollIntoView({block: "nearest", inline: "nearest"});
-  navKenar();
+  const [etkinAlan, , sayfalar] = alanBul(durum.sayfa);
+  sonSayfa[etkinAlan] = durum.sayfa;
+  $("#nav").innerHTML = ALANLAR.map(([k, a, ss]) => `<button data-alan="${k}" ${k === etkinAlan ? 'aria-current="page"' : ""}>${a}</button>`).join("");
+  const alt = sayfalar.length > 1 ? sayfalar : [];
+  const secili = ESDEGER[durum.sayfa] || durum.sayfa;
+  $("#altnav").innerHTML = alt.map(sf => `<button data-sayfa="${sf}" ${sf === secili ? 'aria-current="page"' : ""}>${ALT_AD[sf]}</button>`).join("");
+  $("#altnav").hidden = !alt.length;
 }
-// Sağda gizli sekme kaldıysa kenarı soldur; sona gelince solmayı kaldır
-function navKenar() { const n = $("#nav"); n.classList.toggle("son", n.scrollLeft + n.clientWidth >= n.scrollWidth - 4); }
-$("#nav").addEventListener("scroll", navKenar, {passive: true});
-window.addEventListener("resize", navKenar);
 let _geri = false;
 window.addEventListener("popstate", e => { const s = (e.state && e.state.sayfa) || location.hash.slice(1) || "genel"; if (!CIZ[s]) return; _geri = true; git(s, e.state && e.state.veri && !SENARYO[e.state.veri] ? e.state.veri : undefined).finally(() => { _geri = false; }); });
 async function git(sayfa, veri) {
@@ -68,9 +76,11 @@ async function git(sayfa, veri) {
   ana.innerHTML = '<p class="kucuk">Yükleniyor…</p>';
   try { await CIZ[sayfa](veri); } catch (e) { ana.innerHTML = `<div class="kart">Bu bölüm yüklenemedi: ${kac(e.message)}</div>`; }
   window.scrollTo(0, 0);
-  const b = $(`#nav [aria-current=page]`); if (b) b.scrollIntoView({inline: "center", block: "nearest"});
+  const b = $(`#altnav [aria-current=page]`); if (b) b.scrollIntoView({inline: "nearest", block: "nearest"});
 }
 document.addEventListener("click", e => {
+  const al = e.target.closest("[data-alan]");
+  if (al) { const [k, , ss] = ALANLAR.find(([x]) => x === al.dataset.alan); git(sonSayfa[k] || ss[0]); return; }
   const s = e.target.closest("[data-sayfa]"); if (s) { git(s.dataset.sayfa, s.dataset.veri); return; }
   const c = e.target.closest("[data-cagri]"); if (c) { e.preventDefault(); git("detay", c.dataset.cagri); return; }
   const m = e.target.closest("[data-mesaj]");
@@ -138,20 +148,30 @@ CIZ.genel = async () => {
   const [o, tk] = await Promise.all([api("ozet"), api("tek-kisiye-kalanlar?gun_sayisi=7")]);
   const u = o.usta, m = u.model, e = o.emanet;
   $("#ana").innerHTML = `
-  <h2>Bilen kişi yokken iş durmasın</h2>
-  <p class="alt"><b>Usta</b> sistemsel çağrıları geçmişten öğrenerek doğru kişiye yollar ve daha önce nasıl çözüldüğünü gösterir. <b>Emanet</b> bu çağrılarla bakım sisteminin dökümünü birlikte okuyup “kim giderse ne kırılır” haritasını çıkarır.</p>
-  ${o.dikkat.length ? `<div class="kart"><h3>Bugün neye bakmalı?</h3><ul class="liste">${o.dikkat.map(d => `<li>${rozet(d.seviye, {kirmizi: "Acil", sari: "Dikkat", mavi: "Bilgi"}[d.seviye])}<div class="govde">${kac(d.metin)}</div>
-    <button class="dugme kucuk ikincil" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>Git</button></li>`).join("")}</ul></div>` : ""}
-  ${T.mod === "yerel" ? `<div class="not">Bu uygulama kendi verinle çalışıyor (yerel kurulum). Demo senaryoları ve otomasyon örnekleri kapalı; veri bu makineden çıkmaz.</div>` : `<div class="kart">
-    <h3>30 saniyelik tur</h3>
+  <h2>Bugün</h2>
+  <p class="alt">Bilen kişi yokken iş durmasın. Aşağıda bugün dikkat isteyen işler var; her satırdaki düğme doğrudan yapılacak işi açar.</p>
+  <div class="hizli">
+    <button class="dugme" data-sayfa="cagri">Çağrı aç</button>
+    <button class="dugme ikincil" data-sayfa="risk">Kim neye bağlı?</button>
+    <button class="dugme ikincil" data-sayfa="plan">Eğitim planı</button>
+  </div>
+  <div class="kart"><h3>Bugün neye bakmalı?</h3>
+    ${o.dikkat.length ? `<ul class="liste">${o.dikkat.map(d => `<li>${rozet(d.seviye, {kirmizi: "Acil", sari: "Dikkat", mavi: "Bilgi"}[d.seviye])}<div class="govde">${kac(d.metin)}</div>
+    <button class="dugme kucuk${d.seviye === "kirmizi" ? "" : " ikincil"}" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>${DIKKAT_EYLEM[d.sayfa] || "Aç"}</button></li>`).join("")}</ul>`
+      : '<p class="kucuk">Bugün acil bir iş yok. Riskleri haftada bir gözden geçirmek yeter.</p>'}
+  </div>
+  ${T.mod === "yerel" ? `<div class="not">Bu uygulama kendi verinle çalışıyor (yerel kurulum). Demo senaryoları ve otomasyon örnekleri kapalı; veri bu makineden çıkmaz.</div>` : `<details class="kart" ${sessionStorageAl("tur") ? "" : "open"} id="tur">
+    <summary><b>İlk kez mi geliyorsun? 30 saniyelik tur</b></summary>
     <ol class="adim">
       <li>Gece vardiyasında sipariş dalgası açılmıyor; bu işi bilen tek kişi gündüz çalışıyor. <button class="dugme kucuk ikincil" data-sayfa="cagri" data-veri="senaryo">Çağrıyı aç</button></li>
       <li>O kişi üç hafta yoksa ne olur? <button class="dugme kucuk ikincil" data-sayfa="giderse" data-veri="Elif Kaya">Simülasyonu gör</button></li>
       <li>60 saat eğitimle risk ne kadar düşer? <button class="dugme kucuk ikincil" data-sayfa="plan" data-veri="60">Planı çıkar</button></li>
       <li>Bir kurulum talebi: eksik bilgi Teams’ten sorulur, yönetici onaylar, kurulum kendiliğinden yapılır. <button class="dugme kucuk ikincil" data-sayfa="otomasyon" data-veri="kurulum_eksik">Dene</button></li>
     </ol>
-  </div>`}
-  <h3 style="margin:.4rem 0 .5rem">Usta · öğrenen yönlendirme</h3>
+    <p class="kucuk">İki parça birlikte çalışır: <b>Usta</b> sistem çağrılarını geçmişten öğrenerek doğru kişiye yollar ve çözümü gösterir; <b>Emanet</b> aynı çağrılardan “kim giderse ne durur” haritasını çıkarır.</p>
+  </details>`}
+  <details class="kart"><summary><b>Sayılarla durum</b> <span class="kucuk">· model başarısı, risk dağılımı, bu haftanın izinleri</span></summary>
+  <h3 style="margin:.8rem 0 .5rem">Usta · öğrenen yönlendirme</h3>
   <div class="izgara">
     <div class="olcu"><b>${yuzde(m.konu.model)}</b><span>Konu tahmini (eski kural ${yuzde(m.konu.kural)})</span></div>
     <div class="olcu"><b>${yuzde(m.kisi.model)}</b><span>Doğru kişi ilk sırada (kural ${yuzde(m.kisi.kural)})</span></div>
@@ -176,8 +196,13 @@ CIZ.genel = async () => {
         <div class="govde"><b>${kac(k.ad)}</b><div class="kucuk">İzinde: ${kac(k.izindeki_yetkinler.join(", "))}${k.kalan_yetkinler.length ? " · Kalan: " + kac(k.kalan_yetkinler.join(", ")) : ""}${k.kart_var ? "" : " · yazılı çözüm yok"}</div></div></li>`).join("")}</ul>`
         : '<p class="kucuk">Bu hafta izin kaynaklı yedeksiz konu yok.</p>'}
     </div>
-  </div>`;
+  </div></details>`;
+  const tur = $("#tur"); if (tur) tur.ontoggle = () => sessionStorageYaz("tur", !tur.open);
 };
+const DIKKAT_EYLEM = {otomasyon: "Otomasyona bak", degisim: "İncele", giderse: "Ne olur, gör", izin: "İzinlere bak", risk: "Haritada gör", plan: "Plana bak", kuyruk: "Çağrılara bak"};
+// Tur bir kez kapatılınca o oturumda kapalı kalsın (tarayıcı depolaması yoksa sessizce geç)
+function sessionStorageAl(k) { try { return sessionStorage.getItem("emanet_" + k) === "1"; } catch { return false; } }
+function sessionStorageYaz(k, v) { try { sessionStorage.setItem("emanet_" + k, v ? "1" : "0"); } catch { /* yok */ } }
 
 /* ---------------------------------------------------------------- Çağrı Aç */
 const ORNEKLER = ["Sipariş dalgası açılmıyor, toplama görevleri düşmedi", "Yazıcı çevrimdışı görünüyor, etiket basmıyor", "Yazıcı etiketleri boş çıkarıyor, ribon bitmiş olabilir",
@@ -625,13 +650,21 @@ function devirKart(d) {
     <p><a class="dugme ikincil" style="text-decoration:none;display:inline-block" href="/api/devir/${d.kisi.id}/indir">Markdown olarak indir</a></p></div>`;
 }
 
+// "Biri yoksa": aynı soru iki durumda. Üstteki seçim iki ekran arasında geçirir.
+function yoksaBasligi(etkin) {
+  return `<h2>Biri yoksa</h2>
+  <div class="secim" role="group" aria-label="Durum">
+    <button class="dugme kucuk${etkin === "izin" ? "" : " ikincil"}" data-sayfa="izin" aria-pressed="${etkin === "izin"}">Tarihli izin</button>
+    <button class="dugme kucuk${etkin === "giderse" ? "" : " ikincil"}" data-sayfa="giderse" aria-pressed="${etkin === "giderse"}">Ayrılık ya da uzun süre yok</button>
+  </div>`;
+}
 CIZ.izin = async () => {
   const [izl] = await Promise.all([api("izinler")]);
   const bugun = new Date(), g = d => new Date(bugun.getTime() + d * 864e5).toISOString().slice(0, 10);
   const gruplar = T.birimler.map(b => `<optgroup label="${kac(b.ad)}">${T.kisiler.filter(p => p.birim_id === b.id).map(p => `<option value="${kac(p.id)}" ${p.ad === "Elif Kaya" ? "selected" : ""}>${kac(p.ad)} · ${VARDIYA[p.vardiya]}</option>`).join("")}</optgroup>`).join("");
   $("#ana").innerHTML = `
-  <h2>İzin kontrolü</h2>
-  <p class="alt">İzin onaylanmadan önce: bu kişi o tarihlerde yokken hangi konular yedeksiz ya da tek kişiye kalır? Karar yöneticinindir; araç yalnızca etkiyi ve varsa daha uygun bir tarihi gösterir.</p>
+  ${yoksaBasligi("izin")}
+  <p class="alt">İzni onaylamadan önce bak: bu kişi o tarihlerde yokken hangi işler sahipsiz kalır? Karar senin; araç etkiyi ve varsa daha uygun bir tarihi gösterir.</p>
   <div class="kart"><div class="sira">
     <div style="flex:2 1 220px"><label for="ik">Kişi</label><select id="ik">${gruplar}</select></div>
     <div><label for="ib">Başlangıç</label><input id="ib" type="date" value="${g(5)}"></div>
@@ -690,8 +723,8 @@ CIZ.giderse = async (ad) => {
   }
   const gruplar = T.birimler.map(b => `<optgroup label="${kac(b.ad)}">${T.kisiler.filter(p => p.birim_id === b.id).map(p => `<option value="${kac(p.id)}" ${p.ad === ad ? "selected" : ""}>${kac(p.ad)} · ${kac(p.rol)}</option>`).join("")}</optgroup>`).join("");
   $("#ana").innerHTML = `
-  <h2>Ya giderse?</h2>
-  <p class="alt">Bir kişi izne çıkarsa ya da ayrılırsa hangi konular yedeksiz kalır, ne kadar ek bekleme oluşur?</p>
+  ${yoksaBasligi("giderse")}
+  <p class="alt">Bu kişi bir süre hiç olmazsa (ayrılık, uzun rapor) hangi işler sahipsiz kalır, çağrılar ne kadar fazla bekler?</p>
   <div class="kart"><div class="sira">
     <div style="flex:2 1 220px"><label for="gk">Kişi</label><select id="gk">${gruplar}</select></div>
     <div><label for="gg">Kaç gün yok?</label><input id="gg" type="number" min="1" max="365" value="21"></div>

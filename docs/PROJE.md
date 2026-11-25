@@ -151,6 +151,57 @@ bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh
   - Gerçek veri gelince anlam benzerliği için yerel bir cümle modeli eklenebilir.
   - Ziyaretçi demosundaki model eğitimi isteği bekletiyor (ilk kapanışta 1-2 sn); arka plana alınabilir.
 
+### Gerçek Teams bağlantısı nasıl kurulur?
+
+Demoda Teams, uygulamanın içindeki "Teams kutusu"dur: mesajlar `mesaj` tablosuna yazılır, cevabı ekrandan sen
+verirsin. Kod bunu gerçeğe bağlanacak şekilde üç noktada ayırdı; yalnız bu üç nokta değişir, akış aynı kalır:
+
+| Nokta | Demoda | Gerçekte |
+| --- | --- | --- |
+| Giden mesaj: `otomasyon._mesaj()` | Tabloya yazar, Teams kutusunda görünür | Ayrıca Teams'e **uyarlanabilir kart** (Adaptive Card) gönderir: metin + "Onayla / Reddet" ya da seçenek düğmeleri |
+| Gelen cevap: `otomasyon.cevapla()` ← `POST /api/mesaj/{id}/cevap` | Ekrandaki düğme çağırır | Teams'teki düğmeye basılınca Microsoft tarafı bu adrese cevabı yollar |
+| İşin kendisi: `otomasyon._calistir()` | Başarıyı rastgele üretir | Kurumun aracını çağırır: Intune (yazılım kurulumu), Active Directory / Entra ID (yetki, şifre sıfırlama) |
+
+**İki kurulum yolu var; önerim birincisi:**
+
+1. **Power Automate onay akışı (az kod, BT'nin bildiği yol).** Emanet, onay gerektiğinde Power Automate'teki
+   bir akışın HTTP tetikleyici adresine istek atar. Akış "Onay başlat ve bekle" adımıyla yöneticiye Teams'te
+   onay kartı gösterir; cevap gelince Emanet'in cevap adresine geri yazar. Emanet'te gereken: dışa giden tek
+   bir HTTP isteği ve cevap adresinde **imza denetimi** (paylaşılan gizli anahtarla HMAC; böylece cevabı
+   yalnız akış yazabilir, kimse URL'yi tahmin edip "Onayla" diyemez).
+2. **Teams botu (Bot Framework, iki yönlü sohbet).** Çağrı açan kişiyle soru-cevap (eksik bilgi sorma) da
+   Teams'te olur. Daha güçlü ama Azure'da uygulama kaydı, bot hizmeti ve yönetici onayı ister; ilk sürüm için ağır.
+
+**Gerçek kurulumun ön koşulları (kullanıcının işi, kod değil):** kurum BT onayı; Entra ID'de uygulama kaydı
+ve yalnız gereken izinler (en az yetki); otomasyonun çalıştığı **servis hesabı** ve her adımın denetim kaydı
+(zaten var: `oto_adim`). Şirket verisi dışarı çıkmamalı: Emanet bu durumda **kurumun kendi sunucusunda**
+çalışır, VPS'teki demo değil. Yapay zekâ çağrısı yok; Teams yalnız mesaj taşır.
+
+**Şöyle daha iyi olur:** gerçeğe geçmeden önce `_mesaj` ve `cevapla` için bir "kanal" arayüzü (demo kanalı /
+Teams kanalı) tanımlamak; demo ve gerçek aynı kodu kullanır, testler demo kanalıyla çalışmaya devam eder.
+
+### Kullanıcı gözüyle sadeleştirme (25 Kasım 2026)
+
+13 sekme kullanıcının sorusuna göre değil, kodun parçalarına göre ayrılmıştı ("USTA", "EMANET" ürün adları
+ilk gelen için anlamsız; telefonda 13 sekmeden 4'ü görünüyordu). Yeni düzen:
+
+| Ana alan | İçinde | Cevapladığı soru |
+| --- | --- | --- |
+| Bugün | Yapılacaklar listesi + 3 hızlı giriş; tur ve sayılar açılır bölümde | Bugün neye bakmalıyım? |
+| Çağrılar | Çağrı aç · Kuyruk · Çözüm notları · Otomatik çözümler | Bir sorunum var / ne bekliyor? |
+| Riskler | Risk haritası · Biri yoksa (tarihli izin + ayrılık tek ekranda) | Kim neye bağlı, biri yoksa ne olur? |
+| Eğitim | Plan ve takvim | Bunu nasıl düzeltirim, ne zaman? |
+| Daha fazla | Değişimler · Kendi verinle dene · Nasıl çalışır · Model nasıl öğreniyor | Ayrıntı ve kurulum |
+
+Sayfa adresleri (#risk, #plan…) değişmedi; eski bağlantılar, dokümandaki yollar ve "Bugün neye bakmalı?"
+düğmeleri çalışmaya devam eder. Ana menü son ziyaret edilen alt sekmeyi hatırlar. "Git" düğmeleri eylem
+adı aldı ("Ne olur, gör", "İzinlere bak"). Aynı turda bulunan bir hata: `.kucuk` hem küçük düğme hem soluk
+açıklama metni sınıfıydı, bu yüzden koyu küçük düğmelerin yazısı griydi (Teams kartındaki "Evet, çözüldü").
+
+**Sıradaki adımlar (önerildi, sırayla):** sayfa içleri (kısa giriş + ilk ekranda eylem; Risk haritası
+varsayılan olarak en riskli 5 konu, matris ve seyir açılır bölümde), sonra kelimeler (reçete → otomatik
+çözüm, yetkin → bilen, çırak → yanında öğrensin) ve demo düğmelerinin tek "Demo" şeridine toplanması.
+
 ### Pilot bitiş ölçütleri (dış kaynak olmadan)
 
 Dördü de sağlanınca durum "Tamamlandı" olur; siteye proje sayfası ve Rota girdisi eklenir.
@@ -190,7 +241,7 @@ yakalıyor; sert senaryoda konu %71'e düştüğü için soru oranı gerçek ver
 
 | Görev | Yol | Sonuç |
 | --- | --- | --- |
-| En riskli konu | Genel Bakış'ta "Bugün neye bakmalı?" ilk satır | ✅ ilk ekranda |
+| En riskli konu | Bugün sayfasında "Bugün neye bakmalı?" ilk satır | ✅ ilk ekranda |
 | Ya giderse | Ana sayfa "Simülasyonu gör" ya da sekme | ✅ (sekmeden boş geliyordu → düzeltildi) |
 | Çağrı aç | Sekme → metin yaz → konu, kişi, çözüm kartı canlı | ✅ |
 | Devir dosyası | Ya Giderse → "Devir dosyası hazırla" → Markdown indir | ✅ |
@@ -327,3 +378,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Eğitim takvimi: parametrik (haftalık sınır, oturum, gün, başlangıç), darboğaz kişi, CSV, MCP aracına takvim; 100 test |
 | 25 Kasım 2026 | Takvimde elle değişiklik: hafta ötele, haftaya özel saat, kişi o hafta yok; geri alınabilir etiketler; ayarlar açık |
 | 25 Kasım 2026 | Takvimde süreli öteleme ve izin: 1–4 hafta ya da tarihe kadar, aralık etiketleri |
+| 25 Kasım 2026 | Menü 4 alan + Daha fazla; Biri yoksa (izin + ayrılık); Bugün sayfası; küçük düğme kontrastı; Teams gerçek bağlantı notu |
