@@ -75,7 +75,7 @@ def _kisi_bul(con, kisi: str) -> int:
 
 def _sade_cagri(c: dict) -> dict:
     d = {k: c.get(k) for k in ("id", "metin", "kategori", "birim", "aciliyet", "durum", "atanan",
-                               "cozen", "acilis", "kapanis", "sure_dk", "guven", "yer", "cihaz", "lokasyon")}
+                               "cozen", "acilis", "kapanis", "sure_dk", "guven", "yer", "cihaz", "lokasyon", "alan")}
     d["asama"] = usta.ASAMA_AD.get(c.get("asama"), c.get("asama"))
     return d
 
@@ -143,8 +143,9 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
                 raise ValueError("Tesis bulunamadı: " + ", ".join(r["ad"] for r in con.execute("SELECT ad FROM lokasyon")))
         elif cihaz:
             lok = (cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("lokasyon_id")
+        alan = cagri_formu.alan_bul(k["kod"], cevap)["alan"]   # belirti cevabı verildiyse ekip ona göre
         c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer,
-                          ek_bilgi=ek, cihaz=cihaz, lokasyon_id=lok)
+                          ek_bilgi=ek, cihaz=cihaz, lokasyon_id=lok, alan=alan)
         sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"), zorunlu=bool(s.get("zorunlu")))
                       for s in cagri_formu.sorular(k["kod"]) if s["kod"] not in cevap]
     o = c.get("otomasyon")

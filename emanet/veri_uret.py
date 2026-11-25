@@ -35,8 +35,8 @@ from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
 # (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi,
-#  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler ve ana kategoriler)
-VERI_SURUMU = 6
+#  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler, 7: çağrı alanları ve ekipleri)
+VERI_SURUMU = 7
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -169,16 +169,16 @@ def _lokasyon_ata(con: sqlite3.Connection, tohum: int) -> None:
     lok = {r["ad"]: r["id"] for r in con.execute("SELECT id, ad FROM lokasyon")}
     merkez, diger = lok[K.LOKASYONLAR[0]], [lok[a] for a in K.LOKASYONLAR[1:]]
     kisi_lok = {r["id"]: r["lokasyon_id"] for r in con.execute("SELECT id, lokasyon_id FROM kisi")}
-    for c in con.execute("SELECT c.id, COALESCE(c.cozen_kisi_id, c.atanan_kisi_id) k, g.grup FROM cagri c "
+    for c in con.execute("SELECT c.id, COALESCE(c.cozen_kisi_id, c.atanan_kisi_id) k, g.alan FROM cagri c "
                          "JOIN kategori g ON g.id=c.kategori_id WHERE c.kaynak='usta'").fetchall():
         kl = kisi_lok.get(c["k"], merkez)
         if kl != merkez:
             l = kl
-        elif c["grup"] in K.YERINDE_GRUPLAR:
+        elif c["alan"] in K.YERINDE_ALANLAR:
             l = merkez
         else:
             l = rnd.choice(diger) if rnd.random() < 0.2 else merkez
-        con.execute("UPDATE cagri SET lokasyon_id=? WHERE id=?", (l, c["id"]))
+        con.execute("UPDATE cagri SET lokasyon_id=?, alan=? WHERE id=?", (l, c["alan"], c["id"]))
 
 
 def _pazari_kaydir(con: sqlite3.Connection, bugun: date) -> None:
@@ -253,6 +253,9 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
                     (ad, birim_id[birim], rol, vardiya, lok_id[K.KISI_LOKASYON.get(ad, K.LOKASYONLAR[0])]))
         kisi_id[ad], kisi_vardiya[ad] = cur.lastrowid, vardiya
         uyeler[birim].append(ad)
+    for alan, uyeler_ in K.ALAN_UYELERI.items():
+        for ad in uyeler_:
+            cur.execute("INSERT INTO kisi_alan(kisi_id, alan) SELECT id, ? FROM kisi WHERE ad=?", (alan, ad))
 
     # --- Usta konuları, alt sorunlar, yazılı kartlar, beyan edilen yetkinlik
     kart_tarihi = datetime.combine(bugun - timedelta(days=gun - 30), datetime.min.time()).replace(hour=10)
@@ -263,7 +266,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
             " VALUES(?,?,?,?,?,?,?,?,'usta')",
             (k["kod"], k["ad"], birim_id[k["birim"]], k["kritiklik"], k["anahtar"], k["aciklama"], k["ogrenme"], k["sure"]))
         kid = cur.lastrowid
-        cur.execute("UPDATE kategori SET grup=? WHERE id=?", (K.KONU_GRUBU.get(k["kod"]), kid))
+        cur.execute("UPDATE kategori SET alan=? WHERE id=?", (K.KONU_ALANI.get(k["kod"]), kid))
         ust = uyeler[k["birim"]]
         rastgele = {u: rnd.uniform(3, 10) for u in ust}
         genel = _paylar(k, k.get("agirlik"), ust, rnd, rastgele)

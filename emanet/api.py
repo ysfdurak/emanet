@@ -329,7 +329,7 @@ class OneriIstek(BaseModel):
     metin: str = Field(min_length=3, max_length=600)
     vardiya: str | None = Field(None, pattern="^(gunduz|aksam|gece)$")
     acan_birim: str = "Depolama"
-    grup: str | None = Field(None, pattern="^(donanim|ag|program|hesap|talep)$")
+    alan: str | None = Field(None, pattern="^(donanim|ag|wms|erp|bt)$")
     lokasyon_id: int | None = None
 
 
@@ -341,6 +341,7 @@ class CagriIstek(BaseModel):
     kategori_id: int | None = None
     vardiya: str | None = Field(None, pattern="^(gunduz|aksam|gece)$")
     lokasyon_id: int | None = None
+    alan: str | None = Field(None, pattern="^(donanim|ag|wms|erp|bt)$")   # kişinin seçtiği alan (isteğe bağlı)
     # İki aşamalı form: verilirse öncelik bunlardan hesaplanır, 'aciliyet' yok sayılır
     yer: str | None = Field(None, max_length=60)
     cevaplar: dict[str, str] | None = Field(None, max_length=6)
@@ -478,7 +479,7 @@ def tanimlar():
                 "SELECT p.id, p.ad, p.rol, p.vardiya, p.birim_id, p.ise_giris, b.ad AS birim FROM kisi p "
                 "JOIN birim b ON b.id=p.birim_id WHERE p.aktif=1 ORDER BY b.id, p.ad")],
             kategoriler=[dict(r) for r in con.execute(
-                "SELECT k.id, k.kod, k.ad, k.kritiklik, k.aciklama, k.birim_id, k.kaynak, k.acilis, k.grup, b.ad AS birim "
+                "SELECT k.id, k.kod, k.ad, k.kritiklik, k.aciklama, k.birim_id, k.kaynak, k.acilis, k.alan, b.ad AS birim "
                 "FROM kategori k JOIN birim b ON b.id=k.birim_id WHERE k.kaynak='usta' "
                 "AND (k.emeklilik IS NULL OR k.emeklilik>?) AND (k.acilis IS NULL OR k.acilis<=?) ORDER BY b.id, k.ad",
                 (date.today().isoformat(), date.today().isoformat()))],
@@ -493,7 +494,7 @@ def tanimlar():
             gorevler=list(katalog.GOREV_PAKETLERI),
             acan_birimler=katalog.ACAN_BIRIMLER, vardiyalar=katalog.VARDIYALAR,
             lokasyonlar=[dict(r) for r in con.execute("SELECT id, ad FROM lokasyon ORDER BY id")],
-            gruplar=[dict(kod=k, ad=v, kisa=katalog.GRUP_KISA[k]) for k, v in katalog.GRUPLAR.items()],
+            alanlar=[dict(kod=k, ad=v[0], aciklama=v[1]) for k, v in katalog.ALANLAR.items()],
             izinliler=risk.tek_kisiye_kalanlar(con, 1)["izinliler"],
             simdiki_vardiya=ogrenme.vardiya_bul(__import__("datetime").datetime.now()))
 
@@ -504,12 +505,13 @@ def tanimlar():
 def cagri_oneri(i: OneriIstek):
     """Çağrı açılmadan önce: konu tahmini, kime gideceği ve geçmişte nasıl çözüldüğü."""
     with KILIT:
-        o = usta.kategori_oner(con, i.metin, grup=i.grup)
+        o = usta.kategori_oner(con, i.metin, alan=i.alan)
         if o["soru_gerekli"]:
             return dict(o, atama=None, yol=None)
         ilk = o["oneriler"][0]["kategori_id"]
+        a = cagri_formu.alan_bul(o["oneriler"][0]["kod"], None, i.alan)["alan"]
         return dict(o, atama=usta.yonlendir(con, ilk, vardiya=i.vardiya, metin=i.metin, acan_birim=i.acan_birim,
-                                            lokasyon_id=i.lokasyon_id),
+                                            lokasyon_id=i.lokasyon_id, alan=a),
                     yol=usta.yol_goster(con, i.metin, ilk))
 
 
@@ -519,8 +521,10 @@ def cagri_onizle(i: CagriIstek):
     if not i.kategori_id:
         raise HTTPException(400, "Konu seçilmedi")
     with KILIT:
+        kod = (con.execute("SELECT kod FROM kategori WHERE id=?", (i.kategori_id,)).fetchone() or [None])[0]
+        a = cagri_formu.alan_bul(kod, i.cevaplar, i.alan)
         return dict(atama=usta.yonlendir(con, i.kategori_id, vardiya=i.vardiya, metin=i.metin, acan_birim=i.acan_birim,
-                                         lokasyon_id=i.lokasyon_id),
+                                         lokasyon_id=i.lokasyon_id, alan=a["alan"]), alan=a,
                     yol=usta.yol_goster(con, i.metin, i.kategori_id))
 
 
@@ -550,13 +554,14 @@ def cagri_ac(i: CagriIstek):
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(kod["kod"], cevap, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman, onc)
             cihaz = cevap.get("cihaz")
+            alan = cagri_formu.alan_bul(kod["kod"], cevap, i.alan)["alan"]
             yer = i.yer or ((cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("yer"))   # envanterdeki yer
         else:
-            cihaz, yer = None, i.yer
+            cihaz, yer, alan = None, i.yer, i.alan
         if i.lokasyon_id and not con.execute("SELECT 1 FROM lokasyon WHERE id=?", (i.lokasyon_id,)).fetchone():
             raise HTTPException(400, "Tesis bulunamadı")
         return usta.cagri_ac(con, i.metin, i.acan_birim, aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi,
-                             yer=yer, ek_bilgi=ek, cihaz=cihaz, lokasyon_id=i.lokasyon_id)
+                             yer=yer, ek_bilgi=ek, cihaz=cihaz, lokasyon_id=i.lokasyon_id, alan=alan)
 
 
 @api.get("/api/cihaz/{no}")
@@ -611,6 +616,13 @@ def olcum_hedef(i: HedefIstek):
             return olcum.hedef_kaydet(con, i.aciliyet, i.tepki_dk, i.cozum_dk)
         except ValueError as e:
             raise HTTPException(400, str(e))
+
+
+@api.get("/api/tesis-kapsama")
+def tesis_kapsamasi():
+    """Her tesiste her vardiyada yerinde (donanım, ağ) bakan kişiler."""
+    with KILIT:
+        return olcum.tesis_kapsama(con)
 
 
 @api.get("/api/cihazlar/tekrarlayan")

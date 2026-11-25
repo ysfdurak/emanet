@@ -267,8 +267,8 @@ def cagri_olculeri(con: sqlite3.Connection, gun: int = 30, simdi: datetime | Non
             continue
         kc = [c for c in kapanan if c["lokasyon_id"] == l["id"]]
         yerinde = [k for k in con.execute(
-            "SELECT DISTINCT p.ad, p.vardiya FROM kisi p JOIN cagri c ON c.cozen_kisi_id=p.id JOIN kategori g ON g.id=c.kategori_id "
-            "WHERE p.lokasyon_id=? AND p.cikis IS NULL AND g.grup IN ('donanim','ag') AND c.kapanis>=?", (l["id"], bas))]
+            "SELECT DISTINCT p.ad, p.vardiya FROM kisi p JOIN kisi_alan a ON a.kisi_id=p.id "
+            "WHERE p.lokasyon_id=? AND p.cikis IS NULL AND a.alan IN ('donanim','ag') ORDER BY p.ad", (l["id"],))]
         tesisler.append(dict(lokasyon_id=l["id"], ad=l["ad"], kapanan=len(kc),
                              ortanca_hizmet_dk=round(median([c["hizmet"] for c in kc])) if kc else None,
                              acik=sum(1 for a in acik if a["lokasyon_id"] == l["id"]),
@@ -281,3 +281,25 @@ def vardiya_boslugu(con: sqlite3.Connection, simdi: datetime | None = None, esik
     o = cagri_olculeri(con, 30, simdi)
     en = max(o["konular"], key=lambda k: k["bekleme_saat"], default=None)
     return en if en and en["bekleme_saat"] >= esik_saat else None
+
+
+def tesis_kapsama(con: sqlite3.Connection) -> dict:
+    """Kişiye bağımlılığın tesis boyutu: her tesiste, her vardiyada yerinde (donanım, ağ) kim var?
+    Program işleri (WMS, ERP, BT genel) uzaktan çözüldüğü için tesisten bağımsızdır; yerinde işlerde bir
+    vardiyada tek kişi ya da hiç kimse yoksa o kişinin yokluğu o tesiste cihaz arızalarını uzaktan bırakır."""
+    alanlar = sorted(K.YERINDE_ALANLAR)
+    satirlar = []
+    for l in con.execute("SELECT id, ad FROM lokasyon ORDER BY id"):
+        hucreler = {}
+        for v in ("gunduz", "aksam", "gece"):
+            for a in alanlar:
+                kisiler = [r["ad"] for r in con.execute(
+                    "SELECT p.ad FROM kisi p JOIN kisi_alan k ON k.kisi_id=p.id WHERE p.lokasyon_id=? AND p.vardiya=? "
+                    "AND k.alan=? AND p.aktif=1 AND p.cikis IS NULL ORDER BY p.ad", (l["id"], v, a))]
+                hucreler[f"{v}:{a}"] = kisiler
+        cagri = con.execute("SELECT COUNT(*) FROM cagri WHERE lokasyon_id=? AND alan IN ('donanim','ag') "
+                            "AND acilis>=date('now','-90 day')", (l["id"],)).fetchone()[0]
+        bos = sum(1 for k in hucreler.values() if not k)
+        tek = sum(1 for k in hucreler.values() if len(k) == 1)
+        satirlar.append(dict(lokasyon_id=l["id"], ad=l["ad"], hucreler=hucreler, yerinde_cagri_90=cagri, bos=bos, tek=tek))
+    return dict(alanlar=[dict(kod=a, ad=K.ALANLAR[a][0]) for a in alanlar], tesisler=satirlar)

@@ -27,7 +27,9 @@ SORULAR: dict[str, list[dict]] = {
         dict(kod="cihaz", soru="Cihaz numarası", tur="metin", ipucu="Arkasındaki etiket, örn. EL-014", zorunlu=True,
              neden="Aynı cihaz sık arızalanıyorsa değişim gerekir; bu numarayla izlenir."),
         dict(kod="belirti", soru="Ne oluyor?", tur="secim",
-             secenekler=["Ağa bağlanmıyor", "Oturum açılmıyor", "Ekran donuyor", "Şarj olmuyor"]),
+             secenekler=["Açılmıyor", "Şarj olmuyor", "Ekran kırık ya da dokunmatik çalışmıyor",
+                         "Ekran donuyor ya da uygulama kapanıyor", "Oturum açılmıyor", "Ağa bağlanmıyor"],
+             neden="Cevaba göre doğru ekibe gider: açılmıyor, şarj, kırık → donanım; donma, oturum → WMS; ağ → ağ ekibi."),
         dict(kod="baska", soru="Başka bir terminal denedin mi?", tur="secim",
              secenekler=["O da çalışmıyor", "O çalışıyor", "Deneyemedim"],
              neden="İkisi de çalışmıyorsa sorun cihazda değil ağda ya da sistemdedir."),
@@ -229,8 +231,21 @@ def benzer_acik(con: sqlite3.Connection, kategori_id: int, yer: str | None, simd
     return sonuc[:5]
 
 
+def alan_bul(kod: str | None, cevaplar: dict | None, secilen: str | None = None, varsayilan: str | None = None) -> dict:
+    """Çağrının gideceği alan. Sıra: belirti cevabı > kişinin seçtiği alan > konunun varsayılan alanı.
+    Belirti öne geçer: "Ekran donuyor" diyen biri alanı "Donanım" seçmiş olsa da iş WMS ekibinindir."""
+    for soru, harita in K.BELIRTI_ALANI.get(kod or "", {}).items():
+        a = harita.get((cevaplar or {}).get(soru, ""))
+        if a:
+            return dict(alan=a, kaynak="belirti", secilenle_farkli=bool(secilen and secilen != a))
+    if secilen in K.ALANLAR:
+        return dict(alan=secilen, kaynak="secim", secilenle_farkli=False)
+    a = varsayilan or K.KONU_ALANI.get(kod or "")
+    return dict(alan=a, kaynak="konu", secilenle_farkli=False)
+
+
 def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, lokasyon_id: int | None = None) -> dict:
-    k = con.execute("SELECT id, kod, ad, kritiklik FROM kategori WHERE id=?", (kategori_id,)).fetchone()
+    k = con.execute("SELECT id, kod, ad, kritiklik, alan FROM kategori WHERE id=?", (kategori_id,)).fetchone()
     if not k:
         raise ValueError("Konu bulunamadı")
     kendin = con.execute("SELECT deger FROM meta WHERE anahtar=?", (f"kendin_cozdu:{k['kod']}",)).fetchone()
@@ -238,7 +253,8 @@ def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, loka
                       (k["kod"],)).fetchone()
     return dict(kategori_id=k["id"], kategori=k["ad"], kritiklik=k["kritiklik"], talep=k["kod"] in TALEP_KONULARI,
                 sorular=sorular(k["kod"]), kendin_dene=KENDIN_DENE.get(k["kod"], []),
-                kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None, benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
+                kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None,
+                alan=k["alan"], alan_haritasi=K.BELIRTI_ALANI.get(k["kod"], {}), benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
                 yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
                 kapsam=[dict(kod=a, ad=b[0]) for a, b in KAPSAM.items()],
                 ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()])

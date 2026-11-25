@@ -414,7 +414,7 @@ Sorular:
 47. Envanterde olmayan bir numara gelince sistem onu neden kendisi eklemiyor?
 48. Kişilerin çözüm süresini neden doğrudan karşılaştırmıyorsun, "konuya göre" ne demek?
 49. Gece 02:00'de açılan ERP çağrısı gündüzcü Murat'a gidip 09:00'da kapandı. Süre kime yazılır?
-50. Ana kategori neden zorunlu değil, seçilince olasılıkları neden yeniden ölçeklemiyorsun?
+50. Çağrının hangi ekibe gideceğine ne karar veriyor; kişi "Donanım" seçti ama "ekran donuyor" dedi, ne olur?
 51. Tuzla'da gündüz bir yazıcı bozuldu, oradaki tek BT çalışanı akşamcı. Çağrı kime gider?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
@@ -593,9 +593,9 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
 49. 02:00-08:00 arası vardiya beklemesi: Murat'ın değil kapsamanın süresi, ERP konusuna yazılır ("bu konu ayda
     kaç saat bilen birini bekledi"). 08:00-09:00 çalışma: Murat'ın süresi. Açanın gözünden hizmet süresi 7 saat;
     öncelik hedefi bununla ölçülür. Çözüm Murat'ı hızlandırmak değil, gece vardiyasına ERP bilen yetiştirmek.
-50. Çalışan sorunun cihazdan mı ağdan mı olduğunu çoğu zaman bilemez; zorunlu seçim yanlış seçimi ve yanlış
-    konuya kilitlenmeyi getirir. Ölçekleme yapılırsa "Sistem hata veriyor" + Cihaz %37'den %77'ye şişer ve
-    model emin olmadığı hâlde sormaz. Daraltma sıralamayı etkiler, kesinliği değil.
+50. Sıra: belirti cevabı > kişinin seçtiği alan > konunun alanı. "Ekran donuyor" WMS ekibine gider ve ekran
+    "seçtiğin Donanım yerine" diye yazar. Belirti öne geçer çünkü çalışan alanı tahmin eder, belirtiyi ise görür.
+    Seçilen alan tahmini daraltır ama olasılığı şişirmez; model emin değilse yine sorar.
 51. Merkezdeki en uygun kişiye uzaktan gider ve not düşülür: "Tuzla'da yerinde kimse yok (Onur akşam)".
     Uzaktan yönlendirir ya da sahaya haber verir. Bugün sayfası bunu kapsama eksiği olarak gösterir; çözüm
     tesise ikinci vardiyada yerinde bakabilecek birini yetiştirmek.

@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS lokasyon (
     ad  TEXT NOT NULL UNIQUE
 );
 
+-- Çağrı alanları ve ekipleri: kim hangi alana bakar (donanım, ağ, WMS, ERP, BT genel)
+CREATE TABLE IF NOT EXISTS kisi_alan (
+    kisi_id INTEGER NOT NULL REFERENCES kisi(id),
+    alan    TEXT NOT NULL,
+    PRIMARY KEY (kisi_id, alan)
+);
+
 -- İzin / rapor kayıtları (tarih aralığı)
 CREATE TABLE IF NOT EXISTS musaitlik (
     id        INTEGER PRIMARY KEY,
@@ -263,7 +270,7 @@ CREATE TABLE IF NOT EXISTS egitim_plani (
 );
 """
 
-TABLOLAR = ["cihaz", "lokasyon", "devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
+TABLOLAR = ["kisi_alan", "cihaz", "lokasyon", "devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
             "kategori", "musaitlik", "kisi", "birim", "meta"]
 
 
@@ -285,10 +292,10 @@ def baglan(yol: Path | str | None = None) -> sqlite3.Connection:
 # Eski bir veritabanı açılırsa sonradan eklenen sütunlar eklenir (veri silinmez).
 GOCLER = {
     "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT"), ("kart_saat", "REAL"),
-                 ("sure_onay", "INTEGER NOT NULL DEFAULT 0"), ("grup", "TEXT")],
+                 ("sure_onay", "INTEGER NOT NULL DEFAULT 0"), ("alan", "TEXT")],   # alan: varsayılan çağrı alanı
     "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT"), ("lokasyon_id", "INTEGER")],
     "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT"), ("cihaz", "TEXT"),
-              ("asama", "TEXT"), ("lokasyon_id", "INTEGER")],   # çağrı durumu: acik | atandi | islemde | bilgi_bekleniyor | cozuldu | kapali   # cihaz: etiket no, tekrarlayan arıza izlenir
+              ("asama", "TEXT"), ("lokasyon_id", "INTEGER"), ("alan", "TEXT")],   # alan: işe bakan ekip   # çağrı durumu: acik | atandi | islemde | bilgi_bekleniyor | cozuldu | kapali   # cihaz: etiket no, tekrarlayan arıza izlenir
     "devir": [("devralan_sinir", "REAL NOT NULL DEFAULT 4")],
     "cihaz": [("lokasyon_id", "INTEGER")],   # devralanların haftalık devir saati (ayrılanınkinden ayrı)   # iki aşamalı form: yer ve konuya özel cevaplar (JSON)
     "recete": [("askida", "INTEGER NOT NULL DEFAULT 0"), ("askida_neden", "TEXT"), ("askida_zaman", "TEXT"),

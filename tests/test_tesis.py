@@ -1,4 +1,4 @@
-"""Çok tesisli kurulum ve ana kategoriler: yerinde atama, grupla daraltma, tesis bazında toplu arıza ve ölçüler."""
+"""Çok tesisli kurulum ve çağrı alanları: yerinde atama, alanla daraltma, belirtiye göre ekip, tesis bazında toplu arıza."""
 from datetime import datetime
 
 import pytest
@@ -37,11 +37,28 @@ def test_cihaz_arizasi_once_tesisteki_kisiye(con):
     assert usta.yonlendir(con, d, GUNDUZ, "gunduz", "Dalga açılmıyor", "", 2, tuzla)["yerinde"] is None
 
 
-def test_grup_daraltir_ama_kesinlik_uydurmaz(con):
-    o = usta.kategori_oner(con, "Sistem hata veriyor, devam edemiyorum", grup="donanim")
+def test_alan_daraltir_ama_kesinlik_uydurmaz(con):
+    o = usta.kategori_oner(con, "Sistem hata veriyor, devam edemiyorum", alan="donanim")
     assert o["soru_gerekli"] and all(x["ad"] in {"El terminali bağlanmıyor", "Etiket yazıcısı yazdırmıyor", "Barkod okunmuyor",
                                                   "Bilgisayar ve ekran arızası"} for x in o["oneriler"])
-    assert not usta.kategori_oner(con, "Bağlantı kopuyor", grup="ag")["soru_gerekli"]   # grupta tek konu
+    # Ağ alanı: Wi-Fi ve "ağa bağlanmıyor" belirtili terminal
+    assert {x["ad"] for x in usta.kategori_oner(con, "Bağlantı kopuyor", alan="ag")["oneriler"]} <= {
+        "Kablosuz ağ kopması", "El terminali bağlanmıyor"}
+
+
+def test_belirti_ekibi_belirler(con):
+    """Terminal açılmıyorsa donanım, donuyorsa WMS ekibi; belirti kişinin seçtiği alanın önüne geçer."""
+    k = kid(con, "EL_TERMINALI")
+    a = F.alan_bul("EL_TERMINALI", {"belirti": "Açılmıyor"})
+    assert a["alan"] == "donanim" and a["kaynak"] == "belirti"
+    b = F.alan_bul("EL_TERMINALI", {"belirti": "Ekran donuyor ya da uygulama kapanıyor"}, "donanim")
+    assert b["alan"] == "wms" and b["secilenle_farkli"]
+    assert F.alan_bul("DALGA", {}, "erp")["alan"] == "erp" and F.alan_bul("DALGA", {})["alan"] == "wms"
+    wms = {r[0] for r in con.execute("SELECT p.id FROM kisi p JOIN kisi_alan a ON a.kisi_id=p.id WHERE a.alan='wms'")}
+    y = usta.yonlendir(con, k, GUNDUZ, "gunduz", "Terminal ekranı donuyor", "", 2, None, "wms")
+    assert y["kisi_id"] in wms and y["birim"] == "WMS ekibi"
+    c = usta.cagri_ac(con, "Terminal ekranı donuyor", kategori_id=k, aciliyet=2, alan="wms")
+    assert usta.cagri_detay(con, c["id"])["alan"] == "wms"
 
 
 def test_toplu_ariza_tesis_bazinda(con):
@@ -57,10 +74,17 @@ def test_olcum_ve_bugun_tesis(con):
     assert {t["ad"] for t in o["tesisler"]} == {"Gebze Merkez Depo", "Tuzla Aktarma Deposu", "İzmir Bölge Deposu"}
     tuzla = olcum.cagri_olculeri(con, 30, lokasyon_id=lok(con, "Tuzla"))
     assert 0 < tuzla["ozet"]["kapanan"] < o["ozet"]["kapanan"] and len(tuzla["tesisler"]) == 1
-    assert any(d["metin"].startswith("Yerinde BT olmayan vardiyalar") for d in takip.dikkat(con))
+    assert any(d["metin"].startswith("Yerinde donanım ekibi olmayan vardiyalar") for d in takip.dikkat(con))
 
 
 def test_envanter_tesis_sutunu(con):
     s = F.envanter_ice_aktar(con, "no;tesis;model\nYZ-21;Ankara Deposu;Zebra ZT410\nyz 11;tuzla aktarma deposu;Honeywell PM43")
     assert s["eklenen"] == 1 and F.cihaz_kaydi(con, "YZ-21")["lokasyon"] == "Ankara Deposu"   # yeni tesis eklendi
     assert F.cihaz_kaydi(con, "YZ-11")["lokasyon"] == "Tuzla Aktarma Deposu"                   # büyük/küçük harf farkı
+
+
+def test_tesis_kapsama(con):
+    k = olcum.tesis_kapsama(con)
+    tuzla = next(t for t in k["tesisler"] if t["ad"].startswith("Tuzla"))
+    assert tuzla["hucreler"]["aksam:donanim"] == ["Onur Yıldız"] and tuzla["hucreler"]["gunduz:donanim"] == []
+    assert tuzla["bos"] > 0 and tuzla["tek"] >= 1

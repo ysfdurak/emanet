@@ -45,19 +45,29 @@ def _teknik_konu(metin: str) -> dict | None:
 
 # ---------------------------------------------------------------- konu
 
-def kategori_oner(con: sqlite3.Connection, metin: str, n: int = 3, grup: str | None = None) -> dict:
+def alan_konulari(con: sqlite3.Connection, alan: str) -> set[int]:
+    """Bu alana düşebilecek konular: varsayılan alanı bu olanlar ve bir belirtisi bu alana gidenler
+    (ör. WMS: dalga, adres, stok + terminal donması)."""
+    kodlar = {k for k, a in K.KONU_ALANI.items() if a == alan} | {
+        k for k, sorular in K.BELIRTI_ALANI.items() for harita in sorular.values() if alan in harita.values()}
+    out = {r["id"] for r in con.execute("SELECT id, kod FROM kategori WHERE kaynak='usta' AND alan=?", (alan,))}
+    return out | {r["id"] for r in con.execute("SELECT id, kod FROM kategori WHERE kaynak='usta'") if r["kod"] in kodlar}
+
+
+def kategori_oner(con: sqlite3.Connection, metin: str, n: int = 3, alan: str | None = None) -> dict:
     """Metnin konusunu model olasılıklarıyla tahmin eder; emin değilse soru sorulmasını ister.
-    grup verilirse (kişi "cihaz", "ağ"… seçtiyse) yalnız o gruptaki konular arasında tahmin edilir."""
+    alan verilirse (kişi "WMS", "Donanım"… seçtiyse) yalnız o alana düşebilecek konular arasında tahmin edilir."""
     m = O.model(con)
     kat = _usta_kategorileri(con, yalniz_gecerli=True)
     # Geçişle kapanan konular önerilmez; olasılıklar kalanlar arasında yeniden ölçeklenir.
     olas = [(k, p) for k, p in m.konu_olasiliklari(metin) if k in kat]
     toplam = sum(p for _, p in olas) or 1.0
     olas = [(k, p / toplam) for k, p in olas]
-    # Ana kategori seçildiyse yalnız o gruptaki konular kalır ama olasılıklar YENİDEN ölçeklenmez:
-    # "Sistem hata veriyor" + "cihaz" hâlâ belirsizdir; grubun içinde %77'ye şişirilirse model sahte emin görünür.
-    if grup and any(d.get("grup") == grup for d in kat.values()):
-        kat = {k: d for k, d in kat.items() if d.get("grup") == grup}
+    # Alan seçildiyse yalnız o alana düşebilecek konular kalır ama olasılıklar YENİDEN ölçeklenmez:
+    # "Sistem hata veriyor" + "Donanım" hâlâ belirsizdir; alanın içinde %77'ye şişirilirse model sahte emin görünür.
+    alan_kat = alan_konulari(con, alan) if alan else set()
+    if alan_kat & set(kat):
+        kat = {k: d for k, d in kat.items() if k in alan_kat}
         olas = [(k, p) for k, p in olas if k in kat]
     # Modelin henüz hiç örnek görmediği yeni konu (öncülsüz yeni sistem): anahtar kelime tutarsa öne alınır
     # ve kullanıcıya sorulur.
@@ -68,7 +78,7 @@ def kategori_oner(con: sqlite3.Connection, metin: str, n: int = 3, grup: str | N
     olas = [(k, 0.5) for k in yeni] + olas + [(k, 0.0) for k in kat if k not in bilinen and k not in yeni]
     ilk, ikinci = olas[0], (olas[1] if len(olas) > 1 else (None, 0.0))   # tek konulu grup (ör. ağ)
     soru = ilk[1] < O.SORU_ESIGI or ilk[1] - ikinci[1] < O.FARK_ESIGI or bool(yeni)
-    if grup and len(kat) == 1 and not yeni:   # kişi "ağ" dedi ve grupta tek konu var: sorulacak seçenek yok
+    if alan and len(kat) == 1 and not yeni:   # kişi "Ağ" dedi ve alanda tek konu var: sorulacak seçenek yok
         soru = False
     # Teknik arıza ayrımı demo şirketin bakım konularına göredir; kendi verinle kurulumda konular senindir.
     yerel = con.execute("SELECT deger FROM meta WHERE anahtar='mod'").fetchone()
@@ -80,8 +90,8 @@ def kategori_oner(con: sqlite3.Connection, metin: str, n: int = 3, grup: str | N
              if yeni else
              f"Model bu metni %{round(ilk[1] * 100)} olasılıkla '{kat[ilk[0]]['ad']}' konusuna koydu"
              + (f"; belirleyici sözcükler: {', '.join(sozcukler)}." if sozcukler else "."))
-    if grup and len(kat) == 1 and not yeni:
-        neden = f"Seçtiğin “{K.GRUPLAR.get(grup, grup)}” grubunda tek konu var: {kat[ilk[0]]['ad']}."
+    if alan and len(kat) == 1 and not yeni:
+        neden = f"Seçtiğin “{K.ALANLAR.get(alan, (alan,))[0]}” alanında tek konu var: {kat[ilk[0]]['ad']}."
     return dict(oneriler=oneriler, guven=round(ilk[1], 3), soru_gerekli=soru or bool(teknik),
                 soru=("Sorun aşağıdakilerden hangisine daha yakın?" if soru else None),
                 neden=neden, belirleyici=sozcukler, kapsam_disi=teknik)
@@ -144,13 +154,15 @@ def _cirak_sec(con, kat: dict, adaylar: list[dict], olas: dict, aciliyet: int, s
 
 
 def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None = None, vardiya: str | None = None,
-              metin: str = "", acan_birim: str = "", aciliyet: int = 2, lokasyon_id: int | None = None) -> dict:
+              metin: str = "", acan_birim: str = "", aciliyet: int = 2, lokasyon_id: int | None = None,
+              alan: str | None = None) -> dict:
     """Kişi modelinin olasılıklarına göre atar.
 
     1. Konunun birimindeki kişiler alınır, izindekiler elenir.
     2. O vardiyada çalışan varsa yalnızca onlar kalır.
     3. Kalanlar arasından modelin en yüksek olasılık verdiği kişi seçilir.
     4. Çırak modu: çağrı kritik ve acil değilse, vardiyada bir usta varken öğrenen kişiye verilir.
+    0. Alan verilirse (donanım, WMS…) adaylar o alanın ekibidir; verilmezse konunun birimi.
     5. Tesis: cihaz ve ağ işleri yerinde bakılır; tesiste vardiyada konuyu bilen biri varsa ona gider. Yoksa
        uzaktan en uygun kişiye gider ve "yerinde kimse yok" notu düşülür (uzaktan yönlendirir ya da sahaya haber verir).
     Model "bu tür çağrıyı en iyi X çözer" diyor ama X müsait değilse bu not olarak döner.
@@ -168,16 +180,20 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
     m = O.model(con)
     olas = m.kisi_olasiliklari(metin or kat["ad"], kategori_id, vardiya, acan_birim)
     izinli = izinliler(con, simdi.date().isoformat())
-    uyeler = [dict(r) for r in con.execute("SELECT * FROM kisi WHERE birim_id=? AND aktif=1", (kat["birim_id"],))]
+    ekip = [dict(r) for r in con.execute("SELECT p.* FROM kisi p JOIN kisi_alan a ON a.kisi_id=p.id "
+                                         "WHERE a.alan=? AND p.aktif=1", (alan,))] if alan else []
+    uyeler = ekip or [dict(r) for r in con.execute("SELECT * FROM kisi WHERE birim_id=? AND aktif=1", (kat["birim_id"],))]
+    yerinde_alan = alan or kat.get("alan")
+    birim_ad = K.ALANLAR[alan][0] + " ekibi" if ekip else kat["birim"]
     for u in uyeler:
         u["p"] = olas.get(u["id"], 0.0)
-        u["durum"] = (izinli[u["id"]] + "de") if u["id"] in izinli else (
+        u["durum"] = {"izin": "izinde", "rapor": "raporlu"}.get(izinli[u["id"]], izinli[u["id"]]) if u["id"] in izinli else (
             "vardiyada" if u["vardiya"] == vardiya else "vardiyada değil")
     uyeler.sort(key=lambda u: -u["p"])
     musait = [u for u in uyeler if u["id"] not in izinli]
     adaylar = [u for u in musait if u["vardiya"] == vardiya] or musait
     yerinde_notu = None
-    if lokasyon_id and kat.get("grup") in K.YERINDE_GRUPLAR:
+    if lokasyon_id and yerinde_alan in K.YERINDE_ALANLAR:
         lok_ad = (con.execute("SELECT ad FROM lokasyon WHERE id=?", (lokasyon_id,)).fetchone() or [None])[0]
         tesiste = [u for u in adaylar if u.get("lokasyon_id") == lokasyon_id and u["p"] > 0.01]
         if tesiste:
@@ -188,14 +204,14 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
                             + (f" ({', '.join(u['ad'] + ' ' + VARDIYA_AD.get(u['vardiya'], u['vardiya']) for u in baska)} vardiyasında)"
                                if baska else "") + "; uzaktan yönlendirildi. Cihaz başında biri gerekirse tesis sorumlusuna haber verin.")
     if not adaylar:
-        return dict(kisi_id=None, ad=None, birim=kat["birim"], vardiya=vardiya, olasilik=0,
+        return dict(kisi_id=None, ad=None, birim=birim_ad, vardiya=vardiya, olasilik=0,
                     neden="Birimde atanabilecek kimse yok.", uzman_notu=None, siralama=[])
     secilen = adaylar[0]
     toplam = sum(u["p"] for u in adaylar) or 1.0
     cirak = _cirak_sec(con, kat, adaylar, olas, aciliyet, simdi)
     if cirak:
         c, u = cirak["kisi"], cirak["usta"]
-        return dict(kisi_id=c["id"], ad=c["ad"], birim=kat["birim"], vardiya=vardiya, olasilik=None,
+        return dict(kisi_id=c["id"], ad=c["ad"], birim=birim_ad, vardiya=vardiya, olasilik=None,
                     neden=(f"Yanında öğrenme: {c['ad']} {cirak['neden']}; bilen sayılmasına {cirak['kalan']} çözüm kaldı. "
                            f"Takılırsa {u['ad']} destek verecek. Benzer çözümler aşağıda."),
                     uzman_notu=None, uzman=None,
@@ -241,7 +257,8 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
     else:
         neden = "Vardiyadakiler arasında modelin en uygun bulduğu kişi."
     if adaylar is musait and musait[0]["vardiya"] != vardiya:
-        neden = "Bu vardiyada birimden kimse yok; izinde olmayan en uygun kişiye atandı. " + neden
+        neden = (f"Bu vardiyada {'ekipten' if ekip else 'birimden'} kimse yok (izinde, raporlu ya da başka vardiyada); "
+                 "müsait olan en uygun kişiye atandı. " + neden)
     if pay_karar:
         neden = pay_karar["neden"] + " " + neden
     if yerinde_notu:
@@ -256,9 +273,9 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
         else:
             uzman_notu = (f"Bu tür çağrıları en çok {uzman['ad']} çözüyor (model olasılığı %{round(uzman['p'] * 100)}) "
                           f"ama şu an {uzman['durum']}.")
-    return dict(kisi_id=secilen["id"], ad=secilen["ad"], birim=kat["birim"], vardiya=vardiya,
+    return dict(kisi_id=secilen["id"], ad=secilen["ad"], birim=birim_ad, vardiya=vardiya,
                 olasilik=round(secilen["p"] / toplam, 3), neden=neden, uzman_notu=uzman_notu, paylastirma=pay_karar,
-                yerinde=yerinde_notu is None if lokasyon_id and kat.get("grup") in K.YERINDE_GRUPLAR else None,
+                yerinde=yerinde_notu is None if lokasyon_id and yerinde_alan in K.YERINDE_ALANLAR else None, alan=alan,
                 uzman=dict(ad=uzman["ad"], durum=uzman["durum"]) if uzman_notu else None,
                 siralama=[dict(kisi_id=u["id"], ad=u["ad"], olasilik=round(u["p"], 3), durum=u["durum"])
                           for u in uyeler[:5]])
@@ -288,7 +305,7 @@ def _olay(con, cagri_id, zaman, tur, kisi=None, aciklama=None):
 def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", aciliyet: int = 2,
              kategori_id: int | None = None, vardiya: str | None = None, simdi: datetime | None = None,
              acan_kisi: str | None = None, yer: str | None = None, ek_bilgi: str | None = None,
-             cihaz: str | None = None, lokasyon_id: int | None = None) -> dict:
+             cihaz: str | None = None, lokasyon_id: int | None = None, alan: str | None = None) -> dict:
     metin = metin.strip()
     if len(metin) < 5:
         raise ValueError("Çağrı metni çok kısa")
@@ -301,12 +318,18 @@ def cagri_ac(con: sqlite3.Connection, metin: str, acan_birim: str = "Depolama", 
     if kategori_id is None and oneri["soru_gerekli"]:
         raise ValueError("Konu belirsiz; önce önerilen konulardan birini seçin")
     kategori_id = kategori_id or onerilen
-    atama = yonlendir(con, kategori_id, simdi, vardiya, metin, acan_birim, aciliyet, lokasyon_id)
+    if alan not in K.ALANLAR:   # alan verilmediyse konunun varsayılan alanı (kayıt için; atama birime göre)
+        alan_kayit = con.execute("SELECT alan FROM kategori WHERE id=?", (kategori_id,)).fetchone()[0]
+    else:
+        alan_kayit = alan
+    atama = yonlendir(con, kategori_id, simdi, vardiya, metin, acan_birim, aciliyet, lokasyon_id,
+                      alan if alan in K.ALANLAR else None)
     cur = con.execute(
         "INSERT INTO cagri(metin,acan_birim,aciliyet,kategori_id,onerilen_kategori_id,guven,durum,atanan_kisi_id,"
-        "acilis,vardiya,kaynak,acan_kisi,yer,ek_bilgi,cihaz,lokasyon_id) VALUES(?,?,?,?,?,?,'acik',?,?,?,'usta',?,?,?,?,?)",
+        "acilis,vardiya,kaynak,acan_kisi,yer,ek_bilgi,cihaz,lokasyon_id,alan) VALUES(?,?,?,?,?,?,'acik',?,?,?,'usta',?,?,?,?,?,?)",
         (metin, acan_birim, aciliyet, kategori_id, onerilen, oneri["guven"], atama["kisi_id"],
-         simdi.isoformat(timespec="minutes"), vardiya, acan_kisi, (yer or "").strip()[:60] or None, ek_bilgi, cihaz, lokasyon_id))
+         simdi.isoformat(timespec="minutes"), vardiya, acan_kisi, (yer or "").strip()[:60] or None, ek_bilgi, cihaz, lokasyon_id,
+         alan_kayit))
     cid = cur.lastrowid
     _olay(con, cid, simdi, "acildi")
     _olay(con, cid, simdi, "atandi", atama["kisi_id"], atama["neden"])
@@ -383,7 +406,7 @@ def cozum_karti_ekle(con: sqlite3.Connection, kategori_id: int, baslik: str, adi
 # ---------------------------------------------------------------- okuma
 
 _CAGRI_SQL = (
-    "SELECT c.*, k.ad AS kategori, k.kod AS kategori_kod, k.grup, b.ad AS birim, a.ad AS atanan, z.ad AS cozen, "
+    "SELECT c.*, k.ad AS kategori, k.kod AS kategori_kod, b.ad AS birim, a.ad AS atanan, z.ad AS cozen, "
     "lo.ad AS lokasyon FROM cagri c JOIN kategori k ON k.id=c.kategori_id JOIN birim b ON b.id=k.birim_id "
     "LEFT JOIN lokasyon lo ON lo.id=c.lokasyon_id "
     "LEFT JOIN kisi a ON a.id=c.atanan_kisi_id LEFT JOIN kisi z ON z.id=c.cozen_kisi_id ")

@@ -244,8 +244,8 @@ CIZ.cagri = async (veri) => {
         ${(T.lokasyonlar || []).length > 1 ? `<div class="sira"><div><label for="lok">Tesis</label>${tesisSec("lok", tesisAl())}</div></div>` : ""}
         <label for="metin">Sorun</label>
         <textarea id="metin" maxlength="600" placeholder="Örn. Yazıcı çevrimdışı görünüyor, etiket basmıyor"></textarea>
-        ${(T.gruplar || []).length && T.kategoriler.some(k => k.grup) ? `<div class="grup-sec"><span class="kucuk">Ne ile ilgili? <span class="soluk">(istersen)</span></span>
-        ${T.gruplar.map(g => `<button type="button" class="cip" data-grup="${kac(g.kod)}" aria-pressed="false" title="${kac(g.ad)}">${kac(g.kisa)}</button>`).join("")}</div>` : ""}
+        ${(T.alanlar || []).length && T.kategoriler.some(k => k.alan) ? `<div class="grup-sec"><span class="kucuk">Çağrı alanı <span class="soluk">(biliyorsan)</span></span>
+        ${T.alanlar.map(g => `<button type="button" class="cip" data-calan="${kac(g.kod)}" aria-pressed="false" title="${kac(g.aciklama)}">${kac(g.ad)}</button>`).join("")}</div>` : ""}
         <div id="ornekler"><span class="kucuk">Örnek:</span> ${(T.mod === "yerel" && T.ornek_metinler.length ? T.ornek_metinler : ORNEKLER).map(o => `<button class="cip" data-ornek="${kac(o)}">${kac(o)}</button>`).join("")}</div>
         <div class="sira">
           <div><label for="acan">Açan birim</label><select id="acan">${T.acan_birimler.map(b => `<option>${kac(b)}</option>`).join("")}</select></div>
@@ -260,10 +260,10 @@ CIZ.cagri = async (veri) => {
   </div>`;
   let secili = null, sayac = 0, manuel = false;   // manuel: konuyu kullanıcı seçti
   let F = null;   // ikinci aşama: {form, kategori_id, cevaplar, etki, kapsam, ne_zaman, sevkiyat}
-  let grup = null;  // ana kategori (isteğe bağlı)
+  let calan = null;  // kişinin seçtiği çağrı alanı (isteğe bağlı; belirti cevabı bunun önüne geçer)
   const metin = $("#metin");
   const parametre = () => ({metin: metin.value.trim(), acan_birim: $("#acan").value, vardiya: $("#vard").value,
-    lokasyon_id: $("#lok") ? +$("#lok").value : null, grup});
+    lokasyon_id: $("#lok") ? +$("#lok").value : null, alan: calan});
   const formGovde = () => ({cevaplar: F.cevaplar, yer: ($("#yer")?.value || "").trim() || null, etki: F.etki, kapsam: F.kapsam,
     sevkiyat: F.sevkiyat, ne_zaman: F.ne_zaman});
   const eksikZorunlu = () => F.form.sorular.filter(s => s.zorunlu && !(F.cevaplar[s.kod] || "").trim());
@@ -281,7 +281,7 @@ CIZ.cagri = async (veri) => {
     if (F && F.kategori_id === secili) return;
     const f = await api("cagri/form/" + secili + ($("#lok") ? "?lokasyon_id=" + $("#lok").value : ""));
 
-    F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false};
+    F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false}; sonAlan = null;
     $("#asama2").innerHTML = `<h3>2. Birkaç soru <span class="kucuk">· ${kac(f.kategori)}</span></h3>
       ${f.kendin_dene.length ? `<div class="not"><b>Açmadan önce bir dakika dene:</b><ol class="gundem">${f.kendin_dene.map(a => `<li>${kac(a)}</li>`).join("")}</ol>
         <button type="button" class="dugme kucuk ikincil" id="kc">Bununla çözüldü, çağrı açmıyorum</button>${f.kendin_cozdu ? ` <span class="kucuk">Bu adımlarla ${f.kendin_cozdu} kez çağrı açmaya gerek kalmadı.</span>` : ""}</div>` : ""}
@@ -298,10 +298,29 @@ CIZ.cagri = async (veri) => {
         : `<label>İşin durumu</label>${secimGrubu("İşin durumu", "etki", f.etki, null)}
            <label>Kimi etkiliyor?</label>${secimGrubu("Kimi etkiliyor", "kapsam", f.kapsam, null)}
            <p><label class="satir"><input type="checkbox" id="sevk"> Bekleyen araç ya da yakın sevkiyat saati var</label></p>`}
+      <div id="ekip" class="not" aria-live="polite"></div>
       <div id="oncelik" class="kucuk" aria-live="polite">${f.talep ? "Ne zamana lazım olduğunu seç; öncelik buna göre belirlenir." : "Öncelik için iş durumu ve kimi etkilediğini seç."}</div>
       <div id="eksik" class="kucuk"></div>
       <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>`;
-    benzerCiz(f.benzer);
+    benzerCiz(f.benzer); ekipGuncelle();
+  }
+  /* Çağrının gideceği ekip: belirti cevabı > seçilen alan > konunun alanı (sunucu: cagri_formu.alan_bul) */
+  function alanHesapla() {
+    for (const [soru, harita] of Object.entries(F.form.alan_haritasi || {})) {
+      const a = harita[F.cevaplar[soru]]; if (a) return {alan: a, kaynak: "belirti"};
+    }
+    return calan ? {alan: calan, kaynak: "secim"} : {alan: F.form.alan, kaynak: "konu"};
+  }
+  let sonAlan = null;
+  async function ekipGuncelle() {
+    if (!F || !$("#ekip")) return;
+    const a = alanHesapla(), ad = (T.alanlar.find(x => x.kod === a.alan) || {}).ad || a.alan;
+    $("#ekip").innerHTML = a.alan ? `Gideceği ekip: <b>${kac(ad)}</b> <span class="kucuk">· ${a.kaynak === "belirti" ? "cevabına göre" + (calan && calan !== a.alan ? ` (seçtiğin ${kac((T.alanlar.find(x => x.kod === calan) || {}).ad)} yerine)` : "") : a.kaynak === "secim" ? "seçtiğin alan" : "konunun alanı"}</span>` : "";
+    if (a.alan !== sonAlan) {   // ekip değişince atama önizlemesi de değişir
+      sonAlan = a.alan;
+      const o = await api("cagri/onizle", {...parametre(), kategori_id: F.kategori_id, alan: a.alan, cevaplar: F.cevaplar});
+      $("#atama").innerHTML = atamaKart(o.atama);
+    }
   }
   function benzerCiz(L) {
     $("#benzer").innerHTML = L.length ? `<div class="not uyari"><b>Bu sorun zaten bildirilmiş olabilir.</b> Son bir saatte aynı konuda ${L.length} açık çağrı var:
@@ -365,6 +384,7 @@ CIZ.cagri = async (veri) => {
     }
     await ikinciAsama(); soruladaGec();
     $("#atama").innerHTML = atamaKart(o.atama);
+    if (F && F.kategori_id === secili) { sonAlan = null; ekipGuncelle(); }   // belirtiye göre ekip önizlemesi korunur
     $("#yan").innerHTML = o.yol ? yolKart(o.yol) : '<div class="kart kucuk">Konu seçilince kime gideceği ve geçmişte nasıl çözüldüğü burada görünür.</div>';
   }
   function konuSecici(o) {
@@ -376,6 +396,7 @@ CIZ.cagri = async (veri) => {
     secili = id; manuel = true; await ikinciAsama(); soruladaGec();
     const o = await api("cagri/onizle", {...parametre(), kategori_id: id});
     $("#atama").innerHTML = atamaKart(o.atama); $("#yan").innerHTML = yolKart(o.yol);
+    if (F && F.kategori_id === secili) { sonAlan = null; ekipGuncelle(); }
   }
   let bekle;
   const tetik = () => { clearTimeout(bekle); bekle = setTimeout(oner, 350); };
@@ -385,16 +406,16 @@ CIZ.cagri = async (veri) => {
     const or = e.target.closest("[data-ornek]"); if (or) { metin.value = or.dataset.ornek; manuel = false; oner(); return; }
     const k = e.target.closest("[data-kat]");
     if (k) { document.querySelectorAll("[data-kat]").forEach(b => b.setAttribute("aria-pressed", b === k)); if ($("#diger")) $("#diger").value = ""; konuSec(+k.dataset.kat); return; }
-    const gr = e.target.closest("[data-grup]");
+    const gr = e.target.closest("[data-calan]");
     if (gr) {
-      grup = grup === gr.dataset.grup ? null : gr.dataset.grup;   // ikinci tık seçimi kaldırır
-      document.querySelectorAll("[data-grup]").forEach(b => b.setAttribute("aria-pressed", b.dataset.grup === grup));
+      calan = calan === gr.dataset.calan ? null : gr.dataset.calan;   // ikinci tık seçimi kaldırır
+      document.querySelectorAll("[data-calan]").forEach(b => b.setAttribute("aria-pressed", b.dataset.calan === calan));
       manuel = false; if (metin.value.trim().length >= 5) oner(); return;
     }
     const sec = e.target.closest("[data-cevap],[data-etki],[data-kapsam],[data-nezaman]");
     if (sec) {
       sec.parentElement.querySelectorAll(".cip").forEach(b => b.setAttribute("aria-pressed", b === sec));
-      if (sec.dataset.cevap) { const [kod, ...d] = sec.dataset.cevap.split("|"); F.cevaplar[kod] = d.join("|"); }
+      if (sec.dataset.cevap) { const [kod, ...d] = sec.dataset.cevap.split("|"); F.cevaplar[kod] = d.join("|"); ekipGuncelle(); }
       if (sec.dataset.etki) F.etki = sec.dataset.etki;
       if (sec.dataset.kapsam) F.kapsam = sec.dataset.kapsam;
       if (sec.dataset.nezaman) F.ne_zaman = sec.dataset.nezaman;
@@ -876,13 +897,25 @@ function riskListe(konular, dugmeler = true) {
     ${dugmeler && k.gecis ? `<button class="dugme kucuk ikincil" style="margin-top:.35rem" data-sayfa="degisim">Geçiş durumu</button> ` : ""}
     ${dugmeler && k.en_cok_cozen && k.seviye === "kirmizi" ? `<button class="dugme kucuk ikincil" style="margin-top:.35rem" data-sayfa="giderse" data-veri="${kac(k.en_cok_cozen.ad)}">${kac(k.en_cok_cozen.ad)} giderse?</button>` : ""}</div></li>`).join("")}</ul>`;
 }
+/* Tesislere göre yerinde kapsama: kişiye bağımlılığın tesis boyutu */
+function kapsamaKart(k) {
+  if (!k || k.tesisler.length < 2) return "";
+  const V = [["gunduz", "Gündüz"], ["aksam", "Akşam"], ["gece", "Gece"]];
+  const hucre = ad => ad.length ? kac(ad.join(", ")) + (ad.length === 1 ? " " + rozet("sari", "tek") : "") : rozet("kirmizi", "yok");
+  return `<details class="kart" ${k.tesisler.some(t => t.bos) ? "open" : ""}><summary><b>Tesislere göre yerinde kapsama</b> <span class="kucuk">· cihaz ve ağ arızasına yerinde kim bakıyor</span></summary>
+    <p class="kucuk">Program işleri (WMS, ERP, BT genel) uzaktan çözülür, tesisten bağımsızdır. Cihaz ve ağ işleri yerinde bakılır: bir vardiyada <b>yok</b> yazıyorsa o saatlerde arıza uzaktan yönlendirilir; <b>tek</b> yazıyorsa o kişi izindeyken aynı durum olur.</p>
+    ${k.tesisler.map(t => `<h4 style="margin:.7rem 0 .2rem">${kac(t.ad)} <span class="kucuk">· 90 günde ${t.yerinde_cagri_90} yerinde çağrı</span></h4>
+      <div class="tablo-sar"><table><thead><tr><th>Vardiya</th>${k.alanlar.map(a => `<th>${kac(a.ad)}</th>`).join("")}</tr></thead><tbody>
+      ${V.map(([v, ad]) => `<tr><td>${ad}</td>${k.alanlar.map(a => `<td>${hucre(t.hucreler[v + ":" + a.kod])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`).join("")}</details>`;
+}
 CIZ.risk = async () => {
-  const r = await api("risk");
+  const [r, kap] = await Promise.all([api("risk"), api("tesis-kapsama").catch(() => null)]);
   $("#ana").innerHTML = `
   <h2>Risk haritası</h2>
   <p class="alt">Hangi iş tek kişiye bağlı? Harita, son 90 günde işi gerçekte kimin çözdüğüne bakar; kâğıttaki yetkinliğe değil. En riskli işler en üstte; her satırdan doğrudan “o kişi yoksa ne olur” ya da eğitim planına geçebilirsin.</p>
   <div class="izgara"><div class="olcu"><b style="color:var(--kirmizi)">${r.ozet.kirmizi}</b><span>Yüksek</span></div><div class="olcu"><b style="color:var(--sari)">${r.ozet.sari}</b><span>Orta</span></div><div class="olcu"><b style="color:var(--yesil)">${r.ozet.yesil}</b><span>Düşük</span></div><div class="olcu"><b>${sy(r.ozet.ortalama)}</b><span>Ortalama puan</span></div></div>
   ${r.kaynaklar.filter(k => k.eski).map(k => `<div class="not uyari">${kac(k.kaynak)} ${k.gun} gündür güncellenmedi. Bu kaynağın konuları eksik veriyle hesaplanıyor; son haftaların çözümleri sayılmadığı için risk yapay olarak yüksek görünebilir. Dökümün güncelini içe aktarın.</div>`).join("")}
+  ${kapsamaKart(kap)}
   <div class="kart"><h3>En riskli işler</h3>
     <div id="rliste">${riskListe(r.konular.slice(0, 5))}</div>
     <p style="margin:.6rem 0 0"><button class="dugme kucuk ikincil" id="rhepsi">Bütün işler (${r.konular.length}) ve süzgeçler</button>

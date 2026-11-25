@@ -427,12 +427,20 @@ açılmış (ayrı tohum; `VERI_SURUMU` 4). Bilinen sınır: süreler takvim dak
 
 **Ana kategori ve tesis (kullanıcı isteği: "donanım, yazılım, ağ gibi kategoriler; birden fazla lokasyondan çağrı").**
 
-*Ana kategori* (`katalog.GRUPLAR`, `kategori.grup`): Cihaz, Ağ, Program, Hesap/şifre, Talep. Çağrı formunda
-**isteğe bağlı**: çalışan "terminal bağlanmıyor" sorununun cihazdan mı ağdan mı olduğunu çoğu zaman bilemez;
-zorunlu olsaydı yanlış seçer, model de yanlışa kilitlenirdi. Seçilirse tahmin o gruptaki konulara daralır
-ama **olasılıklar yeniden ölçeklenmez**: "Sistem hata veriyor" + Cihaz hâlâ belirsizdir (%37) ve sistem
-sorar; ölçeklenseydi %77'ye şişip sahte kesinlik üretirdi (test bunu yakaladı). Grupta tek konu varsa
-(Ağ) sorulacak bir şey yoktur, o konu seçilir.
+*Çağrı alanı* (kullanıcının düzeltmesiyle): ilk sürümde konuları "Cihaz, Ağ, Program…" diye grupladım; kullanıcı
+katılmadı: "terminal donuyorsa sistemsel, açılmıyorsa donanımsal; WMS ve ERP için ayrı alanlar olup ilgili kişilere
+düşsün, donanıma bakan yalnız donanım çağrılarını halletsin." Doğru olan konuya göre değil **işe hangi ekip
+bakar**a göre ayırmaktı. Yeni yapı:
+- Alanlar ve ekipleri (`katalog.ALANLAR`, `kisi_alan` tablosu): Donanım, Ağ, WMS, ERP ve raporlama, BT genel.
+  Bir kişi birden çok alanda olabilir. Atama alan verildiğinde birime değil o alanın ekibine bakar.
+- **Alan belirtiden belirlenir** (`cagri_formu.alan_bul`, `katalog.BELIRTI_ALANI`): el terminalinde "Açılmıyor,
+  Şarj olmuyor, Ekran kırık" → Donanım; "Ekran donuyor, Oturum açılmıyor" → WMS; "Ağa bağlanmıyor" → Ağ.
+  Sıra: belirti cevabı > kişinin seçtiği alan > konunun varsayılan alanı. Belirti öne geçer, çünkü çalışan
+  alanı yanlış tahmin edebilir; ekran bunu açıkça yazar ("WMS · cevabına göre (seçtiğin Donanım yerine)").
+- Formda alan isteğe bağlı seçilir ve tahmini daraltır (o alana düşebilecek konular, ör. WMS = dalga, adres,
+  stok + terminal donması); olasılıklar **yeniden ölçeklenmez** (sahte kesinlik yok). İkinci aşamada
+  "Gideceği ekip" satırı cevaplarla canlı değişir, atama önizlemesi de onunla.
+- Çağrı alanı kaydedilir (`cagri.alan`); yerinde atama ve tesis kapsaması alana göre (Donanım, Ağ).
 
 *Tesis* (`lokasyon` tablosu; kişi, çağrı ve cihaz bir tesise bağlı). Tesis, tesisin içindeki **yer**den
 (koridor, rampa) ayrı bir katmandır. Demo: Gebze Merkez, Tuzla Aktarma, İzmir Bölge; Tuzla'da Onur (akşam),
@@ -442,8 +450,10 @@ sorar; ölçeklenseydi %77'ye şişip sahte kesinlik üretirdi (test bunu yakala
   vardiyasında); uzaktan yönlendirildi"). Program ve hesap işleri uzaktan çözülür, tesis atamayı değiştirmez.
 - **Toplu arıza ve "zaten bildirildi"** tesis bazında: Gebze'deki Wi-Fi arızasıyla İzmir'deki ayrı olaydır.
 - Form tesisi tarayıcıda hatırlar; cihaz numarası başka tesiste kayıtlıysa tesis cihaza göre değişir.
-- Kuyruk ve Ölçüler tesise göre süzülür; Ölçüler'de "Tesisler" kartı yerinde bakan kişiyi gösterir
-  ("Tek kişi" uyarısı). Bugün: "Yerinde BT olmayan vardiyalar: Tuzla (gündüz, gece); İzmir (gündüz, akşam)".
+- Kuyruk ve Ölçüler tesise göre süzülür; Ölçüler'de "Tesisler" kartı yerinde bakan kişiyi gösterir.
+- **Riskler → Tesislere göre yerinde kapsama** (`olcum.tesis_kapsama`): her tesiste her vardiyada Donanım ve Ağ
+  için yerinde kim var; "yok" kırmızı, "tek" sarı. Demo: Gebze gece, Tuzla gündüz ve gece, İzmir gündüz ve akşam
+  yok. Bugün: "Yerinde donanım ekibi olmayan vardiyalar: …".
   Bu, kişiye bağımlılığın tesis boyutu: Emanet'in risk sorusu "bu tesiste o kişi yoksa ne olur?"a genişler.
 - Envanter CSV'sinde `tesis` sütunu; listede olmayan tesis eklenir. MCP `cagri_ac` `tesis` parametresi.
 
@@ -716,3 +726,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Ölçüler ekranı: kapanma süresi (ortanca, %90, bilgi beklemesi düşülmüş), kişi başı iş yükü ve konuya göre hız, ilk seferde çözme, haftalık akış, konulara göre; MCP `cagri_olculeri`; 133 test |
 | 25 Kasım 2026 | Süre dörde ayrıldı (çalışma, vardiya beklemesi, bilgi, depo kapalı; 6 gün 3 vardiya); ilk tepki; kullanıcının girdiği öncelik hedefleri ve aşım; konu bazında vardiya beklemesi ve Bugün uyarısı; demo pazar kapalı (gürültü ölçütü %78,9, geçiyor); 136 test |
 | 25 Kasım 2026 | Ana kategoriler (isteğe bağlı, olasılık şişirmeden daraltır); tesisler: yerinde atama, tesis bazında toplu arıza ve 'zaten bildirildi', kuyruk ve ölçüler süzgeci, Tesisler kartı, yerinde BT olmayan vardiyalar uyarısı, envanterde tesis; 141 test |
+| 25 Kasım 2026 | Kullanıcı düzeltmesi: gruplar yerine çağrı alanları ve ekipleri (Donanım, Ağ, WMS, ERP, BT genel); alan belirtiden (terminal donuyor → WMS, açılmıyor → donanım); Riskler'de tesis kapsama tablosu; 143 test |

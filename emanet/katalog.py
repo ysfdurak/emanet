@@ -57,18 +57,34 @@ LOKASYONLAR = ["Gebze Merkez Depo", "Tuzla Aktarma Deposu", "İzmir Bölge Depos
 # Merkez dışındaki tesislerde yerinde çalışan BT personeli; diğer herkes merkezde
 KISI_LOKASYON = {"Onur Yıldız": "Tuzla Aktarma Deposu", "Gizem Arslan": "İzmir Bölge Deposu"}
 
-# Ana kategoriler: çalışanın gözünden "ne ile ilgili?". Çağrı açarken isteğe bağlıdır (çalışan terminal
-# sorununun cihazdan mı ağdan mı olduğunu çoğu zaman bilemez); seçilirse konu tahminini daraltır.
-GRUPLAR = {"donanim": "Cihaz (terminal, yazıcı, bilgisayar, okuyucu)", "ag": "Ağ ve bağlantı",
-           "program": "Program ve sistem (WMS, ERP, e-posta, rapor)", "hesap": "Hesap, şifre, yetki",
-           "talep": "Talep (kurulum, yeni bir şey isteme)"}
-GRUP_KISA = {"donanim": "Cihaz", "ag": "Ağ", "program": "Program", "hesap": "Hesap, şifre", "talep": "Talep"}
-KONU_GRUBU = {"EL_TERMINALI": "donanim", "ETIKET_YAZICI": "donanim", "BILGISAYAR": "donanim", "BARKOD": "donanim",
-              "WIFI": "ag", "EPOSTA": "program", "ADRES_HATASI": "program", "STOK_FARKI": "program",
-              "DALGA": "program", "ENTEGRASYON": "program", "RAPOR": "program", "SIFRE_HESAP": "hesap",
-              "YETKI_TALEBI": "talep", "YAZILIM_KURULUM": "talep"}
-# Yerinde müdahale isteyen gruplar: atama önce o tesisteki kişiye bakar
-YERINDE_GRUPLAR = {"donanim", "ag"}
+# Çağrı alanları: işe hangi ekip bakar. Alan konudan değil belirtiden belirlenir: terminal donuyorsa WMS ekibi,
+# açılmıyorsa donanım ekibi. Kişi formda alanı seçebilir; belirti cevabı seçimin önüne geçer (daha güvenilir).
+ALANLAR = {"donanim": ("Donanım", "cihaz açılmıyor, kırık, şarj, kâğıt ve ribon"),
+           "ag": ("Ağ", "Wi-Fi, bağlantı kopması"),
+           "wms": ("WMS", "dalga, adres, stok; terminal ekranı donuyor, oturum"),
+           "erp": ("ERP ve raporlama", "aktarım, entegrasyon, rapor"),
+           "bt": ("BT genel", "hesap, şifre, e-posta, kurulum, yetki")}
+KONU_ALANI = {"EL_TERMINALI": "donanim", "ETIKET_YAZICI": "donanim", "BILGISAYAR": "donanim", "BARKOD": "donanim",
+              "WIFI": "ag", "ADRES_HATASI": "wms", "STOK_FARKI": "wms", "DALGA": "wms",
+              "ENTEGRASYON": "erp", "RAPOR": "erp",
+              "EPOSTA": "bt", "SIFRE_HESAP": "bt", "YETKI_TALEBI": "bt", "YAZILIM_KURULUM": "bt"}
+# Belirti → alan (formdaki "Ne oluyor?" cevabı). Konunun varsayılan alanını değiştirir.
+BELIRTI_ALANI = {
+    "EL_TERMINALI": {"belirti": {"Açılmıyor": "donanim", "Şarj olmuyor": "donanim",
+                                 "Ekran kırık ya da dokunmatik çalışmıyor": "donanim",
+                                 "Ekran donuyor ya da uygulama kapanıyor": "wms", "Oturum açılmıyor": "wms",
+                                 "Ağa bağlanmıyor": "ag"}},
+    "BARKOD": {"belirti": {"Tek üründe": "wms", "Bütün ürünlerde": "donanim", "Yalnız bir cihazda": "donanim"}},
+    "BILGISAYAR": {"belirti": {"Çok yavaş": "bt"}},
+}
+# Hangi ekip hangi alana bakar (demo). Bir kişi birden çok alanda olabilir.
+ALAN_UYELERI = {"donanim": ["Deniz Aksoy", "Burak Şahin", "Selin Koç", "Onur Yıldız", "Gizem Arslan"],
+                "ag": ["Tolga Demir", "Burak Şahin", "Selin Koç"],
+                "wms": ["Elif Kaya", "Derya Güneş", "Zeynep Aydın", "Hakan Polat"],
+                "erp": ["Murat Özkan", "Emre Çelik"],
+                "bt": ["Deniz Aksoy", "Burak Şahin", "Tolga Demir", "Selin Koç", "Onur Yıldız", "Gizem Arslan"]}
+# Yerinde müdahale isteyen alanlar: atama önce o tesisteki kişiye bakar
+YERINDE_ALANLAR = {"donanim", "ag"}
 
 # Cihaz envanteri (demo). Gerçekte demirbaş/envanter sisteminden gelir; yerel kurulumda boştur ve
 # formda model sorulur. Numara cihazın üstündeki etikettir; tekrarlayan arıza bu numarayla izlenir.
