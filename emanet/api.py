@@ -588,6 +588,22 @@ def olcumler(gun: int = Query(30, ge=7, le=180)):
         return olcum.cagri_olculeri(con, gun)
 
 
+class HedefIstek(BaseModel):
+    aciliyet: int = Field(ge=1, le=3)
+    tepki_dk: int | None = Field(None, ge=5, le=20160)
+    cozum_dk: int | None = Field(None, ge=5, le=20160)
+
+
+@api.post("/api/olcumler/hedef")
+def olcum_hedef(i: HedefIstek):
+    """Öncelik hedefi (ilk tepki ve çözüm, hizmet süresiyle). İkisi de boşsa o önceliğin hedefi kalkar."""
+    with KILIT:
+        try:
+            return olcum.hedef_kaydet(con, i.aciliyet, i.tepki_dk, i.cozum_dk)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
 @api.get("/api/cihazlar/tekrarlayan")
 def cihazlar_tekrarlayan():
     with KILIT:

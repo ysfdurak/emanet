@@ -413,6 +413,7 @@ Sorular:
 46. Çağrının neden iki durumu var (durum ve asama)? "Çözüldü" hangi tarafta sayılıyor?
 47. Envanterde olmayan bir numara gelince sistem onu neden kendisi eklemiyor?
 48. Kişilerin çözüm süresini neden doğrudan karşılaştırmıyorsun, "konuya göre" ne demek?
+49. Gece 02:00'de açılan ERP çağrısı gündüzcü Murat'a gidip 09:00'da kapandı. Süre kime yazılır?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -587,3 +588,6 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
 48. Konular doğal olarak farklı sürer (ERP saatler, şifre dakikalar). Ham süreyle zor işleri alan kişi yavaş
     görünür ve kimse zor işi almak istemez. Her çağrının süresi o konunun ortancasına bölünür; kişinin bu
     oranların ortancası 1,0 ise konunun tipik hızındadır. Kişiler ada göre sıralı: amaç yük dengesi.
+49. 02:00-08:00 arası vardiya beklemesi: Murat'ın değil kapsamanın süresi, ERP konusuna yazılır ("bu konu ayda
+    kaç saat bilen birini bekledi"). 08:00-09:00 çalışma: Murat'ın süresi. Açanın gözünden hizmet süresi 7 saat;
+    öncelik hedefi bununla ölçülür. Çözüm Murat'ı hızlandırmak değil, gece vardiyasına ERP bilen yetiştirmek.

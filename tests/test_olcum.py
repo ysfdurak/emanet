@@ -44,3 +44,33 @@ def test_bilgi_beklemesi_cozene_yazilmaz(con):
 def test_donem_sinirlari(con):
     assert olcum.cagri_olculeri(con, 1)["ozet"]["gun"] == 7
     assert olcum.cagri_olculeri(con, 999)["ozet"]["gun"] == 180
+
+
+def test_parcala_vardiya_pazar_bilgi():
+    # Cumartesi 22:00 açıldı, pazartesi 09:00 kapandı; çözen gündüzcü
+    p = olcum.parcala(datetime(2026, 11, 21, 22), datetime(2026, 11, 23, 9), "gunduz")
+    assert p == dict(calisma=60, bekleme=600, bilgi=0, kapali=1440)
+    # Gündüzcü 10:00-12:00 arası; 30 dk açandan bilgi beklendi; izinliyse hepsi vardiya beklemesi
+    b = [(datetime(2026, 11, 24, 10, 30), datetime(2026, 11, 24, 11))]
+    assert olcum.parcala(datetime(2026, 11, 24, 10), datetime(2026, 11, 24, 12), "gunduz", bilgi=b)["calisma"] == 90
+    izinli = olcum.parcala(datetime(2026, 11, 24, 10), datetime(2026, 11, 24, 12), "gunduz", {datetime(2026, 11, 24).date()})
+    assert izinli["calisma"] == 0 and izinli["bekleme"] == 120
+
+
+def test_hedef_ve_asim(con):
+    with pytest.raises(ValueError):
+        olcum.hedef_kaydet(con, 3, 1, None)
+    olcum.hedef_kaydet(con, 3, 30, 240)
+    z = olcum.cagri_olculeri(con, 30)["ozet"]
+    assert z["hedefler"]["3"]["cozum_dk"] == 240 and z["hedef_asimi"]["cozum"] >= 0
+    olcum.hedef_kaydet(con, 3, None, None)                 # ikisi de boş: hedef kalkar
+    assert olcum.hedefler(con) == {}
+
+
+def test_vardiya_boslugu_tek_kisilik_konuda(con):
+    """Bilen tek kişi gündüzcü olan konular vardiya beklemesinde öne çıkar; pazar çağrı yok."""
+    v = olcum.vardiya_boslugu(con)
+    assert v and v["ad"] in ("Sipariş dalgası açılmıyor", "ERP entegrasyon hatası")
+    assert con.execute("SELECT COUNT(*) FROM cagri WHERE kaynak='usta' AND strftime('%w', acilis)='0' "
+                       "AND date(acilis)<date('now', 'localtime')").fetchone()[0] == 0
+    assert olcum.cagri_olculeri(con, 30)["ozet"]["tepki_ortanca_dk"] is not None

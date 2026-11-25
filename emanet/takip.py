@@ -415,6 +415,10 @@ def otomasyon_firsatlari(con: sqlite3.Connection, simdi: datetime | None = None)
 
 # ---------------------------------------------------------------- dikkat listesi
 
+def sayi_tr(x: float) -> str:
+    return f"{x:g}".replace(".", ",")
+
+
 def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]:
     """Yöneticinin bugün bakması gerekenler, önem sırasıyla. Her madde: seviye (kirmizi|sari|mavi),
     metin, gidilecek sayfa ve sayfaya verilecek değer."""
@@ -462,6 +466,12 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
                           f"{ilk['cagri']} kez arızalandı" + (f"; {len(tekrar) - 1} cihaz daha tekrar tekrar arızalanıyor ("
                           + ", ".join(f"{c['no']} {c['cagri']}" for c in tekrar[1:4]) + ")" if len(tekrar) > 1 else "")
                           + ". Tekrar onarmak yerine değişim ya da bakım konuşulmalı."), sayfa="cihaz", veri=ilk["no"]))
+    from .olcum import vardiya_boslugu
+    vb = vardiya_boslugu(con, simdi)
+    if vb:
+        liste.append(dict(seviye="sari", metin=f"Son 30 günde {vb['ad']} çağrıları toplam {sayi_tr(vb['bekleme_saat'])} saat "
+                          f"bilen birinin vardiyasını bekledi (çağrı başına {sayi_tr(round(vb['bekleme_cagri_basi_dk'] / 60, 1))} saat). "
+                          "Başka vardiyada bu işi bilen yetiştirin.", sayfa="plan"))
     tk = risk.tek_kisiye_kalanlar(con, 7, simdi)
     yedeksiz = [k for k in tk["konular"] if k["durum"] == "yedeksiz"]
     tek = [k for k in tk["konular"] if k["durum"] == "tek kişi" and k["kritiklik"] == 3]

@@ -409,6 +409,19 @@ Alan uzmanı kararları:
   (Depoda rekabet temelli uygulamaların tutmadığı geri bildirimiyle de uyumlu.)
 - **Net süre:** "Bilgi bekleniyor"da geçen süre (top açandayken) çözenin süresinden düşülür.
 
+**Süre nereye gitti (kullanıcıyla kararlaştırıldı: 6 gün, 3 vardiya, pazar kapalı).** Toplam süre dörde
+ayrılır (`olcum.parcala`): **çalışma** (çözenin vardiyasında ve izinde değilken), **vardiya beklemesi**
+(çözen vardiyada ya da işte değilken), **bilgi bekleme** (top açanda), **depo kapalı** (pazar).
+- Kişi ölçüleri (ortanca, konuya göre hız) yalnız çalışma süresiyle. Vardiya beklemesi kişinin değil
+  kapsamanın süresi: konu bazında toplanır. Demoda en çok Sipariş dalgası (≈36 saat/30 gün) ve ERP bekliyor;
+  ikisi de risk haritasında tek kişiye bağlı konular. Yani risk puanının saatle ölçülmüş kanıtı. Bugün
+  sayfası 8 saati geçen konuyu "başka vardiyada bilen yetiştirin" diye uyarır, eğitim planına bağlanır.
+- **İlk tepki:** atanmadan "İşleme al"a kadar geçen hizmet süresi (çalışma + vardiya beklemesi).
+- **Öncelik hedefleri** kullanıcıdan gelir (ilk tepki dk, çözüm saat; `meta.oncelik_hedefleri`); girilmeyen
+  öncelikte hedef yok. Hedefler açanın gözünden ölçülür: çalışma + vardiya beklemesi (bilgi ve pazar hariç).
+  Ekran dönemde aşanları ve şu an hedefi geçmiş açık çağrıları sayar.
+- Pazar kaydırması yalnız geçmiş günlere uygulanır; sıfırlama pazar çalışırsa bugünün çağrıları geleceğe kaymaz.
+
 Demo verisi: geçmiş çağrıların %82'sinde açan onaylamış; kişi başına %1-8 çağrı ilk çözümden sonra yeniden
 açılmış (ayrı tohum; `VERI_SURUMU` 4). Bilinen sınır: süreler takvim dakikasıdır, vardiya dışı saatler düşülmez.
 
@@ -506,12 +519,17 @@ Yanlış etiket yalnız eğitime konuldu, test etiketleri doğru: "kirli geçmi�
 
 | Senaryo | Konu | Kişi 1. sırada | Kişi ilk 3 |
 | --- | --- | --- | --- |
-| Temiz | %90,6 | %63,3 | %92,2 |
-| Yazım hatası %40 | %91,1 | %61,1 | %92,2 |
-| Kısa metin %30 | %87,2 | %61,7 | %93,9 |
-| Yanlış etiket %15 | %86,1 | %62,8 | %94,4 |
-| **Hepsi birlikte (ölçüt)** | **%80,6** | %59,4 | **%88,9** |
-| Sert (etiket %25, yarısı kısa) | %70,6 | %47,8 | %89,4 |
+| Temiz | %90,6 | %63,9 | %92,2 |
+| Yazım hatası %40 | %90,6 | %63,3 | %90,6 |
+| Kısa metin %30 | %86,1 | %60,6 | %93,3 |
+| Yanlış etiket %15 | %85,6 | %63,9 | %93,3 |
+| **Hepsi birlikte (ölçüt)** | **%78,9** | %57,8 | **%91,1** |
+| Sert (etiket %25, yarısı kısa) | %65,0 | %50,6 | %87,8 |
+
+*25 Kasım güncellemesi:* demo verisinde pazara düşen çağrılar pazartesiye alındı (depo 6 gün). Zamana göre
+ayrılan test kümesi değiştiği için ölçüt satırı %80,6 → %78,9 (konu) ve %88,9 → %91,1 (kişi ilk 3) oldu;
+ölçüt hâlâ geçiyor. Ders: zamana göre ayrılmış testte veriyi kaydırmak sonucu birkaç puan oynatır; eşiğe
+çok yakın bir ölçüt bu yüzden kırılgandır.
 
 Karşılaştırma tabanı: rastgele 3 kişi %50, "konuda en çok çözen 3 kişi" kuralı %69. Yani ilk 3'teki
 %89 birimlerin küçük olmasından gelen bir kolaylık değil; model kuraldan 20 puan önde.
@@ -674,3 +692,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Yazıcı ve terminal numarası gerekli; envanterden model ve yer; cihaz geçmişi ve tekrarlayan arıza uyarısı; MCP `cihaz_gecmisi`; 127 test |
 | 25 Kasım 2026 | Cihaz envanteri tabloda (CSV içe aktarma, tam liste, envanterde olmayan numaralar, modele göre arıza); çağrı durumları (Atandı, İşlemde, Bilgi bekleniyor, Çözüldü, Kapalı; soru, cevap ve onayla kendiliğinden); MCP `cagri_islem`; 130 test |
 | 25 Kasım 2026 | Ölçüler ekranı: kapanma süresi (ortanca, %90, bilgi beklemesi düşülmüş), kişi başı iş yükü ve konuya göre hız, ilk seferde çözme, haftalık akış, konulara göre; MCP `cagri_olculeri`; 133 test |
+| 25 Kasım 2026 | Süre dörde ayrıldı (çalışma, vardiya beklemesi, bilgi, depo kapalı; 6 gün 3 vardiya); ilk tepki; kullanıcının girdiği öncelik hedefleri ve aşım; konu bazında vardiya beklemesi ve Bugün uyarısı; demo pazar kapalı (gürültü ölçütü %78,9, geçiyor); 136 test |

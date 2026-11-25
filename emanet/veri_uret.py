@@ -34,8 +34,9 @@ from . import katalog as K
 from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
-# (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi)
-VERI_SURUMU = 4
+# (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi,
+#  5: pazar kapalı, ilk tepki kayıtları)
+VERI_SURUMU = 5
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -157,13 +158,45 @@ def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
             con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (rnd.choices(aday, weights=agirlik)[0], c["id"]))
 
 
+def _pazari_kaydir(con: sqlite3.Connection, bugun: date) -> None:
+    """Depo pazar kapalı (6 gün, 3 vardiya): pazara düşen geçmiş çağrılar aynı saatte pazartesiye alınır.
+    Üretimden sonra kaydırılır ki diğer verinin rastgele sırası (ve ona göre kurulmuş senaryolar) değişmesin."""
+    gun = "+1 day"
+    # Yalnız geçmiş günler: sıfırlama pazar günü çalışırsa bugünün açık çağrıları geleceğe kaymasın
+    ids = [r[0] for r in con.execute("SELECT id FROM cagri WHERE kaynak='usta' AND strftime('%w', acilis)='0' AND date(acilis)<?",
+                                     (bugun.isoformat(),))]
+    for i in ids:
+        con.execute("UPDATE cagri SET acilis=strftime('%Y-%m-%dT%H:%M', acilis, ?), "
+                    "kapanis=CASE WHEN kapanis IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M', kapanis, ?) END WHERE id=?",
+                    (gun, gun, i))
+        con.execute("UPDATE cagri_olay SET zaman=strftime('%Y-%m-%dT%H:%M', zaman, ?) WHERE cagri_id=?", (gun, i))
+    # Cumartesi açılıp pazara sarkan çağrı pazar çözülmez, pazartesi çözülür (süreye kapalı gün eklenir)
+    for r in con.execute("SELECT id FROM cagri WHERE kaynak='usta' AND kapanis IS NOT NULL AND strftime('%w', kapanis)='0' "
+                         "AND date(kapanis)<?", (bugun.isoformat(),)).fetchall():
+        con.execute("UPDATE cagri SET kapanis=strftime('%Y-%m-%dT%H:%M', kapanis, '+1 day'), sure_dk=sure_dk+1440 WHERE id=?", (r[0],))
+        con.execute("UPDATE cagri_olay SET zaman=strftime('%Y-%m-%dT%H:%M', zaman, '+1 day') WHERE cagri_id=? AND tur='kapandi'", (r[0],))
+
+
 def _kalite_gecmisi(con: sqlite3.Connection, tohum: int) -> None:
     """Geçmiş çağrılara kapanış onayı ve "ilk seferde çözülmedi" izi (ölçüler ekranı için). Ayrı tohum.
     Açanların çoğu onaylar, bir kısmı cevap vermez; kişi başına %1-8 çağrı ilk çözümden sonra yeniden açılmıştır."""
     rnd = random.Random(tohum + 11)
     oran = {}
-    for c in con.execute("SELECT id, acilis, sure_dk, cozen_kisi_id, acan_kisi FROM cagri "
+    vardiya = {r["id"]: r["vardiya"] for r in con.execute("SELECT id, vardiya FROM kisi")}
+    for c in con.execute("SELECT id, acilis, kapanis, sure_dk, cozen_kisi_id, acan_kisi FROM cagri "
                          "WHERE kaynak='usta' AND durum='kapali' ORDER BY id").fetchall():
+        # İlk tepki: çözen kendi vardiyasında (pazar değil) birkaç dakika içinde işleme alır
+        if rnd.random() < 0.8 and c["kapanis"]:
+            b0, b1 = VARDIYA_SAAT[vardiya.get(c["cozen_kisi_id"], "gunduz")]
+            t = datetime.fromisoformat(c["acilis"]) + timedelta(minutes=rnd.randint(3, 20))
+            for _ in range(9):
+                if b0 <= t.hour < b1 and t.weekday() != 6:
+                    break
+                ertesi = t.replace(hour=b0, minute=0) + (timedelta(days=1) if t.hour >= b0 else timedelta())
+                t = ertesi + timedelta(minutes=rnd.randint(3, 15))
+            if t < datetime.fromisoformat(c["kapanis"]):
+                con.execute("INSERT INTO cagri_olay(cagri_id,zaman,tur,kisi_id,aciklama) VALUES(?,?,?,?,?)",
+                            (c["id"], t.isoformat(timespec="minutes"), "durum", c["cozen_kisi_id"], "Atandı → İşlemde"))
         k = c["cozen_kisi_id"]
         if k not in oran:
             oran[k] = rnd.uniform(0.01, 0.08)
@@ -293,6 +326,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         olay(cid, acilis, "acildi")
         olay(cid, acilis, "atandi", kisi_id[atanan])
     _cihaz_ata(con, bugun, tohum)
+    _pazari_kaydir(con, bugun)
     _kalite_gecmisi(con, tohum)
     # Durumlar: açık çağrıların bir kısmına başlanmış, birinde açana soru sorulmuş (cevap bekleniyor)
     acik = con.execute("SELECT id, acilis, atanan_kisi_id, acan_kisi FROM cagri WHERE durum='acik' ORDER BY id").fetchall()

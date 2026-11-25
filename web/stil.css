@@ -177,3 +177,9 @@ dl.ek dd{margin:0}
 @media (max-width:640px){.mobil{display:block}.masaustu{display:none}}
 .akis-satir>div{overflow:hidden}
 
+/* Süre nereye gitti: yığılmış çubuk */
+.yigin{display:flex;height:.9rem;border-radius:4px;overflow:hidden;gap:2px;margin:.4rem 0}
+.yigin span{display:block;height:100%}
+.y-calisma{background:var(--vurgu)}.y-bekleme{background:#c98a2b}.y-bilgi{background:#8aa3b8}.y-kapali{background:#c9c5ba}
+.lejant{list-style:none;padding:0;margin:.3rem 0;display:flex;flex-wrap:wrap;gap:.3rem 1rem;font-size:.85rem}
+.lejant .nokta{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
