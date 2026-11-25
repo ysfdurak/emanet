@@ -22,8 +22,14 @@ yeniden yükler. Tekrar çalıştırmak güvenlidir (güncelleme de budur).
 - https://emanet.ysfdurak.com açılıyor; tarayıcı konsolunda CSP uyarısı yok.
 - `curl -sI https://emanet.ysfdurak.com | grep -i content-security` başlığı gösteriyor.
 - İki ayrı tarayıcıda çağrı aç: biri ötekinin çağrısını görmemeli (ziyaretçi demosu).
-- Claude'da özel bağlayıcı: `https://emanet.ysfdurak.com/mcp/<anahtar>` (anahtar `~/emanet/.env`
-  içindeki `EMANET_MCP_ANAHTARLARI`). Anahtarsız `/mcp` 401 döner.
+- Claude'da özel bağlayıcı (Ayarlar → Bağdaştırıcılar → Ekle → Özel bağdaştırıcı ekle):
+  - URL: `https://emanet.ysfdurak.com/mcp` (sonuna anahtar **ekleme**)
+  - Kimlik doğrulama: "Oturum açma yok"
+  - İstek başlıkları → Başlık ekle: ad `Authorization`, değer `Bearer <anahtar>`
+  Anahtar: `grep EMANET_MCP ~/emanet/.env`. Ekran görüntüsünü alma; görünürse yenile:
+  `sed -i "s|^EMANET_MCP_ANAHTARLARI=.*|EMANET_MCP_ANAHTARLARI=$(openssl rand -hex 32)|" ~/emanet/.env`
+  ve kurulum betiğini yeniden çalıştır. Anahtarsız `/mcp` 401 döner.
+  (`/mcp/<anahtar>` biçimi de çalışır ama anahtar adreste, yani ekranda ve kayıtlarda görünür.)
 
 ## Notlar
 - Veri SQLite'tır (`emanet_veri` birimi: `/veri/emanet.db` ve `/veri/ziyaretci/`). Demo her gece

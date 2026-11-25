@@ -11,9 +11,9 @@
 | --- | --- |
 | **Ne** | Sistemsel destek çağrılarını geçmişten öğrenerek doğru kişiye yönlendiren (Usta) ve bu çağrılardan "kim giderse ne kırılır" haritası çıkaran (Emanet) uygulama |
 | **Kimin için** | Depo/BT destek ekibi yöneticisi, İK ve eğitim birimi |
-| **Canlı adres** | https://emanet.ysfdurak.com **[doğrulanacak: henüz kurulmadı]** |
-| **Depo** | github.com/ysfdurak/emanet **[doğrulanacak: depo henüz açılmadı]** |
-| **Durum** | Pilot. Kod ve testler tamam (83 test), güvenlik taraması temiz; yayın deponun açılmasını bekliyor |
+| **Canlı adres** | https://emanet.ysfdurak.com (25 Kasım 2026'da yayında) |
+| **Depo** | https://github.com/ysfdurak/emanet (herkese açık; CI: testler + pip-audit) |
+| **Durum** | Pilot, yayında. 83 test, güvenlik taraması temiz; MCP Claude'a bağlı |
 | **Teknoloji** | Python 3.13, FastAPI, scikit-learn, SQLite, MCP, Docker |
 | **Lisans** | PolyForm Shield 1.0.0 |
 
@@ -40,7 +40,7 @@ bu bağımlılığı göstermez.
 ```mermaid
 flowchart LR
   T[Tarayıcı<br/>index.html + app.js] -->|/api, çerez| D
-  C[Claude<br/>MCP bağlayıcı] -->|/mcp/anahtar| D
+  C[Claude<br/>MCP bağlayıcı] -->|/mcp + Bearer anahtar| D
   subgraph D[api.py dış kat]
     G[gerçek IP · gövde/hız sınırı · Origin · MCP anahtarı · başlıklar/CSP]
     Z{ziyaretçi seçimi}
@@ -120,10 +120,24 @@ güvenliği, MCP). CI'da aynı testler ve `pip-audit`.
 | Anahtarsız `/mcp` | 401 | 401 | ✅ |
 | Başka siteden POST (Origin) | 403 | 403 | ✅ |
 | `tara.py --audit` (#54 sürümü) | Temiz | Temiz | ✅ |
-| Canlı adreste başlıklar | CSP, HSTS, nosniff | **[doğrulanacak: yayından sonra]** | ⏳ |
+| Sunucuda bellek (`docker stats`, boşta) | < 500 MB | 120,9 MiB / 768 MiB, CPU %0,28 | ✅ |
+| Claude özel bağlayıcı (başlıkta anahtar) | Araç çağrılır, veri gelir | "En riskli konu" → ERP entegrasyon hatası, 100 puan | ✅ |
+| Canlı adreste başlıklar | CSP, HSTS, nosniff | **[doğrulanacak: `curl -sI` çıktısı bekleniyor]** | ⏳ |
+| İki telefon aynı anda | Biri ötekinin çağrısını görmez | **[doğrulanacak]** | ⏳ |
 
-**Burada bir test daha yapalım (yayından sonra):** iki gerçek telefonda aynı anda çağrı açıp
-kapatmak; sunucuda `docker stats emanet` ile bellek (beklenen < 500 MB) ve `ls /veri/ziyaretci | wc -l`.
+**Burada bir test daha yapalım:** boştaki 121 MiB, modeller henüz eğitilmeden ölçüldü. Birkaç
+ziyaretçi gezdikten sonra `docker stats emanet --no-stream` bir kez daha bakılmalı (250–350 MB
+normal; 768 MB sınırına yaklaşırsa model önbelleği 6'dan 3'e indirilir).
+
+**Ders (yayın günü):** MCP anahtarı ilk denemede bağlayıcı adresine yazılıp ekran görüntüsüyle
+paylaşıldı; anahtar hemen yenilendi. Doğrusu: adres `https://emanet.ysfdurak.com/mcp`, anahtar
+**İstek başlıkları** bölümünde `Authorization: Bearer <anahtar>`. Başlık değeri Claude'da şifreli
+saklanır ve bir daha gösterilmez; adres ise ekranda, kayıtlarda ve ekran görüntülerinde görünür.
+Anahtar yenileme:
+```bash
+cd ~/emanet && sed -i "s|^EMANET_MCP_ANAHTARLARI=.*|EMANET_MCP_ANAHTARLARI=$(openssl rand -hex 32)|" .env
+bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh
+```
 
 ## 8. Bilinen sınırlar ve sonraki adımlar
 
@@ -186,3 +200,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 15 Kasım 2026 | Kapsam belgesi: Emanet + Usta tek proje |
 | 16 Kasım 2026 | İlk sürüm; makine öğrenmesi; altı otomasyon; Emanet'e altı ekleme; değişimler ve denetim; kişi modeline kalite ağırlığı ve paylaştırma; yerel kurulum |
 | 24 Kasım 2026 | Güvenlik temeli: PolyForm Shield, ziyaretçi başına veri kopyası, CSP (sayfa üç dosyaya ayrıldı), Origin denetimi, gövde ve hız sınırları, gerçek IP, `/docs` kapalı, anahtarlı MCP, CSV formül enjeksiyonu, öznitelik kaçışı, sabit ve özetli bağımlılıklar, Python servis şablonuna uygun Docker/compose, CI ve dependabot; ysfdurak.com PR #55; bu doküman |
+| 25 Kasım 2026 | Depo açıldı ve gönderildi; dependabot: Python imajında yalnız yama sürümleri, pytest 9.2; VPS'e kuruldu; Claude bağlayıcısı başlıkta anahtarla bağlandı; MCP anahtarı yenilendi (bkz. Testler: Ders) |

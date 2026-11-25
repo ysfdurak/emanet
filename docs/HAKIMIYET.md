@@ -429,7 +429,7 @@ protokol. Dosyadaki her `@arac` bir araç; fonksiyonun açıklama metni Claude'u
 kullanacağını anlamasını sağlar. Araçlar web ile aynı çekirdek fonksiyonlarını çağırır.
 
 Araçların bir kısmı veri değiştirdiği için (çağrı açma, kapatma, geçiş kaydı) `/mcp` anahtar ister:
-`Authorization: Bearer <anahtar>` ya da Claude'un özel bağlayıcısı için adres `…/mcp/<anahtar>`.
+`Authorization: Bearer <anahtar>` (Claude'un özel bağlayıcısında "İstek başlıkları" bölümü; önerilen). `…/mcp/<anahtar>` da kabul edilir ama anahtar adreste görünür, ekran görüntüsüyle sızabilir.
 Anahtar bellekte yalnız SHA-256 özeti olarak durur ve `hmac.compare_digest` ile sabit sürede
 karşılaştırılır (karşılaştırma süresinden anahtar tahmin edilemesin). MCP ortak demo verisiyle
 çalışır, ziyaretçi kopyalarını görmez.
