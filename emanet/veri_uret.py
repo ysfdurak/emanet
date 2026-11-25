@@ -34,8 +34,8 @@ from . import katalog as K
 from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
-# (2: cihaz numaraları)
-VERI_SURUMU = 2
+# (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları)
+VERI_SURUMU = 3
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
