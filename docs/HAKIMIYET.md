@@ -410,6 +410,8 @@ Sorular:
 43. Form cevaplarını neden çağrı metnine eklemiyorsun?
 44. "Önce bunu dene" adımlarını neden çözüm notlarından türetmedin?
 45. Cihaz numarasını neden ayrı sütunda tutup tek biçime getiriyorsun?
+46. Çağrının neden iki durumu var (durum ve asama)? "Çözüldü" hangi tarafta sayılıyor?
+47. Envanterde olmayan bir numara gelince sistem onu neden kendisi eklemiyor?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -576,3 +578,8 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
     çalışanı bunları yapamaz. Yalnız kullanıcının güvenle yapabileceği adımları elle yazdım.
 45. Tekrarlayan arızayı saymak için: "yz 7" ile "YZ-07" aynı cihaz olmalı, yoksa geçmiş bölünür ve 30 günde
     3 çağrı eşiği hiç tutmaz. Ayrı sütun indekslenir; JSON içinde aramak hem yavaş hem kırılgan olurdu.
+46. Kaba durum (açık/kapalı) modelin ve risk hesabının dili: çözen ve çözüm notu belli mi? İnce durum iş
+    akışının dili: kim ne bekliyor? "Çözüldü" kaba durumda kapalı (çözen belli, öğrenmeye girer), ince
+    durumda onay bekliyor; açan "devam ediyor" derse not öğrenmeden çıkarılır ve çağrı yeniden açılır.
+47. Envanterin sahibi demirbaş sistemi. Yazım hatası ("YZ-70") kendiliğinden eklenirse sahte cihaz doğar ve
+    geçmiş bölünür. Bu yüzden ayrı listelenir; düzeltme ya da envanter güncellemesi insanın kararı.

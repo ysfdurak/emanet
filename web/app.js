@@ -56,6 +56,10 @@ let _zaman;
 function bildir(m) { const d = $("#durum"); d.textContent = m; d.classList.remove("gizli"); clearTimeout(_zaman); _zaman = setTimeout(() => d.classList.add("gizli"), 4000); }
 const puanKutu = r => `<span class="puan ${r.seviye}" title="Risk puanı">${r.puan}</span>`;
 const rozet = (s, m) => `<span class="rozet ${s}">${kac(m)}</span>`;
+/* Çağrı durumları: soru, cevap ve onayla kendiliğinden değişir (sunucu: usta.ASAMA_AD) */
+const CAGRI_ASAMA = {acik: ["gri", "Açık"], atandi: ["mavi", "Atandı"], islemde: ["mor", "İşlemde"], bilgi_bekleniyor: ["sari", "Bilgi bekleniyor"],
+  cozuldu: ["yesil", "Çözüldü, onay bekleniyor"], kapali: ["gri", "Kapalı"]};
+const asamaRozet = a => rozet(...(CAGRI_ASAMA[a] || ["gri", a || "-"]));
 const adimlar = a => `<ol class="adim">${(Array.isArray(a) ? a : a.split("\n")).map(x => `<li>${kac(x)}</li>`).join("")}</ol>`;
 
 // Menü kullanıcının sorusuna göre dört alan + "Daha fazla". Sayfa kimlikleri (#risk, #plan…) değişmedi:
@@ -425,17 +429,34 @@ function cihazKart(g, baslik) {
       ${x.cozum_notu ? `<div class="kucuk">Çözüm: ${kac(x.cozum_notu.split("\n")[0])}${x.cozen ? " · " + kac(x.cozen) : ""}</div>` : x.durum === "acik" ? '<div class="kucuk">Açık</div>' : ""}</div></li>`).join("")}</ul>` : '<p class="kucuk">Başka çağrısı yok.</p>'}</div>`;
 }
 CIZ.cihaz = async (no) => {
-  const T2 = await api("cihazlar/tekrarlayan");
+  const [T2, O] = await Promise.all([api("cihazlar/tekrarlayan"), api("cihazlar/ozet")]);
   $("#ana").innerHTML = `<h2>Cihaz geçmişi</h2>
     <p class="alt">Yazıcı ve el terminali çağrıları etiket numarasıyla açılır. Aynı cihaz sık arızalanıyorsa her seferinde onarmak yerine değişim konuşulur.</p>
     <div class="kart"><div class="sira"><div><label for="cno">Cihaz numarası</label><input id="cno" maxlength="30" placeholder="örn. YZ-07" value="${kac(no || "")}"></div>
       <div style="flex:0 0 auto;align-self:flex-end"><button class="dugme" id="cbak">Geçmişi göster</button></div></div></div>
     <div id="cgecmis"></div>
     <div class="kart"><h3>Son 30 günde tekrar tekrar arızalananlar</h3>${T2.length ? `<ul class="liste">${T2.map(c => `<li>${rozet("sari", c.cagri + " çağrı")}<div class="govde"><b>${kac(c.no)}</b> <span class="kucuk">${kac(c.model || "")}${c.yer ? " · " + kac(c.yer) : ""}</span></div>
-      <button class="dugme kucuk ikincil" data-cno="${kac(c.no)}">Geçmiş</button></li>`).join("")}</ul>` : '<p class="kucuk">Son 30 günde 3 ve üzeri çağrısı olan cihaz yok.</p>'}</div>`;
+      <button class="dugme kucuk ikincil" data-cno="${kac(c.no)}">Geçmiş</button></li>`).join("")}</ul>` : '<p class="kucuk">Son 30 günde 3 ve üzeri çağrısı olan cihaz yok.</p>'}</div>
+    <div class="kart"><h3>Modele göre (son 90 gün)</h3>
+      <p class="kucuk">Envanterde ${O.cihaz_sayisi} aktif cihaz. Cihaz çok olunca tek tek değil modele bakılır: cihaz başına çağrı türün ortalamasının iki katıysa sorun cihazda değil modelde olabilir (sürücü, ribon tipi, pil).</p>
+      <div class="tablo-sar"><table><thead><tr><th>Model</th><th class="sayi">Cihaz</th><th class="sayi">Çağrı</th><th class="sayi">Cihaz başı</th></tr></thead><tbody>
+      ${O.modeller.map(m => `<tr><td>${kac(m.model || "(model yok)")} <span class="kucuk">${m.tur === "yazici" ? "yazıcı" : m.tur === "terminal" ? "terminal" : kac(m.tur)}</span>${m.dikkat ? " " + rozet("sari", "Model sorunu?") : ""}</td><td class="sayi">${m.cihaz}</td><td class="sayi">${m.cagri}</td><td class="sayi">${sy(m.cihaz_basi)}</td></tr>`).join("")}</tbody></table></div></div>
+    ${O.kayitsiz.length ? `<div class="kart"><h3>Envanterde olmayan numaralar</h3><p class="kucuk">Çağrıda yazıldı ama envanterde yok: yazım hatası ya da envantere girmemiş yeni cihaz. Envanteri güncelleyin.</p>
+      <ul class="liste">${O.kayitsiz.map(k => `<li><div class="govde"><b>${kac(k.no)}</b> <span class="kucuk">${k.cagri} çağrı · son ${tarih(k.son)}</span></div><button class="dugme kucuk ikincil" data-cno="${kac(k.no)}">Geçmiş</button></li>`).join("")}</ul></div>` : ""}
+    <details class="kart"><summary><b>Envanteri içe aktar</b> <span class="kucuk">· demirbaş sisteminden CSV</span></summary>
+      <p class="kucuk">Sütunlar: <code>no</code> (gerekli), <code>tür</code>, <code>model</code>, <code>yer</code>, <code>seri no</code>, <code>durum</code>. Ayraç virgül, noktalı virgül ya da sekme. Var olan numara güncellenir. Numara tek biçime gelir (yz 7 → YZ-07).</p>
+      <textarea id="envcsv" rows="5" placeholder="no;tür;model;yer&#10;YZ-13;yazıcı;Zebra ZT410;sevkiyat rampası 7"></textarea>
+      <label class="satir"><input type="checkbox" id="envtam"> Bu tam liste: listede olmayan cihazları hurdaya ayır</label>
+      <p><button class="dugme kucuk" id="envyukle">İçe aktar</button> <span id="envsonuc" class="kucuk" aria-live="polite"></span></p></details>`;
   const bak = async n => { if (!n.trim()) return; $("#cno").value = n; $("#cgecmis").innerHTML = cihazKart(await api("cihaz/" + encodeURIComponent(n.trim()))); };
   $("#ana").onclick = e => {
     if (e.target.id === "cbak") return bak($("#cno").value);
+    if (e.target.id === "envyukle") {
+      api("cihazlar/envanter", {csv: $("#envcsv").value, tam: $("#envtam").checked})
+        .then(s => { bildir(`Envanter: ${s.eklenen} eklendi, ${s.guncellenen} güncellendi${s.hurdaya ? ", " + s.hurdaya + " hurdaya ayrıldı" : ""}.`); CIZ.cihaz($("#cno").value); })
+        .catch(err => { $("#envsonuc").textContent = err.message; });
+      return;
+    }
     const b = e.target.closest("[data-cno]"); if (b) return bak(b.dataset.cno);
   };
   $("#cno").onkeydown = e => { if (e.key === "Enter") bak($("#cno").value); };
@@ -455,26 +476,50 @@ CIZ.kuyruk = async () => {
   <h2>Çağrı kuyruğu</h2>
   <p class="alt">Açık çağrılar, en acil olan üstte. Bir çağrıya dokununca kime gittiğini, nedenini ve bu sorunun daha önce nasıl çözüldüğünü görürsün.</p>
   <div class="kart"><div class="sira">
-    <div><label for="fd">Durum</label><select id="fd"><option value="acik">Açık</option><option value="kapali">Kapalı (son 50)</option></select></div>
+    <div><label for="fd">Durum</label><select id="fd"><option value="acik">Açık (hepsi)</option><option value="atandi">Atandı, başlanmadı</option><option value="islemde">İşlemde</option>
+      <option value="bilgi_bekleniyor">Bilgi bekleniyor</option><option value="cozuldu">Çözüldü, onay bekleniyor</option><option value="kapali">Kapalı (son 50)</option></select></div>
     <div><label for="fb">Birim</label><select id="fb"><option value="">Hepsi</option>${T.birimler.filter(b => T.usta_birimleri.includes(b.ad)).map(b => `<option value="${kac(b.id)}">${kac(b.ad)}</option>`).join("")}</select></div>
   </div><div id="kl"></div></div>`;
   async function yukle() {
     const l = await api(`cagri?durum=${$("#fd").value}${$("#fb").value ? "&birim_id=" + $("#fb").value : ""}`);
     $("#kl").innerHTML = l.length ? `<ul class="liste">${l.map(c => `<li>
       ${rozet(c.aciliyet === 3 ? "kirmizi" : c.aciliyet === 2 ? "sari" : "gri", ["", "Düşük", "Orta", "Yüksek"][c.aciliyet])}
-      <div class="govde"><a href="#detay" data-cagri="${kac(c.id)}">#${c.id} ${kac(c.metin)}</a>
+      <div class="govde"><a href="#detay" data-cagri="${kac(c.id)}">#${c.id} ${kac(c.metin)}</a> ${c.asama !== "kapali" ? asamaRozet(c.asama) : ""}
       <div class="kucuk">${kac(c.kategori)}${c.yer ? " · " + kac(c.yer) : ""} · ${c.durum === "acik" ? "Atanan: " + kac(c.atanan || "-") : "Çözen: " + kac(c.cozen || "-") + " · " + c.sure_dk + " dk" + (c.cozum_notu ? " · notlu" : "")} · ${tarih(c.acilis)}</div></div></li>`).join("")}</ul>`
       : '<p class="kucuk">Bu süzgeçte çağrı yok.</p>';
   }
   $("#fd").onchange = $("#fb").onchange = yukle; yukle();
 };
 
+/* Çağrının neresinde olduğumuz ve sıradaki adım: kim ne bekliyor */
+function durumKart(c) {
+  const sira = ["atandi", "islemde", "cozuldu", "kapali"];
+  const i = c.asama === "bilgi_bekleniyor" ? 1 : Math.max(0, sira.indexOf(c.asama));
+  const adim = `<ol class="asama">${["Atandı", c.asama === "bilgi_bekleniyor" ? "Bilgi bekleniyor" : "İşlemde", "Çözüldü", "Kapalı"].map((a, j) =>
+    `<li class="${j < i ? "gecti" : j === i ? "simdi" : ""}">${a}</li>`).join("")}</ol>`;
+  const acan = c.acan_kisi ? kac(c.acan_kisi) : "açan kişi";
+  const metin = {
+    acik: "Henüz kimseye atanmadı.",
+    atandi: `${kac(c.atanan || "Atanan kişi")} henüz başlamadı.`,
+    islemde: `${kac(c.atanan || "Atanan kişi")} üzerinde çalışıyor.`,
+    bilgi_bekleniyor: `${acan} kişisinden cevap bekleniyor (Teams). Cevap gelince çağrı kendiliğinden İşlemde'ye döner.`,
+    cozuldu: `Çözüldü; ${acan} onaylarsa kapanır, “devam ediyor” derse yeniden açılır. 3 gün cevap gelmezse kendiliğinden kapanır.`,
+    kapali: c.teyit === 1 ? "Açan kişi çözüldüğünü onayladı." : "Kapandı.",
+  }[c.asama] || "";
+  const acik = c.durum === "acik";
+  return `<div class="kart">${adim}<p class="kucuk" style="margin-top:.4rem">${metin}</p>
+    ${c.asama === "atandi" ? `<p><button class="dugme kucuk" id="isleme">İşleme al</button></p>` : ""}
+    ${acik && c.acan_kisi && c.asama !== "bilgi_bekleniyor" ? `<details><summary class="kucuk"><b>Açana soru sor</b> · durum “Bilgi bekleniyor” olur</summary>
+      <label for="soru">Soru</label><input id="soru" maxlength="300" placeholder="örn. Hata ekranının fotoğrafını gönderebilir misiniz?">
+      <p><button class="dugme kucuk ikincil" id="sorgonder">Teams'ten gönder</button></p></details>` : ""}</div>`;
+}
 CIZ.detay = async (id) => {
   const c = await api("cagri/" + id);
   const acik = c.durum === "acik";
   $("#ana").innerHTML = `
   <p><button class="dugme kucuk ikincil" data-sayfa="kuyruk">← Kuyruk</button></p>
-  <h2>Çağrı #${c.id} ${rozet(acik ? "sari" : "yesil", acik ? "Açık" : "Kapalı")}</h2>
+  <h2>Çağrı #${c.id} ${asamaRozet(c.asama)}</h2>
+  ${durumKart(c)}
   <div class="iki genis">
     <div>
       <div class="kart"><p>${kac(c.metin)}</p>
@@ -483,7 +528,7 @@ CIZ.detay = async (id) => {
         <p><b>${acik ? "Atanan" : "Çözen"}:</b> ${kac((acik ? c.atanan : c.cozen) || (c.otomatik ? "Otomasyon" : "-"))}${c.sure_dk ? ` · ${c.sure_dk} dk` : ""}${c.acan_kisi ? ` <span class="kucuk">· Açan: ${kac(c.acan_kisi)}</span>` : ""}${c.teyit === 1 ? " " + rozet("yesil", "Açan kişi teyit etti") : c.teyit === 0 ? " " + rozet("kirmizi", "Açan kişi çözülmedi dedi") : ""}</p>
         ${c.cozum_notu ? `<h3 style="margin-top:.6rem">Nasıl çözüldü</h3>${adimlar(c.cozum_notu)}` : ""}
         <h3 style="margin-top:.7rem">Geçmiş</h3>
-        <ul class="liste">${c.olaylar.map(o => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(o.zaman)}</span><div class="govde">${{acildi: "Açıldı", atandi: "Atandı", yeniden_atandi: "Yeniden atandı", kapandi: "Kapandı"}[o.tur] || o.tur}${o.kisi ? ": " + kac(o.kisi) : ""}${o.aciklama ? `<div class="kucuk">${kac(o.aciklama)}</div>` : ""}</div></li>`).join("")}</ul>
+        <ul class="liste">${c.olaylar.map(o => `<li><span class="kucuk" style="min-width:5.5rem">${tarih(o.zaman)}</span><div class="govde">${{acildi: "Açıldı", atandi: "Atandı", yeniden_atandi: "Yeniden atandı", kapandi: "Kapandı", durum: "Durum", yeniden_acildi: "Yeniden açıldı"}[o.tur] || o.tur}${o.kisi ? ": " + kac(o.kisi) : ""}${o.aciklama ? `<div class="kucuk">${kac(o.aciklama)}</div>` : ""}</div></li>`).join("")}</ul>
       </div>
       ${acik ? `<div class="kart"><h3>Yanlış mı yönlendi?</h3>
         <p class="kucuk">Konuyu düzelt; çağrı yeni konunun en uygun kişisine gider. Çağrı kapanınca düzeltilmiş hâliyle modelin öğrenme verisine girer.</p>
@@ -509,6 +554,11 @@ CIZ.detay = async (id) => {
   if (!acik) return;
   $("#kk").onchange = e => $("#kalan").classList.toggle("gizli", !e.target.checked);
   $("#ya").onclick = async () => { await api(`cagri/${id}/yeniden-ata`, {kategori_id: +$("#yk").value, aciklama: "Konu düzeltildi"}); bildir("Çağrı yeniden yönlendirildi."); git("detay", id); };
+  const ia = $("#isleme"); if (ia) ia.onclick = async () => { await api(`cagri/${id}/isleme-al`, {}); bildir("Çağrı işleme alındı."); git("detay", id); };
+  const ss = $("#sorgonder"); if (ss) ss.onclick = async () => {
+    try { await api(`cagri/${id}/soru`, {soru: $("#soru").value}); bildir("Soru Teams'ten gönderildi; cevap gelince çağrı İşlemde'ye döner."); git("detay", id); }
+    catch (e) { bildir(e.message); }
+  };
   $("#kp").onclick = async () => {
     await api(`cagri/${id}/kapat`, {sure_dk: +$("#ks").value || null, cozum_notu: $("#ka").value || null, karta_donustur: $("#kk").checked, baslik: $("#kb").value || null, kok_neden: $("#kn").value || null});
     bildir($("#ka").value.trim() ? "Çağrı kapandı; çözüm yolu öğrenildi." : "Çağrı kapandı. Not yazılmadığı için çözüm yolu öğrenilmedi."); git("detay", id);

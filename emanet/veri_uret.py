@@ -129,6 +129,8 @@ def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
     """Yazıcı ve terminal çağrılarına envanterden cihaz numarası verir. Ayrı tohum: diğer verinin
     sırası değişmesin. Son 30 günde birkaç cihaz sık arızalanır (tekrarlayan arıza uyarısı için)."""
     rnd = random.Random(tohum + 7)
+    con.executemany("INSERT INTO cihaz(no,tur,model,yer,guncelleme) VALUES(?,?,?,?,?)",
+                    [(n, d["tur"], d["model"], d["yer"], bugun.isoformat()) for n, d in K.CIHAZLAR.items()])
     son30 = (datetime.combine(bugun, datetime.min.time()) - timedelta(days=30)).isoformat(timespec="minutes")
     for kod, onek in K.CIHAZ_KONULARI.items():
         cihazlar = [n for n in K.CIHAZLAR if n.startswith(onek + "-")]
@@ -272,6 +274,20 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         olay(cid, acilis, "acildi")
         olay(cid, acilis, "atandi", kisi_id[atanan])
     _cihaz_ata(con, bugun, tohum)
+    # Durumlar: açık çağrıların bir kısmına başlanmış, birinde açana soru sorulmuş (cevap bekleniyor)
+    acik = con.execute("SELECT id, acilis, atanan_kisi_id, acan_kisi FROM cagri WHERE durum='acik' ORDER BY id").fetchall()
+    for i, c in enumerate(acik[:3]):
+        an = datetime.fromisoformat(c["acilis"]) + timedelta(minutes=20)
+        if i == 2 and c["acan_kisi"]:
+            soru = "Hata ekranının fotoğrafını gönderebilir misiniz? Hangi cihazda oluyor?"
+            cur.execute("INSERT INTO mesaj(cagri_id,kime,rol,tur,metin,secenekler,serbest,zaman) VALUES(?,?,?,?,?,?,1,?)",
+                        (c["id"], c["acan_kisi"], "talep_eden", "soru", f"#{c['id']} numaralı çağrınız için: {soru}", "[]",
+                         an.isoformat(timespec="seconds")))
+            cur.execute("UPDATE cagri SET asama='bilgi_bekleniyor' WHERE id=?", (c["id"],))
+            olay(c["id"], an, "durum", c["atanan_kisi_id"], "Atandı → Bilgi bekleniyor: " + soru)
+        else:
+            cur.execute("UPDATE cagri SET asama='islemde' WHERE id=?", (c["id"],))
+            olay(c["id"], an, "durum", c["atanan_kisi_id"], "Atandı → İşlemde")
     con.commit()
 
     # --- Teknik konular: bakım sisteminden gelen döküm, içe aktarma yoluyla

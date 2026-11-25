@@ -74,8 +74,10 @@ def _kisi_bul(con, kisi: str) -> int:
 
 
 def _sade_cagri(c: dict) -> dict:
-    return {k: c.get(k) for k in ("id", "metin", "kategori", "birim", "aciliyet", "durum", "atanan",
-                                  "cozen", "acilis", "kapanis", "sure_dk", "guven")}
+    d = {k: c.get(k) for k in ("id", "metin", "kategori", "birim", "aciliyet", "durum", "atanan",
+                               "cozen", "acilis", "kapanis", "sure_dk", "guven", "yer", "cihaz")}
+    d["asama"] = usta.ASAMA_AD.get(c.get("asama"), c.get("asama"))
+    return d
 
 
 def _konu_bul(con, konu: str) -> int:
@@ -124,14 +126,14 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
         kid_son = kid or usta.kategori_oner(con, metin)["oneriler"][0]["kategori_id"]
         k = con.execute("SELECT kod, kritiklik FROM kategori WHERE id=?", (kid_son,)).fetchone()
         # MCP'de zorunlu soru eksikse çağrı yine açılır; eksikler 'sorulmayanlar'da döner (Claude sorabilsin)
-        cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar, zorunlu_denetle=False)
+        cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar, zorunlu_denetle=False, con=con)
         ek, onc = None, None
         if etki or kapsam or cevap or yer:
             onc = cagri_formu.aciliyet_hesapla(etki, kapsam, sevkiyat, k["kritiklik"], k["kod"] in cagri_formu.TALEP_KONULARI)
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(k["kod"], cevap, etki, kapsam, sevkiyat, None, onc)
         cihaz = cevap.get("cihaz")
-        yer = yer or ((cagri_formu.cihaz_kaydi(cihaz) or {}).get("yer"))
+        yer = yer or ((cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("yer"))
         c = usta.cagri_ac(con, metin, acan_birim, aciliyet, kid, vardiya=vardiya, acan_kisi=acan_kisi, yer=yer,
                           ek_bilgi=ek, cihaz=cihaz)
         sorulmayan = [dict(kod=s["kod"], soru=s["soru"], secenekler=s.get("secenekler"), zorunlu=bool(s.get("zorunlu")))
@@ -151,7 +153,8 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
 @arac
 def cagrilari_listele(durum: str = "acik", birim: str | None = None, kisi: str | None = None,
                       limit: int = 20) -> list[dict]:
-    """Usta çağrılarını listeler. durum: acik | kapali | hepsi. birim ve kisi ad ile verilebilir."""
+    """Usta çağrılarını listeler. durum: acik | kapali | hepsi ya da ince durum: atandi | islemde |
+    bilgi_bekleniyor | cozuldu (onay bekleniyor). birim ve kisi ad ile verilebilir."""
     with KILIT:
         con = baglanti()
         birim_id = None
@@ -160,7 +163,7 @@ def cagrilari_listele(durum: str = "acik", birim: str | None = None, kisi: str |
             birim_id = r["id"] if r else -1
         kisi_id = _kisi_bul(con, kisi) if kisi else None
         return [_sade_cagri(c) for c in usta.cagrilari_listele(
-            con, durum if durum in ("acik", "kapali") else None, birim_id, kisi_id, limit=limit)]
+            con, durum if durum in ("acik", "kapali") or durum in usta.ASAMA_AD else None, birim_id, kisi_id, limit=limit)]
 
 
 @arac
@@ -175,6 +178,22 @@ def nasil_cozuldu(sorun: str) -> dict:
     return dict(tahmini_konu=o["oneriler"][0]["ad"], konu_guveni=o["guven"], **_yol_sade(y),
                 benzer_cagrilar=[dict(metin=c["metin"], cozen=c["cozen"], sure_dk=c["sure_dk"], benzerlik=c["benzerlik"])
                                  for c in y["cagrilar"]])
+
+
+@arac
+def cagri_islem(cagri_id: int, islem: str, soru: str | None = None) -> dict:
+    """Çağrının durumunu ilerletir. islem: "isleme_al" (Atandı → İşlemde) ya da "soru" (açan kişiye Teams'ten
+    soru gider, durum Bilgi bekleniyor olur; cevap gelince İşlemde'ye döner). Kapatmak için cagriyi_kapat:
+    açan biliniyorsa durum "Çözüldü, onay bekleniyor" olur, onaylayınca Kapalı, 3 gün cevap yoksa kendiliğinden kapanır."""
+    with KILIT:
+        con = baglanti()
+        if islem == "isleme_al":
+            c = usta.isleme_al(con, cagri_id)
+        elif islem == "soru":
+            c = usta.soru_sor(con, cagri_id, soru or "")
+        else:
+            raise ValueError("islem: isleme_al ya da soru")
+    return dict(_sade_cagri(c), gecmis=[o["aciklama"] for o in c["olaylar"] if o["tur"] == "durum"])
 
 
 @arac

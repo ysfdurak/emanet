@@ -475,6 +475,10 @@ def cevapla(con: sqlite3.Connection, mesaj_id: int, cevap: str) -> dict:
         teyit(con, m["cagri_id"], cevap == "Evet, çözüldü")
         con.commit()
         return dict(mesaj_id=mesaj_id, cagri_id=m["cagri_id"])
+    if m["oto_id"] is None and m["tur"] == "soru":   # çözen kişinin sorusu: cevap gelince işe dönülür
+        _cagri_asama(con, m["cagri_id"], "islemde", f"{m['kime']} cevapladı: {cevap[:120]}")
+        con.commit()
+        return dict(mesaj_id=mesaj_id, cagri_id=m["cagri_id"])
     o = _oto(con, m["oto_id"])
     rc = _recete(con, o["recete_kod"])
     _yaz(o, m["kime"], "mesaj", f"Cevap: {cevap}", "ok")
@@ -512,6 +516,8 @@ def kapanis_sonrasi(con: sqlite3.Connection, cagri_id: int, notu: str | None, co
                     kardes: bool = False) -> None:
     """Her kapanıştan sonra: açana teyit sorusu; toplu arızaysa bağlı çağrıları da kapat."""
     c = con.execute("SELECT * FROM cagri WHERE id=?", (cagri_id,)).fetchone()
+    # Açan biliniyorsa onayı beklenir; bilinmiyorsa doğrudan kapanır
+    _cagri_asama(con, cagri_id, "cozuldu" if c["acan_kisi"] else "kapali")
     if c["acan_kisi"]:
         ozet = (notu or "çözüm notu yazılmadı").split("\n")[0]
         _mesaj(con, None, cagri_id, c["acan_kisi"], "talep_eden", "teyit",
@@ -525,12 +531,19 @@ def kapanis_sonrasi(con: sqlite3.Connection, cagri_id: int, notu: str | None, co
         con.execute("UPDATE toplu_olay SET durum='kapali' WHERE id=?", (c["olay_id"],))
 
 
+def _cagri_asama(con, cagri_id: int, yeni: str, aciklama: str | None = None) -> None:
+    """Çağrının ince durumunu değiştirir ve geçmişe yazar (usta._asama ile aynı biçim; döngüsel içe aktarmadan kaçınır)."""
+    from .usta import _asama
+    _asama(con, cagri_id, yeni, None, aciklama)
+
+
 def teyit(con: sqlite3.Connection, cagri_id: int, cozuldu: bool) -> None:
     c = con.execute("SELECT * FROM cagri WHERE id=?", (cagri_id,)).fetchone()
     if c["durum"] != "kapali":
         return
     if cozuldu:
         con.execute("UPDATE cagri SET teyit=1 WHERE id=?", (cagri_id,))
+        _cagri_asama(con, cagri_id, "kapali", "açan kişi çözüldüğünü onayladı")
         return
     # Çözülmedi: çağrı yeniden açılır; o çözüm notu öğrenmeye girmez
     con.execute("UPDATE cagri SET durum='acik', kapanis=NULL, sure_dk=NULL, cozum_notu=NULL, cozen_kisi_id=NULL, "
@@ -538,6 +551,7 @@ def teyit(con: sqlite3.Connection, cagri_id: int, cozuldu: bool) -> None:
     con.execute("INSERT INTO cagri_olay(cagri_id,zaman,tur,kisi_id,aciklama) VALUES(?,?,?,?,?)",
                 (cagri_id, _simdi()[:16], "yeniden_acildi", c["atanan_kisi_id"],
                  "Açan kişi çözülmedi dedi. Önceki çözüm: " + (c["cozum_notu"] or "-").replace("\n", " / ")))
+    _cagri_asama(con, cagri_id, "islemde", "yeniden açıldı")
     o = con.execute("SELECT * FROM oto WHERE cagri_id=? AND durum='basarili' ORDER BY id DESC", (cagri_id,)).fetchone()
     if o:
         con.execute("UPDATE recete SET teyit_hayir=teyit_hayir+1 WHERE kod=?", (o["recete_kod"],))

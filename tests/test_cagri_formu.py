@@ -32,9 +32,9 @@ def test_oncelik_matrisi():
     assert "→ Yüksek" in F.aciliyet_hesapla("durdu", "alan")["gerekce"]
 
 
-def test_cevap_dogrulama():
-    # Numara tek biçime gelir; envanterde kayıtlıysa model oradan dolar
-    assert F.cevaplari_dogrula("ETIKET_YAZICI", {"cihaz": " yz 7 ", "bilinmeyen": "x"}) == {"cihaz": "YZ-07", "model": "Zebra ZD621"}
+def test_cevap_dogrulama(con):
+    # Numara tek biçime gelir; envanterde (cihaz tablosu) kayıtlıysa model oradan dolar
+    assert F.cevaplari_dogrula("ETIKET_YAZICI", {"cihaz": " yz 7 ", "bilinmeyen": "x"}, con=con) == {"cihaz": "YZ-07", "model": "Zebra ZD621"}
     with pytest.raises(ValueError):   # yazıcı numarası gerekli
         F.cevaplari_dogrula("ETIKET_YAZICI", {"belirti": "Kâğıt sıkıştı"})
     assert F.cevaplari_dogrula("ETIKET_YAZICI", {}, zorunlu_denetle=False) == {}
@@ -94,3 +94,53 @@ def test_tekrarlayan_cihaz_izlenir(con):
     assert d["cihaz_gecmisi"]["tekrarlayan"] and all(x["id"] != c["id"] for x in d["cihaz_gecmisi"]["cagrilar"])
     from emanet import takip
     assert any(x["sayfa"] == "cihaz" and "YZ-07" in x["metin"] for x in takip.dikkat(con))
+
+
+def test_durumlar_soru_cevap_onay(con):
+    """Atandı → İşlemde → Bilgi bekleniyor → (cevap) İşlemde → Çözüldü → (onay) Kapalı."""
+    from emanet import otomasyon
+    k = kid(con, "DALGA")
+    c = usta.cagri_ac(con, "Sipariş dalgası açılmıyor", kategori_id=k, aciliyet=2, acan_kisi="Serdar Kurt")
+    assert usta.cagri_detay(con, c["id"])["asama"] == "atandi"
+    assert usta.isleme_al(con, c["id"])["asama"] == "islemde"
+    with pytest.raises(ValueError):
+        usta.isleme_al(con, c["id"])                       # zaten işlemde
+    assert usta.soru_sor(con, c["id"], "Dalga numarası nedir?")["asama"] == "bilgi_bekleniyor"
+    m = con.execute("SELECT id FROM mesaj WHERE cagri_id=? AND tur='soru' AND cevap IS NULL", (c["id"],)).fetchone()[0]
+    otomasyon.cevapla(con, m, "D-118")
+    assert usta.cagri_detay(con, c["id"])["asama"] == "islemde"
+    usta.cagri_kapat(con, c["id"], cozum_notu="Kilitli dalgayı iptal ettim")
+    assert usta.cagri_detay(con, c["id"])["asama"] == "cozuldu"
+    t = con.execute("SELECT id FROM mesaj WHERE cagri_id=? AND tur='teyit' AND cevap IS NULL", (c["id"],)).fetchone()[0]
+    otomasyon.cevapla(con, t, "Evet, çözüldü")
+    d = usta.cagri_detay(con, c["id"])
+    assert d["asama"] == "kapali" and sum(o["tur"] == "durum" for o in d["olaylar"]) == 5
+
+
+def test_cozulmedi_yeniden_acar_ve_sessizlik_kapatir(con):
+    from datetime import datetime, timedelta
+    from emanet import otomasyon
+    k = kid(con, "RAPOR")
+    a = usta.cagri_ac(con, "Rapor yenilenmiyor", kategori_id=k, aciliyet=1, acan_kisi="Serdar Kurt")
+    usta.cagri_kapat(con, a["id"], cozum_notu="Yenileme işini başlattım")
+    t = con.execute("SELECT id FROM mesaj WHERE cagri_id=? AND tur='teyit'", (a["id"],)).fetchone()[0]
+    otomasyon.cevapla(con, t, "Hayır, devam ediyor")
+    assert usta.cagri_detay(con, a["id"])["asama"] == "islemde"
+    b = usta.cagri_ac(con, "Rapor yine eski", kategori_id=k, aciliyet=1, acan_kisi="Serdar Kurt")
+    usta.cagri_kapat(con, b["id"], cozum_notu="Küpü yeniledim")
+    assert usta.onaysizlari_kapat(con, datetime.now() + timedelta(hours=usta.ONAY_BEKLEME_SAAT + 1)) >= 1
+    assert usta.cagri_detay(con, b["id"])["asama"] == "kapali"
+    with pytest.raises(ValueError):
+        usta.soru_sor(con, b["id"], "Hâlâ oluyor mu?")     # kapalı çağrıya soru yok
+
+
+def test_envanter_ice_aktar_ve_ozet(con):
+    s = F.envanter_ice_aktar(con, "No;Tür;Model;Konum\nyz 13;yazıcı;Zebra ZT410;sevkiyat rampası 7\n;yazıcı;x;y\nYZ-07;yazıcı;Zebra ZD621;paketleme hattı 2")
+    assert s["eklenen"] == 1 and s["guncellenen"] == 1 and s["hatalar"]
+    assert F.cihaz_kaydi(con, "YZ-13")["model"] == "Zebra ZT410"
+    # Envanterde olmayan numarayla açılan çağrı ayrıca listelenir
+    usta.cagri_ac(con, "Yazıcı basmıyor", kategori_id=kid(con, "ETIKET_YAZICI"), aciliyet=1, cihaz="YZ-99")
+    o = F.envanter_ozeti(con)
+    assert any(x["no"] == "YZ-99" for x in o["kayitsiz"]) and o["modeller"] and o["cihaz_sayisi"] >= 43
+    with pytest.raises(ValueError):
+        F.envanter_ice_aktar(con, "model;yer\nx;y")      # numara sütunu yok

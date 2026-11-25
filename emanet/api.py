@@ -536,14 +536,14 @@ def cagri_ac(i: CagriIstek):
             if not kod:
                 raise HTTPException(404, "Konu bulunamadı")
             try:
-                cevap = cagri_formu.cevaplari_dogrula(kod["kod"], i.cevaplar)
+                cevap = cagri_formu.cevaplari_dogrula(kod["kod"], i.cevaplar, con=con)
             except ValueError as e:
                 raise HTTPException(400, str(e))
             onc = _oncelik(i.kategori_id, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman)
             aciliyet = onc["seviye"]
             ek = cagri_formu.ek_bilgi_json(kod["kod"], cevap, i.etki, i.kapsam, i.sevkiyat, i.ne_zaman, onc)
             cihaz = cevap.get("cihaz")
-            yer = i.yer or ((cagri_formu.cihaz_kaydi(cihaz) or {}).get("yer"))   # envanterdeki yer
+            yer = i.yer or ((cagri_formu.cihaz_kaydi(con, cihaz) or {}).get("yer"))   # envanterdeki yer
         else:
             cihaz, yer = None, i.yer
         return usta.cagri_ac(con, i.metin, i.acan_birim, aciliyet, i.kategori_id, i.vardiya, acan_kisi=i.acan_kisi,
@@ -557,6 +557,27 @@ def cihaz(no: str):
         raise HTTPException(400, "Cihaz numarası çok uzun")
     with KILIT:
         return cagri_formu.cihaz_gecmisi(con, no)
+
+
+class EnvanterIstek(BaseModel):
+    csv: str = Field(min_length=3, max_length=2_000_000)
+    tam: bool = False
+
+
+@api.post("/api/cihazlar/envanter")
+def cihaz_envanter(i: EnvanterIstek):
+    """Demirbaş sisteminden alınan cihaz listesini (CSV) içe aktarır."""
+    with KILIT:
+        try:
+            return cagri_formu.envanter_ice_aktar(con, i.csv, i.tam)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
+@api.get("/api/cihazlar/ozet")
+def cihazlar_ozet():
+    with KILIT:
+        return cagri_formu.envanter_ozeti(con)
 
 
 @api.get("/api/cihazlar/tekrarlayan")
@@ -605,6 +626,29 @@ def cagri_detay(cagri_id: int):
             return usta.cagri_detay(con, cagri_id)
         except ValueError as e:
             raise HTTPException(404, str(e))
+
+
+class SoruIstek(BaseModel):
+    soru: str = Field(min_length=5, max_length=300)
+
+
+@api.post("/api/cagri/{cagri_id}/isleme-al")
+def cagri_isleme_al(cagri_id: int):
+    with KILIT:
+        try:
+            return usta.isleme_al(con, cagri_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
+@api.post("/api/cagri/{cagri_id}/soru")
+def cagri_soru(cagri_id: int, i: SoruIstek):
+    """Çözen kişi açana soru sorar; durum Bilgi bekleniyor olur, cevapla İşlemde'ye döner."""
+    with KILIT:
+        try:
+            return usta.soru_sor(con, cagri_id, i.soru)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
 
 @api.post("/api/cagri/{cagri_id}/yeniden-ata")

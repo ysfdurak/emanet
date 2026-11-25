@@ -358,6 +358,40 @@ no izlemek için gerekli." Yazıcı ve terminal numarası artık **gerekli** ve 
   geçiyorsa o numara verilir; irsaliye (A4) yazıcısı ve yazım hatalı yerler numarasız kalır.
   Demo veri biçimi değişince sunucu gece beklemeden yeniden üretir (`VERI_SURUMU`).
 
+**Cihaz çoksa nasıl tutulur? (kullanıcı sorusu)** Envanter koddaki sabit listeden veritabanına taşındı
+(`cihaz` tablosu: no birincil anahtar, tür, model, yer, seri no, durum aktif/hurda). Binlerce cihaz SQLite
+için küçük bir tablodur; numara anahtar olduğu için arama ve çağrıyla eşleştirme anında olur.
+- **Kaynak:** demirbaş sisteminden CSV (Cihaz geçmişi → Envanteri içe aktar). Sütun adları esnek ("Cihaz No",
+  "Konum"); numara tek biçime gelir; var olan güncellenir. "Tam liste" işaretlenirse listede olmayan aktif
+  cihazlar hurdaya ayrılır (kısmi listede işaretlenmez, yoksa envanter silinmiş gibi olur).
+- **Envanterde olmayan numaralar** ayrı listelenir: yazım hatası ya da envantere girmemiş yeni cihaz.
+  Sistem bunları kendisi eklemez; envanterin sahibi demirbaş sistemidir.
+- **Çok cihazda tek tek değil gruba bakılır:** modele göre cihaz başı çağrı (son 90 gün). Türün ortalamasının
+  iki katı ve en az 5 çağrı varsa "Model sorunu?" işareti: sorun tek cihazda değil modelde olabilir.
+
+**Çağrı durumları (kullanıcı isteği):** "açık, atandı, çözüldü, kapalı gibi; soru ya da cevapla güncellenmeli."
+
+```mermaid
+stateDiagram-v2
+  [*] --> Atandı: çağrı açılır (model kişiyi seçer)
+  Atandı --> İşlemde: İşleme al
+  İşlemde --> BilgiBekleniyor: çözen açana soru sorar (Teams)
+  BilgiBekleniyor --> İşlemde: açan cevaplar (kendiliğinden)
+  İşlemde --> Çözüldü: çözüm notuyla kapatılır
+  Atandı --> Çözüldü: otomatik çözüm başarılı
+  Çözüldü --> Kapalı: açan "Evet, çözüldü" ya da 3 gün sessizlik
+  Çözüldü --> İşlemde: açan "Hayır, devam ediyor" (yeniden açılır)
+```
+
+- İki katman: kaba durum (`durum`: açık/kapalı) öğrenme ve risk hesabının kullandığı; ince durum (`asama`)
+  iş akışı. "Çözüldü" kaba durumda kapalıdır, çünkü çözen ve not bellidir; onay gelmezse 3 gün sonra kapanır.
+- Her geçiş çağrı geçmişine "Atandı → İşlemde" biçiminde yazılır (kim, neden). Yeni yazılan her ekleme yolu
+  (döküm, eski kod) durumu bir veritabanı tetikleyicisiyle alır; eski veriye göç tek UPDATE.
+- Kuyruk duruma göre süzülür; detayda adım çubuğu, "kim ne bekliyor" cümlesi, "İşleme al" ve "Açana soru sor".
+  MCP: `cagri_islem` (işleme al, soru), `cagrilari_listele` ince durumla.
+- Alan uzmanı notu: "Bilgi bekleniyor"da top açandadır; ileride çözüm süresi ölçülürken bu süre çözene
+  yazılmamalı (SLA duraklatma). Şimdilik süre ölçümü değişmedi.
+
 **Mülakat sorusu:** *"Önceliği neden kullanıcıya seçtirmedin?"* Seçtirilen öncelik herkesin "yüksek" dediği bir
 alan olur ve sıralamayı anlamsızlaştırır. Kişinin bildiği şeyi soruyorum (iş durdu mu, kaç kişi, araç bekliyor
 mu); önceliği kuralla ben hesaplıyorum ve gerekçesini gösteriyorum. Kural tek dosyada, değiştirmek kolay.
@@ -618,3 +652,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Devirde kartı devralan yazar, ayrılan düzeltir (takvimde adım sırası kuralı); ayrılanın saati 15 → 9; 124 test |
 | 25 Kasım 2026 | Devralanın ayrı haftalık sınırı ve darboğaz cümlesi; çağrı formu telefonda (örnekler gizlenir, "soru açıldı" düğmesi), kuyrukta yer; README ve HAKIMIYET (39–44. sorular) güncel; 125 test |
 | 25 Kasım 2026 | Yazıcı ve terminal numarası gerekli; envanterden model ve yer; cihaz geçmişi ve tekrarlayan arıza uyarısı; MCP `cihaz_gecmisi`; 127 test |
+| 25 Kasım 2026 | Cihaz envanteri tabloda (CSV içe aktarma, tam liste, envanterde olmayan numaralar, modele göre arıza); çağrı durumları (Atandı, İşlemde, Bilgi bekleniyor, Çözüldü, Kapalı; soru, cevap ve onayla kendiliğinden); MCP `cagri_islem`; 130 test |

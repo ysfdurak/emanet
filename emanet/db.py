@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS cagri (
 );
 CREATE INDEX IF NOT EXISTS ix_cagri_kat ON cagri(kategori_id, durum);
 CREATE INDEX IF NOT EXISTS ix_cagri_cozen ON cagri(cozen_kisi_id);
+-- Cihaz envanteri (yazıcı, el terminali…). Gerçekte demirbaş sisteminden CSV ile gelir; numara etikettir.
+CREATE TABLE IF NOT EXISTS cihaz (
+    no        TEXT PRIMARY KEY,          -- tek biçimde: YZ-07, EL-014
+    tur       TEXT NOT NULL,             -- yazici | terminal | diğer
+    model     TEXT,
+    yer       TEXT,
+    seri_no   TEXT,
+    durum     TEXT NOT NULL DEFAULT 'aktif',   -- aktif | hurda
+    guncelleme TEXT
+);
 CREATE INDEX IF NOT EXISTS ix_cagri_kaynak ON cagri(kaynak, durum);
 
 -- Çağrının geçmişi: açılış, atama, yeniden atama, kapanış
@@ -247,7 +257,7 @@ CREATE TABLE IF NOT EXISTS egitim_plani (
 );
 """
 
-TABLOLAR = ["devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
+TABLOLAR = ["cihaz", "devir_madde", "devir_konu", "devir", "mesaj", "oto", "recete", "lisans", "hesap", "egitim_plani", "gecis", "yetkinlik_beyan", "cagri_olay", "cagri", "toplu_olay", "cozum_karti",
             "kategori", "musaitlik", "kisi", "birim", "meta"]
 
 
@@ -271,7 +281,8 @@ GOCLER = {
     "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT"), ("kart_saat", "REAL"),
                  ("sure_onay", "INTEGER NOT NULL DEFAULT 0")],
     "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT")],
-    "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT"), ("cihaz", "TEXT")],   # cihaz: etiket no, tekrarlayan arıza izlenir
+    "cagri": [("yer", "TEXT"), ("ek_bilgi", "TEXT"), ("cihaz", "TEXT"),
+              ("asama", "TEXT")],   # çağrı durumu: acik | atandi | islemde | bilgi_bekleniyor | cozuldu | kapali   # cihaz: etiket no, tekrarlayan arıza izlenir
     "devir": [("devralan_sinir", "REAL NOT NULL DEFAULT 4")],   # devralanların haftalık devir saati (ayrılanınkinden ayrı)   # iki aşamalı form: yer ve konuya özel cevaplar (JSON)
     "recete": [("askida", "INTEGER NOT NULL DEFAULT 0"), ("askida_neden", "TEXT"), ("askida_zaman", "TEXT"),
                ("saglik_bas", "TEXT"), ("sahip", "TEXT")],
@@ -285,6 +296,12 @@ def _gocler(con: sqlite3.Connection) -> None:
             if ad not in var:
                 con.execute(f"ALTER TABLE {tablo} ADD COLUMN {ad} {tip}")
     con.execute("CREATE INDEX IF NOT EXISTS ix_cagri_cihaz ON cagri(cihaz, acilis)")
+    # Durumu verilmeden eklenen çağrı (döküm, eski kod yolları) durumunu kaba duruma göre alır
+    con.execute("UPDATE cagri SET asama = CASE WHEN durum='kapali' THEN 'kapali' WHEN atanan_kisi_id IS NULL THEN 'acik' "
+                "ELSE 'atandi' END WHERE asama IS NULL")
+    con.execute("CREATE TRIGGER IF NOT EXISTS cagri_asama AFTER INSERT ON cagri WHEN NEW.asama IS NULL BEGIN "
+                "UPDATE cagri SET asama = CASE WHEN NEW.durum='kapali' THEN 'kapali' WHEN NEW.atanan_kisi_id IS NULL "
+                "THEN 'acik' ELSE 'atandi' END WHERE id=NEW.id; END")
     con.commit()
 
 

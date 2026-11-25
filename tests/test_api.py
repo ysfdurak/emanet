@@ -83,7 +83,7 @@ def test_mcp_araclari(c):
         "otomasyon_durumu", "mesaja_cevap_ver", "otomasyon_potansiyeli",
         "izin_kontrolu", "devir_dosyasi", "plan_takibi", "risk_seyri",
         "risk_haritasi", "tek_kisiye_kalanlar", "ya_giderse", "egitim_plani_oner",
-        "degisimler", "ise_alisma", "gecis_kaydet", "konu_sureleri", "konu_suresi_ayarla", "egitim_icerigi", "devir_baslat", "devir_durumu", "cihaz_gecmisi"}
+        "degisimler", "ise_alisma", "gecis_kaydet", "konu_sureleri", "konu_suresi_ayarla", "egitim_icerigi", "devir_baslat", "devir_durumu", "cihaz_gecmisi", "cagri_islem"}
     r = mcp(c, "degisimler", {})
     assert not r.get("isError") and "otomasyon_sagligi" in r["content"][0]["text"]
     r = mcp(c, "ya_giderse", {"kisi": "Elif", "gun": 14})

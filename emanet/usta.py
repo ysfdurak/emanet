@@ -299,6 +299,8 @@ def yeniden_ata(con: sqlite3.Connection, cagri_id: int, kategori_id: int | None 
     con.execute("UPDATE cagri SET kategori_id=?, atanan_kisi_id=?, yeniden_atama=yeniden_atama+1 WHERE id=?",
                 (kategori_id, kisi_id, cagri_id))
     _olay(con, cagri_id, datetime.now(), "yeniden_atandi", kisi_id, aciklama or "Yönlendirme düzeltildi")
+    if c["asama"] == "islemde":
+        _asama(con, cagri_id, "atandi", kisi_id, "yeni kişiye gitti")
     con.commit()
     return cagri_detay(con, cagri_id)
 
@@ -352,11 +354,75 @@ _CAGRI_SQL = (
     "LEFT JOIN kisi a ON a.id=c.atanan_kisi_id LEFT JOIN kisi z ON z.id=c.cozen_kisi_id ")
 
 
+# ---------------------------------------------------------------- çağrı durumları
+# Kaba durum (durum: acik | kapali) öğrenme ve risk hesabının kullandığıdır; "çözüldü" de kapalı sayılır,
+# çünkü çözen ve not bellidir. İnce durum (asama) iş akışıdır ve soru, cevap ve onayla kendiliğinden değişir.
+ASAMA_AD = {"acik": "Açık", "atandi": "Atandı", "islemde": "İşlemde", "bilgi_bekleniyor": "Bilgi bekleniyor",
+            "cozuldu": "Çözüldü, onay bekleniyor", "kapali": "Kapalı"}
+ONAY_BEKLEME_SAAT = 72   # açan kişi 3 gün "çözüldü mü?" sorusuna cevap vermezse çağrı kapanır
+
+
+def _asama(con, cagri_id: int, yeni: str, kisi_id=None, aciklama: str | None = None, simdi: datetime | None = None) -> None:
+    eski = con.execute("SELECT asama FROM cagri WHERE id=?", (cagri_id,)).fetchone()[0]
+    if eski == yeni:
+        return
+    con.execute("UPDATE cagri SET asama=? WHERE id=?", (yeni, cagri_id))
+    _olay(con, cagri_id, simdi or datetime.now(), "durum", kisi_id,
+          f"{ASAMA_AD.get(eski, eski)} → {ASAMA_AD[yeni]}" + (f": {aciklama}" if aciklama else ""))
+
+
+def isleme_al(con: sqlite3.Connection, cagri_id: int, kisi_id: int | None = None) -> dict:
+    """Atanan kişi işe başladı: Atandı → İşlemde."""
+    c = con.execute("SELECT * FROM cagri WHERE id=? AND kaynak='usta'", (cagri_id,)).fetchone()
+    if not c:
+        raise ValueError("Çağrı bulunamadı")
+    if c["asama"] not in ("acik", "atandi"):
+        raise ValueError(f"Çağrı şu an '{ASAMA_AD.get(c['asama'], c['asama'])}'; işleme alınamaz")
+    _asama(con, cagri_id, "islemde", kisi_id or c["atanan_kisi_id"])
+    con.commit()
+    return cagri_detay(con, cagri_id)
+
+
+def soru_sor(con: sqlite3.Connection, cagri_id: int, soru: str, kisi_id: int | None = None) -> dict:
+    """Çözen kişi açana soru sorar (Teams): durum Bilgi bekleniyor olur; cevap gelince İşlemde'ye döner."""
+    c = con.execute("SELECT * FROM cagri WHERE id=? AND kaynak='usta'", (cagri_id,)).fetchone()
+    if not c:
+        raise ValueError("Çağrı bulunamadı")
+    if c["durum"] != "acik":
+        raise ValueError("Kapalı çağrıya soru sorulmaz")
+    if not c["acan_kisi"]:
+        raise ValueError("Çağrıyı açan kişi bilinmiyor; soru gönderilemez")
+    soru = (soru or "").strip()
+    if len(soru) < 5:
+        raise ValueError("Soru çok kısa")
+    otomasyon._mesaj(con, None, cagri_id, c["acan_kisi"], "talep_eden", "soru",
+                     f"#{cagri_id} numaralı çağrınız için: {soru[:300]}", serbest=True)
+    _asama(con, cagri_id, "bilgi_bekleniyor", kisi_id or c["atanan_kisi_id"], soru[:120])
+    con.commit()
+    return cagri_detay(con, cagri_id)
+
+
+def onaysizlari_kapat(con: sqlite3.Connection, simdi: datetime | None = None) -> int:
+    """Çözüldü deyip açanın cevabını 3 gün bekleyen çağrılar kapanır (sessizlik kabul sayılır)."""
+    simdi = simdi or datetime.now()
+    esik = (simdi - timedelta(hours=ONAY_BEKLEME_SAAT)).isoformat(timespec="minutes")
+    satir = con.execute("SELECT id FROM cagri WHERE asama='cozuldu' AND kapanis<?", (esik,)).fetchall()
+    for r in satir:
+        _asama(con, r["id"], "kapali", None, "açan kişi 3 gün içinde cevap vermedi", simdi)
+    if satir:
+        con.commit()
+    return len(satir)
+
+
 def cagrilari_listele(con: sqlite3.Connection, durum: str | None = "acik", birim_id: int | None = None,
                       kisi_id: int | None = None, kategori_id: int | None = None, limit: int = 50) -> list[dict]:
+    """durum: acik | kapali | hepsi ya da ince durumlardan biri (bilgi_bekleniyor, cozuldu…)."""
+    onaysizlari_kapat(con)
     kosul, arg = ["c.kaynak='usta'"], []
     if durum in ("acik", "kapali"):
         kosul.append("c.durum=?"); arg.append(durum)
+    elif durum in ASAMA_AD:
+        kosul.append("c.asama=?"); arg.append(durum)
     if birim_id:
         kosul.append("k.birim_id=?"); arg.append(birim_id)
     if kisi_id:
@@ -369,6 +435,7 @@ def cagrilari_listele(con: sqlite3.Connection, durum: str | None = "acik", birim
 
 
 def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:
+    onaysizlari_kapat(con)
     c = con.execute(_CAGRI_SQL + "WHERE c.id=? AND c.kaynak='usta'", (cagri_id,)).fetchone()
     if not c:
         raise ValueError("Çağrı bulunamadı")
@@ -386,7 +453,7 @@ def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:
     cg = cihaz_gecmisi(con, c["cihaz"]) if c["cihaz"] else None
     if cg:
         cg["cagrilar"] = [x for x in cg["cagrilar"] if x["id"] != cagri_id]
-    return dict(c, ek=json.loads(c["ek_bilgi"]) if c["ek_bilgi"] else None, cihaz_gecmisi=cg, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
+    return dict(c, asama_ad=ASAMA_AD.get(c["asama"], c["asama"]), ek=json.loads(c["ek_bilgi"]) if c["ek_bilgi"] else None, cihaz_gecmisi=cg, olaylar=olaylar, yol=yol, otomasyon=otomasyon.oto_detay(con, o["id"]) if o else None,
                 mesajlar=[m for m in otomasyon.mesajlar(con, cagri_id=cagri_id) if m["oto_id"] is None],
                 toplu_olay=toplu)
 

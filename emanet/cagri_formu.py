@@ -169,18 +169,22 @@ def cihaz_no(metin: str | None) -> str | None:
     return f"{m.group(1)}-{int(m.group(2)):0{genislik}d}"
 
 
-def cihaz_kaydi(no: str | None) -> dict | None:
-    return dict(K.CIHAZLAR[no], no=no) if no and no in K.CIHAZLAR else None
+def cihaz_kaydi(con: sqlite3.Connection | None, no: str | None) -> dict | None:
+    if not no or con is None:
+        return None
+    r = con.execute("SELECT * FROM cihaz WHERE no=?", (no,)).fetchone()
+    return dict(r) if r else None
 
 
-def cevaplari_dogrula(kod: str | None, cevaplar: dict | None, zorunlu_denetle: bool = True) -> dict:
+def cevaplari_dogrula(kod: str | None, cevaplar: dict | None, zorunlu_denetle: bool = True,
+                      con: sqlite3.Connection | None = None) -> dict:
     """Yalnız konunun sorularına ait, sınırlı uzunlukta cevaplar kalır; seçim cevabı seçeneklerden olmalı.
     Zorunlu soru boşsa hata. Cihaz numarası tek biçime getirilir; envanterde kayıtlıysa model oradan gelir."""
     temiz = {}
     cevaplar = dict(cevaplar or {})
     if cevaplar.get("cihaz"):
         cevaplar["cihaz"] = cihaz_no(cevaplar["cihaz"])
-        kayit = cihaz_kaydi(cevaplar["cihaz"])
+        kayit = cihaz_kaydi(con, cevaplar["cihaz"])
         if kayit and any(s["kod"] == "model" for s in sorular(kod)):
             cevaplar["model"] = kayit["model"]
     for s in sorular(kod):
@@ -272,7 +276,7 @@ def cihaz_gecmisi(con: sqlite3.Connection, no: str, gun: int = 90, simdi: dateti
         "JOIN kategori k ON k.id=c.kategori_id LEFT JOIN kisi p ON p.id=c.cozen_kisi_id "
         "WHERE c.cihaz=? AND c.acilis>=? ORDER BY c.acilis DESC", (no, esik))]
     son30 = (simdi - timedelta(days=TEKRAR_GUN)).isoformat(timespec="minutes")
-    return dict(no=no, kayit=cihaz_kaydi(no), gun=gun, cagrilar=cagrilar[:10], toplam=len(cagrilar),
+    return dict(no=no, kayit=cihaz_kaydi(con, no), gun=gun, cagrilar=cagrilar[:10], toplam=len(cagrilar),
                 son_30_gun=sum(1 for c in cagrilar if c["acilis"] >= son30),
                 tekrarlayan=sum(1 for c in cagrilar if c["acilis"] >= son30) >= TEKRAR_ESIK)
 
@@ -284,7 +288,89 @@ def tekrarlayan_cihazlar(con: sqlite3.Connection, simdi: datetime | None = None)
     out = []
     for r in con.execute("SELECT cihaz, COUNT(*) n, MAX(acilis) son FROM cagri WHERE cihaz IS NOT NULL AND acilis>=? "
                          "GROUP BY cihaz HAVING COUNT(*)>=? ORDER BY n DESC, cihaz", (esik, TEKRAR_ESIK)):
-        kayit = cihaz_kaydi(r["cihaz"])
+        kayit = cihaz_kaydi(con, r["cihaz"])
         out.append(dict(no=r["cihaz"], cagri=r["n"], son=r["son"], model=kayit["model"] if kayit else None,
                         yer=kayit["yer"] if kayit else None))
     return out
+
+
+# ---------------------------------------------------------------- cihaz envanteri
+
+ENVANTER_SATIR = 20_000
+_ENVANTER_AD = {"no": "no", "numara": "no", "cihaz": "no", "cihaz no": "no", "etiket": "no", "demirbaş no": "no",
+                "demirbas no": "no", "tur": "tur", "tür": "tur", "tip": "tur", "model": "model", "yer": "yer",
+                "konum": "yer", "lokasyon": "yer", "seri no": "seri_no", "seri": "seri_no", "seri_no": "seri_no",
+                "durum": "durum"}
+_TUR = {"yazici": "yazici", "yazıcı": "yazici", "etiket yazıcısı": "yazici", "terminal": "terminal",
+        "el terminali": "terminal", "rf terminal": "terminal"}
+
+
+def envanter_ice_aktar(con: sqlite3.Connection, metin: str, tam: bool = False) -> dict:
+    """Demirbaş sisteminden alınan CSV'yi cihaz tablosuna yazar (varsa günceller).
+    Sütunlar: no (gerekli), tür, model, yer, seri no, durum. tam=True: listede olmayan aktif cihazlar hurdaya ayrılır
+    (tam döküm geldiğinde; kısmi dökümde kullanılmaz)."""
+    import csv
+    import io
+    metin = (metin or "").lstrip("﻿").strip()
+    if not metin:
+        raise ValueError("Envanter boş")
+    ayrac = max([";", ",", "\t"], key=metin.splitlines()[0].count)
+    okuyucu = csv.DictReader(io.StringIO(metin), delimiter=ayrac)
+    okuyucu.fieldnames = [_ENVANTER_AD.get((a or "").strip().lower(), (a or "").strip().lower()) for a in okuyucu.fieldnames or []]
+    if "no" not in okuyucu.fieldnames:
+        raise ValueError("Eksik sütun: no (cihaz numarası)")
+    simdi = datetime.now().date().isoformat()
+    eklenen = guncellenen = 0
+    hatalar, gorulen = [], set()
+    for i, r in enumerate(okuyucu, start=2):
+        if i - 1 > ENVANTER_SATIR:
+            hatalar.append(f"{ENVANTER_SATIR} satırdan sonrası alınmadı")
+            break
+        no = cihaz_no(r.get("no"))
+        if not no:
+            hatalar.append(f"{i}. satır: numara boş")
+            continue
+        tur = _TUR.get((r.get("tur") or "").strip().lower(), (r.get("tur") or "diğer").strip().lower()[:20] or "diğer")
+        durum = "hurda" if (r.get("durum") or "").strip().lower() in ("hurda", "pasif", "kayıttan düşüldü") else "aktif"
+        vals = [tur, (r.get("model") or "").strip()[:60] or None, (r.get("yer") or "").strip()[:60] or None,
+                (r.get("seri_no") or "").strip()[:60] or None, durum, simdi]
+        var = con.execute("SELECT 1 FROM cihaz WHERE no=?", (no,)).fetchone()
+        if var:
+            con.execute("UPDATE cihaz SET tur=?, model=?, yer=?, seri_no=?, durum=?, guncelleme=? WHERE no=?", (*vals, no))
+            guncellenen += 1
+        else:
+            con.execute("INSERT INTO cihaz(tur,model,yer,seri_no,durum,guncelleme,no) VALUES(?,?,?,?,?,?,?)", (*vals, no))
+            eklenen += 1
+        gorulen.add(no)
+    hurdaya = 0
+    if tam and gorulen:
+        for (n,) in con.execute("SELECT no FROM cihaz WHERE durum='aktif'").fetchall():
+            if n not in gorulen:
+                con.execute("UPDATE cihaz SET durum='hurda', guncelleme=? WHERE no=?", (simdi, n))
+                hurdaya += 1
+    con.commit()
+    return dict(eklenen=eklenen, guncellenen=guncellenen, hurdaya=hurdaya, hatalar=hatalar[:20],
+                toplam=con.execute("SELECT COUNT(*) FROM cihaz WHERE durum='aktif'").fetchone()[0])
+
+
+def envanter_ozeti(con: sqlite3.Connection, simdi: datetime | None = None) -> dict:
+    """Cihaz çoksa tek tek değil grup olarak bakılır: model başına cihaz başı arıza (son 90 gün) ve
+    envanterde olmayan numaralar (yazım hatası ya da envantere girmemiş yeni cihaz)."""
+    simdi = simdi or datetime.now()
+    esik = (simdi - timedelta(days=90)).isoformat(timespec="minutes")
+    modeller = [dict(r) for r in con.execute(
+        "SELECT d.tur, d.model, COUNT(DISTINCT d.no) cihaz, "
+        "(SELECT COUNT(*) FROM cagri c JOIN cihaz e ON e.no=c.cihaz WHERE e.model IS d.model AND e.tur=d.tur AND c.acilis>=?) cagri "
+        "FROM cihaz d WHERE d.durum='aktif' GROUP BY d.tur, d.model ORDER BY d.tur, d.model", (esik,))]
+    for m in modeller:
+        m["cihaz_basi"] = round(m["cagri"] / m["cihaz"], 1) if m["cihaz"] else 0
+    for tur in {m["tur"] for m in modeller}:   # aynı türde ortalamanın iki katı: model sorunu olabilir
+        grup = [m for m in modeller if m["tur"] == tur]
+        ort = sum(m["cagri"] for m in grup) / max(1, sum(m["cihaz"] for m in grup))
+        for m in grup:
+            m["dikkat"] = bool(ort and m["cihaz_basi"] >= 2 * ort and m["cagri"] >= 5)
+    kayitsiz = [dict(r) for r in con.execute(
+        "SELECT c.cihaz AS no, COUNT(*) cagri, MAX(c.acilis) son FROM cagri c LEFT JOIN cihaz d ON d.no=c.cihaz "
+        "WHERE c.cihaz IS NOT NULL AND d.no IS NULL AND c.acilis>=? GROUP BY c.cihaz ORDER BY cagri DESC LIMIT 20", (esik,))]
+    sayi = con.execute("SELECT COUNT(*) FROM cihaz WHERE durum='aktif'").fetchone()[0]
+    return dict(cihaz_sayisi=sayi, modeller=modeller, kayitsiz=kayitsiz)
