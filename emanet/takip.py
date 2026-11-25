@@ -284,7 +284,7 @@ def devir_dosyasi(con: sqlite3.Connection, kisi_id: int, simdi: datetime | None 
             devralan, dneden = eski[0]["ad"], f"eskiden çözüyordu, tazeleme yeter ({eski[0]['ay_once']} ay önce)"
         elif beyanli:
             q = beyanli[0]
-            devralan, dneden = v["kisiler"][q]["ad"], (f"kâğıtta yetkin görünüyor, son 90 günde {s.get(q, 0)} çağrı "
+            devralan, dneden = v["kisiler"][q]["ad"], (f"kâğıtta biliyor görünüyor, son 90 günde {s.get(q, 0)} çağrı "
                                                         "çözdü; uzmanla birlikte çalışarak pratiğe dökmeli")
         elif digerleri:
             devralan, dneden = v["kisiler"][digerleri[0][0]]["ad"], f"yalnızca {digerleri[0][1]} çağrı çözdü"
@@ -383,8 +383,8 @@ def risk_seyri(con: sqlite3.Connection, adim_gun: int = 14, simdi: datetime | No
     bas = noktalar[0]["tarih"] if noktalar else simdi.date().isoformat()
     olaylar = [dict(tarih=r[0][:10], metin=r[1]) for r in con.execute(
         "SELECT MIN(olusturma), 'Eğitim planı kaydedildi (' || COUNT(*) || ' adım)' FROM egitim_plani HAVING COUNT(*)>0 "
-        "UNION ALL SELECT MIN(olusturma), 'Otomasyon reçeteleri devreye girdi' FROM recete WHERE tur!='taslak' "
-        "UNION ALL SELECT olusturma, 'Taslak reçete: ' || ad FROM recete WHERE tur='taslak' "
+        "UNION ALL SELECT MIN(olusturma), 'Otomatik çözümler devreye girdi' FROM recete WHERE tur!='taslak' "
+        "UNION ALL SELECT olusturma, 'Taslak otomatik çözüm: ' || ad FROM recete WHERE tur='taslak' "
         "UNION ALL SELECT olusturma, 'Çözüm kartı: ' || baslik FROM cozum_karti WHERE olusturma>=?", (bas,)) if r[0]]
     for n in noktalar:
         n.pop("konular")

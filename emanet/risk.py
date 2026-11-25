@@ -252,7 +252,7 @@ def risk_haritasi(con: sqlite3.Connection, simdi: datetime | None = None, haric_
                             f"{yeni['en_cok']['ad']} çözüyor (ilk {yeni['yas_gun']} gün)")
         elif yeni:
             nedenler.append(f"Yeni konu ({yeni['yas_gun']} gündür, {yeni['cagri']} çağrı): puan geçici, "
-                            + ("beyan edenler yetkin sayıldı" if yeni["beyanli"] else "kimse yetkin beyan etmedi"))
+                            + ("kâğıtta bilenler bilen sayıldı" if yeni["beyanli"] else "kâğıtta bilen de yok"))
         if en_cok and h["yogunlasma"] >= 0.6 and not (yeni and yeni["erken_uyari"]):
             nedenler.append(f"Çağrıların {yuzde(h['yogunlasma'], 'ini')} {v['kisiler'][en_cok[0]]['ad']} çözüyor")
         if h["yetkin_sayisi"] <= 1:
@@ -287,7 +287,7 @@ def risk_haritasi(con: sqlite3.Connection, simdi: datetime | None = None, haric_
             gecis=(dict(tarih=gecis["tarih"], eski_ad=gecis["eski_ad"],
                         anahtar=[v["kisiler"][p]["ad"] for p in gecis["anahtar"]]) if gecis else None),
             azaltanlar=([f"Çağrıların {yuzde(h['oto_payi'], 'i')} otomasyonla kapanabiliyor"] if h["oto_payi"] else [])
-            + (["Taslak reçete var (adım adım rehber)"] if k["recete_turu"] == "taslak" else []),
+            + (["Taslak otomatik çözüm var (adım adım rehber)"] if k["recete_turu"] == "taslak" else []),
         ))
     sonuc.sort(key=lambda r: (-r["puan"], r["ad"]))
     return sonuc

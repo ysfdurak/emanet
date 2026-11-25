@@ -162,7 +162,7 @@ def yonlendir(con: sqlite3.Connection, kategori_id: int, simdi: datetime | None 
     if cirak:
         c, u = cirak["kisi"], cirak["usta"]
         return dict(kisi_id=c["id"], ad=c["ad"], birim=kat["birim"], vardiya=vardiya, olasilik=None,
-                    neden=(f"Çırak modu: {c['ad']} {cirak['neden']}; yetkin sayılmasına {cirak['kalan']} çözüm kaldı. "
+                    neden=(f"Yanında öğrenme: {c['ad']} {cirak['neden']}; bilen sayılmasına {cirak['kalan']} çözüm kaldı. "
                            f"Takılırsa {u['ad']} destek verecek. Benzer çözümler aşağıda."),
                     uzman_notu=None, uzman=None,
                     cirak=dict(usta_id=u["id"], usta=u["ad"], cozum=cirak["cozum"], kalan=cirak["kalan"]),

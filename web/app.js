@@ -139,7 +139,7 @@ function atamaKart(a, baslik = "Kime gidecek?") {
   if (!a) return "";
   return `<div class="kart"><h3>${baslik}</h3>
     <p style="font-size:1.1rem;margin:.3rem 0"><b>${kac(a.ad || "Atanacak kimse yok")}</b> <span class="kucuk">· ${kac(a.birim)} · ${VARDIYA[a.vardiya]} vardiyası</span></p>
-    ${a.cirak ? `<p>${rozet("mor", "Çırak modu")} ${rozet("gri", "Destek: " + kac(a.cirak.usta))}</p>` : ""}
+    ${a.cirak ? `<p>${rozet("mor", "Yanında öğrenme")} ${rozet("gri", "Destek: " + kac(a.cirak.usta))}</p>` : ""}
     ${a.paylastirma ? `<p>${rozet("mavi", a.paylastirma.tur === "yuk" ? "İş yükü dengelendi" : "Paylaştırma")} ${rozet("gri", "Yedekte: " + kac(a.paylastirma.baskin))}</p>` : ""}
     <p class="kucuk">${kac(a.neden)}</p>
     ${a.uzman_notu ? `<div class="not uyari">${kac(a.uzman_notu)} Aşağıdaki çözüm yolları büyük ölçüde onun çağrılarından çıkarıldı.</div>` : ""}
@@ -310,6 +310,7 @@ CIZ.cagri = async (veri) => {
 CIZ.kuyruk = async () => {
   $("#ana").innerHTML = `
   <h2>Çağrı kuyruğu</h2>
+  <p class="alt">Açık çağrılar, en acil olan üstte. Bir çağrıya dokununca kime gittiğini, nedenini ve bu sorunun daha önce nasıl çözüldüğünü görürsün.</p>
   <div class="kart"><div class="sira">
     <div><label for="fd">Durum</label><select id="fd"><option value="acik">Açık</option><option value="kapali">Kapalı (son 50)</option></select></div>
     <div><label for="fb">Birim</label><select id="fb"><option value="">Hepsi</option>${T.birimler.filter(b => T.usta_birimleri.includes(b.ad)).map(b => `<option value="${kac(b.id)}">${kac(b.ad)}</option>`).join("")}</select></div>
@@ -381,7 +382,7 @@ const SENARYO = {
   rapor: ["Rapor gelmedi", "Yükleme işi yeniden başlatılır, küp kontrol edilir, abonelik yeniden gönderilir."],
   terminal: ["Terminal ağa bağlanmıyor", "Ağ profili yeniden gönderilir, gerekirse cihaz uzaktan yeniden başlatılır."],
   toplu: ["Toplu arıza", "Üç kişi aynı anda B koridorunda Wi-Fi sorunu bildirir; çağrılar tek olayda birleşir."],
-  bozulma: ["Otomasyon bozuldu", "Yazdırma sunucusu güncellendi, yazıcı reçetesinin adımları artık pek tutmuyor. Sekiz çağrı gelir; başarı düşünce reçete kendiliğinden askıya alınır."],
+  bozulma: ["Otomasyon bozuldu", "Yazdırma sunucusu güncellendi, yazıcı otomatik çözümünün adımları artık pek tutmuyor. Sekiz çağrı gelir; başarı düşünce otomatik çözüm kendiliğinden askıya alınır."],
 };
 const SAGLIK_R = {eski_sistem: ["gri", "Eski sisteme bağlı"], iyi: ["yesil", "Sağlıklı"], dususte: ["sari", "Başarısı düşüyor"], askida: ["kirmizi", "Askıda"], yetersiz_veri: ["gri", "Ölçüm için az deneme"]};
 let OTO_SON = null;
@@ -392,7 +393,7 @@ function sonKart(s) {
   return `<h3 style="margin:.2rem 0 .5rem">Son çalışma</h3>
     <div class="kart"><p><a href="#detay" data-cagri="${kac(c.id)}">#${c.id}</a> ${kac(c.metin)}</p>
       <p>${rozet("mavi", c.kategori)} ${rozet(c.durum === "acik" ? "sari" : "yesil", c.durum === "acik" ? "Açık" : "Kapalı")} <span class="kucuk">Açan: ${kac(c.acan_kisi || "-")} · ${c.durum === "acik" ? "Atanan: " + kac(c.atanan || "-") : (c.otomatik ? "Otomasyonla kapandı" : "Çözen: " + kac(c.cozen || "-"))}</span></p>
-      ${c.otomasyon ? "" : c.toplu_olay ? "" : '<p class="kucuk">Bu çağrıya uyan bir reçete yok; normal yönlendirmeyle kişiye gitti.</p>'}
+      ${c.otomasyon ? "" : c.toplu_olay ? "" : '<p class="kucuk">Bu çağrıya uyan bir otomatik çözüm yok; normal yönlendirmeyle kişiye gitti.</p>'}
       ${c.cozum_notu ? `<div class="kucuk">Kapanış notu:</div>${adimlar(c.cozum_notu)}` : ""}</div>
     ${c.toplu_olay ? `<div class="kart"><h3>Toplu arıza #${c.toplu_olay.olay_id}</h3><ul class="liste">${c.toplu_olay.cagrilar.map(x => `<li>${rozet(x.durum === "acik" ? "sari" : "yesil", x.durum === "acik" ? "Açık" : "Kapalı")}<div class="govde"><a href="#detay" data-cagri="${kac(x.id)}">#${x.id}</a> ${kac(x.metin)}<div class="kucuk">${kac(x.acan_kisi || "")}</div></div></li>`).join("")}</ul>
       <p class="kucuk">Ana çağrıyı kapatınca diğerleri de kapanır ve herkese teyit sorusu gider. <a href="#detay" data-cagri="${kac(c.toplu_olay.cagrilar[0].id)}">Ana çağrıya git</a></p></div>` : ""}
@@ -406,29 +407,22 @@ CIZ.otomasyon = async (veri) => {
   const o = d.ozet, p = d.potansiyel;
   const aktif = T.hesaplar.filter(h => h.durum === "aktif");
   $("#ana").innerHTML = `
-  <h2>Otomasyon</h2>
-  <p class="alt">Bazı çağrılar belirli yetkiler dahilinde insansız çözülür. Usta konuyu tanır; neyin yapılabileceğine her zaman yazılı kurallar karar verir. Kural bir şeye izin vermiyorsa çağrı, toplanan bilgilerle birlikte bir kişiye kalır.</p>
-  <details class="kart" ${OTO_SON ? "" : "open"}><summary><b>Yetki çerçevesi</b> <span class="kucuk">· ne kendiliğinden, ne onayla, ne yalnızca insanla yapılır</span></summary>
+  <h2>Otomatik çözümler</h2>
+  <p class="alt">Şifre, yazıcı, kurulum gibi tekrar eden basit çağrılar, kuralların izin verdiği ölçüde insansız çözülür; gerekirse yöneticiden Teams'te onay istenir. Aşağıdan bir senaryo seçip baştan sona izleyebilirsin.</p>
+  <details class="kart"><summary><b>Ne kendiliğinden, ne onayla yapılır?</b> <span class="kucuk">· ne kendiliğinden, ne onayla, ne yalnızca insanla yapılır</span></summary>
     <ul class="liste">
       <li>${rozet("yesil", "Otomatik")}<div class="govde">Kendi başına yapar: kilit açma, yazıcı/rapor/terminal onarım adımları, İK kaydıyla işe giriş ve çıkış paketi.</div></li>
       <li>${rozet("sari", "Onaylı otomatik")}<div class="govde">Yöneticinin Teams onayından sonra yapar: lisanslı yazılım kurulumu, rol ekleme.</div></li>
-      <li>${rozet("gri", "Yalnızca insan")}<div class="govde">Önerir ama yapmaz: katalog dışı yazılım, notlardan türetilmiş taslak reçeteler, parasal ya da geri alınamaz işler.</div></li></ul>
+      <li>${rozet("gri", "Yalnızca insan")}<div class="govde">Önerir ama yapmaz: katalog dışı yazılım, notlardan türetilmiş taslak otomatik çözümler, parasal ya da geri alınamaz işler.</div></li></ul>
     <p class="kucuk">Bu demoda Teams, kimlik sistemi ve kurulum aracı simüle edilir. Gerçek kullanımda her adım ilgili sisteme (Intune, Active Directory, MDM…) bağlanır ve otomasyon, yalnızca kendi işine yetecek kadar yetkili bir servis hesabıyla çalışır; her adım kayda geçer.</p></details>
-  <div class="izgara">
-    <div class="olcu"><b>${o.calisma}</b><span>Otomasyon çalışması</span></div>
-    <div class="olcu"><b style="color:var(--yesil)">${o.basarili}</b><span>İnsansız çözüldü</span></div>
-    <div class="olcu"><b style="color:var(--kirmizi)">${o.insana}</b><span>İnsana devredildi</span></div>
-    <div class="olcu"><b style="color:var(--sari)">${o.bekleyen_mesaj}</b><span>Cevap bekleyen Teams mesajı</span></div>
-    <div class="olcu"><b>${o.toplu_olay}</b><span>Açık toplu arıza</span></div>
-  </div>
   ${(() => { const kotu = d.receteler.filter(r => r.saglik && ["askida", "dususte"].includes(r.saglik.durum)); return kotu.length ? `<div class="kart" style="border-color:var(--kirmizi)"><h3>Otomasyon sağlığı</h3>
-    <p class="kucuk">Her reçetenin son 30 gündeki gerçek başarısı izlenir. Beklenenin çok altına inerse uyarı verilir; %40’ın altına inerse reçete kendiliğinden askıya alınır, çağrılar doğrudan insana gider ve risk haritasındaki otomasyon indirimi geri alınır.</p>
+    <p class="kucuk">Her otomatik çözümün son 30 gündeki gerçek başarısı izlenir. Beklenenin çok altına inerse uyarı verilir; %40’ın altına inerse otomatik çözüm kendiliğinden askıya alınır, çağrılar doğrudan insana gider ve risk haritasındaki otomasyon indirimi geri alınır.</p>
     <ul class="liste">${kotu.map(r => `<li>${rozet(...SAGLIK_R[r.saglik.durum])}<div class="govde"><b>${kac(r.ad)}</b><div class="kucuk">${kac(r.saglik.metin)}</div>
       ${r.saglik.durum === "askida" ? `<button class="dugme kucuk ikincil" style="margin-top:.3rem" data-devreye="${kac(r.kod)}">Düzeltildi, yeniden devreye al</button>` : ""}</div></li>`).join("")}</ul></div>` : ""; })()}
   <div class="iki genis">
     <div>
       ${son ? sonKart(son) : ""}
-      ${T.mod === "yerel" ? `<div class="kart"><h3>Yerel veri</h3><p class="kucuk">Otomasyon reçeteleri demo şirketin sistemlerine (kimlik, kurulum, yazdırma sunucusu) bağlı simülasyonlardır; kendi verinle kurulumda çalıştırılmaz. Sağdaki öneriler ve “notlardan reçete adayları” kendi çağrı notlarından çıkar.</p></div>` : `<div class="kart"><h3>Senaryo dene</h3><p class="kucuk">Her düğme, hesabı olan kurgusal bir çalışanın ağzından gerçek bir çağrı açar. Teams sorularını ve onay kartlarını sen cevaplarsın. Onarım senaryolarında hangi adımın tutacağı her denemede değişebilir.</p>
+      ${T.mod === "yerel" ? `<div class="kart"><h3>Yerel veri</h3><p class="kucuk">Otomatik çözümler demo şirketin sistemlerine (kimlik, kurulum, yazdırma sunucusu) bağlı simülasyonlardır; kendi verinle kurulumda çalıştırılmaz. Sağdaki öneriler ve “notlardan otomatik çözüm adayları” kendi çağrı notlarından çıkar.</p></div>` : `<div class="kart"><h3>Senaryo dene <span class="demo-etiket" title="Gösterim içindir; gerçek kullanımda bu düğme yok">Demo</span></h3><p class="kucuk">Her düğme, hesabı olan kurgusal bir çalışanın ağzından gerçek bir çağrı açar. Teams sorularını ve onay kartlarını sen cevaplarsın. Onarım senaryolarında hangi adımın tutacağı her denemede değişebilir.</p>
         <ul class="liste">${Object.entries(SENARYO).map(([k, [ad, ac]]) => `<li><div class="govde"><b>${ad}</b><div class="kucuk">${ac}</div></div><button class="dugme kucuk ikincil" data-senaryo="${k}">Çalıştır</button></li>`).join("")}</ul></div>`}
     </div>
     <div>
@@ -443,17 +437,25 @@ CIZ.otomasyon = async (veri) => {
           <div style="flex:0 0 auto"><button class="dugme ikincil" id="cikis">İşten çıkış paketini çalıştır</button></div></div></div>`}
     </div>
   </div>
+  <h3 style="margin:.4rem 0 .5rem">Sayılarla</h3>
+  <div class="izgara">
+    <div class="olcu"><b>${o.calisma}</b><span>Otomasyon çalışması</span></div>
+    <div class="olcu"><b style="color:var(--yesil)">${o.basarili}</b><span>İnsansız çözüldü</span></div>
+    <div class="olcu"><b style="color:var(--kirmizi)">${o.insana}</b><span>İnsana devredildi</span></div>
+    <div class="olcu"><b style="color:var(--sari)">${o.bekleyen_mesaj}</b><span>Cevap bekleyen Teams mesajı</span></div>
+    <div class="olcu"><b>${o.toplu_olay}</b><span>Açık toplu arıza</span></div>
+  </div>
   <div class="kart"><h3>Geçmişe uygulansaydı</h3>
-    <p>Son ${p.gun} günün ${sy(p.toplam_cagri)} sistemsel çağrısının <b>${yek(p.kapsanan_oran, "i")}</b> bu reçetelere uyuyor. Beklenen başarı oranlarıyla yaklaşık <b>${yek(p.insansiz_oran, "i")}</b> insansız kapanırdı; bu ayda yaklaşık <b>${sy(p.kazanc_saat_ay)} saat</b> iş demek.</p>
-    <div class="tablo-sar"><table><thead><tr><th>Reçete</th><th>Seviye</th><th class="sayi">Ayda çağrı</th><th class="sayi">Bugünkü kapanma</th><th class="sayi">Beklenen başarı</th><th class="sayi">Kazanç (saat/ay)</th></tr></thead><tbody>
+    <p>Son ${p.gun} günün ${sy(p.toplam_cagri)} sistemsel çağrısının <b>${yek(p.kapsanan_oran, "i")}</b> bu otomatik çözümlere uyuyor. Beklenen başarı oranlarıyla yaklaşık <b>${yek(p.insansiz_oran, "i")}</b> insansız kapanırdı; bu ayda yaklaşık <b>${sy(p.kazanc_saat_ay)} saat</b> iş demek.</p>
+    <div class="tablo-sar"><table><thead><tr><th>Otomatik çözüm</th><th>Seviye</th><th class="sayi">Ayda çağrı</th><th class="sayi">Bugünkü kapanma</th><th class="sayi">Beklenen başarı</th><th class="sayi">Kazanç (saat/ay)</th></tr></thead><tbody>
       ${p.satirlar.map(r => `<tr><td>${kac(r.ad)}</td><td>${rozet(SEVIYE_R[r.seviye][0], r.seviye_adi)}</td><td class="sayi">${sy(r.ayda)}</td><td class="sayi">${r.ort_kapanma_dk} dk</td><td class="sayi">${yuzde(r.basari_beklentisi)}</td><td class="sayi"><b>${sy(r.kazanc_saat_ay)}</b></td></tr>`).join("")}</tbody></table></div>
     <p class="kucuk">Kazanç, bir çalışanın bu işe harcadığı süreden hesaplanır; çağrının beklediği süre ayrıca kısalır. Beklenen başarı: onarımlarda adımların geçmiş tutma oranlarından, taleplerde %85 varsayımıyla (lisanssız, katalog dışı ve reddedilen talepler insana kalır).</p></div>
-  <div class="kart"><h3>Notlardan reçete adayları</h3>
-    <p class="kucuk">Aynı çözüm yolu ${8} ve daha fazla kez yazılmışsa burada çıkar. Çevrilen reçete <b>taslaktır</b>: çalıştırılmaz, adım adım rehber olarak gösterilir. Adımları gerçek sistemlere bağlamak BT’nin işidir; bağlanınca seviyesi yükseltilir.</p>
-    ${d.adaylar.length ? `<ul class="liste">${d.adaylar.slice(0, 4).map((a, i) => `<li><div class="govde"><b>${kac(a.kategori)}</b> ${a.konuda_recete_var ? rozet("gri", "Konuda reçete var") : rozet("mor", "Reçetesiz konu")}
+  <div class="kart"><h3>Notlardan otomatik çözüm adayları</h3>
+    <p class="kucuk">Aynı çözüm yolu ${8} ve daha fazla kez yazılmışsa burada çıkar. Çevrilen otomatik çözüm <b>taslaktır</b>: çalıştırılmaz, adım adım rehber olarak gösterilir. Adımları gerçek sistemlere bağlamak BT’nin işidir; bağlanınca seviyesi yükseltilir.</p>
+    ${d.adaylar.length ? `<ul class="liste">${d.adaylar.slice(0, 4).map((a, i) => `<li><div class="govde"><b>${kac(a.kategori)}</b> ${a.konuda_recete_var ? rozet("gri", "Konuda otomatik çözüm var") : rozet("mor", "Otomatik çözümü yok")}
       ${adimlar(a.adimlar)}<div class="kucuk">${a.tekrar} kez yazılmış (ayda ~${sy(a.ayda)}) · ${kac(a.kisiler.join(", "))} · tahmini ${sy(a.tahmini_saat_ay)} saat/ay</div></div>
-      <button class="dugme kucuk ikincil" data-aday="${i}">Taslak reçeteye çevir</button></li>`).join("")}</ul>` : '<p class="kucuk">Şu an eşiği geçen tekrar yok.</p>'}</div>
-  <details class="kart"><summary><b>Reçete kütüphanesi (${d.receteler.length})</b> <span class="kucuk">· adımlar, araçlar, sağlık, sayaçlar</span></summary>
+      <button class="dugme kucuk ikincil" data-aday="${i}">Taslak otomatik çözüme çevir</button></li>`).join("")}</ul>` : '<p class="kucuk">Şu an eşiği geçen tekrar yok.</p>'}</div>
+  <details class="kart"><summary><b>Otomatik çözüm kütüphanesi (${d.receteler.length})</b> <span class="kucuk">· adımlar, araçlar, sağlık, sayaçlar</span></summary>
     <ul class="liste" style="margin-top:.5rem">${d.receteler.map(r => `<li>${rozet(SEVIYE_R[r.seviye][0], r.seviye_adi)}<div class="govde"><b>${kac(r.ad)}</b> <span class="kucuk">· ${{talep: "Talep karşılama", onarim: "Bilinen çözümü dene", paket: "İK paketi", taslak: "Taslak"}[r.tur]} · ${kac(r.tanim.arac)}</span>
       <div class="kucuk">Sahibi: ${r.sahip ? kac(r.sahip) : '<b style="color:var(--kirmizi)">yok</b> (bozulursa düzeltecek kişi belli değil)'}</div>
       ${r.saglik ? `<div>${rozet(...SAGLIK_R[r.saglik.durum])} <span class="kucuk">${kac(r.saglik.metin)}</span>${r.saglik.durum === "askida" ? ` <button class="dugme kucuk ikincil" data-devreye="${kac(r.kod)}">Düzeltildi, yeniden devreye al</button>` : ""}</div>` : ""}
@@ -472,9 +474,9 @@ CIZ.otomasyon = async (veri) => {
     const sn = e.target.closest("[data-senaryo]");
     if (sn) { sn.disabled = true; const r = await api("otomasyon/senaryo", {ad: sn.dataset.senaryo}).catch(() => null); if (r) { OTO_SON = {cagri_id: r.cagri_id}; await git("otomasyon", "yenile"); } return; }
     const dv = e.target.closest("[data-devreye]");
-    if (dv) { dv.disabled = true; await api(`otomasyon/recete/${dv.dataset.devreye}/devreye-al`, {}); bildir("Reçete yeniden devrede; başarı ölçümü sıfırdan başladı."); git("otomasyon", "yenile"); return; }
+    if (dv) { dv.disabled = true; await api(`otomasyon/recete/${dv.dataset.devreye}/devreye-al`, {}); bildir("Otomatik çözüm yeniden devrede; başarı ölçümü sıfırdan başladı."); git("otomasyon", "yenile"); return; }
     const ad = e.target.closest("[data-aday]");
-    if (ad) { const a = d.adaylar[+ad.dataset.aday]; await api("otomasyon/recete", {kategori_id: a.kategori_id, not_metni: a.not_metni}); bildir("Taslak reçete oluşturuldu."); git("otomasyon", "yenile"); return; }
+    if (ad) { const a = d.adaylar[+ad.dataset.aday]; await api("otomasyon/recete", {kategori_id: a.kategori_id, not_metni: a.not_metni}); bildir("Taslak otomatik çözüm oluşturuldu."); git("otomasyon", "yenile"); return; }
     if (e.target.id === "giris") { const r = await api("otomasyon/ise-giris", {ad: $("#gad").value, birim: $("#gbi").value, gorev: $("#ggo").value}); OTO_SON = {oto_id: r.id}; T = await api("tanimlar"); git("otomasyon", "yenile"); return; }
     if (e.target.id === "cikis") { const r = await api("otomasyon/isten-cikis", {ad: $("#cad").value}); OTO_SON = {oto_id: r.id}; T = await api("tanimlar"); git("otomasyon", "yenile"); }
   };
@@ -517,7 +519,7 @@ CIZ.ogrenme = async () => {
     <div class="not uyari">Dürüst not: veri sentetik olduğu için çağrı cümleleri sınırlı kalıplardan üretildi. Gerçek çağrılarda konu doğruluğu daha düşük çıkar. Kişi tahmininde %100 beklenmez; aynı türdeki çağrıyı o gün kim boştaysa o çözer.</div></div>
   ${(() => { const p = d.politika; if (!p) return ""; const r = (ad, x, not) => `<tr><td>${ad}<div class="kucuk">${not}</div></td><td class="sayi">${yuzde(x.yetkin_oran)}</td><td class="sayi">${yuzde(x.yogunlasma)}</td><td class="sayi">${sy(x.tahmini_sure)} dk</td></tr>`;
     return `<div class="kart"><h3>Kime verilmeli? Model ve paylaştırma</h3>
-    <p class="kucuk">Kişi modeli geçmişte kimin çözdüğünden öğrenir; geçmişte işi hep aynı kişi aldıysa model de onu önerir ve tek kişiye bağımlılığı besler. Bu yüzden model yalnızca <b>kim yetkin</b> sorusuna cevap verir; <b>kime verilsin</b> sorusuna kural karar verir:</p>
+    <p class="kucuk">Kişi modeli geçmişte kimin çözdüğünden öğrenir; geçmişte işi hep aynı kişi aldıysa model de onu önerir ve tek kişiye bağımlılığı besler. Bu yüzden model yalnızca <b>kim biliyor</b> sorusuna cevap verir; <b>kime verilsin</b> sorusuna kural karar verir:</p>
     <ul class="kucuk" style="margin:.2rem 0 .5rem 1rem;padding:0"><li><b>İş yükü:</b> seçilen kişinin üzerinde ${m.esikler.yuk} ya da daha fazla açık çağrı varsa, konuyu bilen ve daha boş biri seçilir.</li>
       <li><b>Paylaştırma:</b> bir kişi vardiyada konunun ${yek(m.esikler.pay, "inden")} fazlasını tek başına çözüyorsa çağrı, konuyu bilen (son 90 günde en az 3 çözümü olan) başka birine verilir; uzman yedekte kalır. Acil ve kritik çağrıda bu yapılmaz.</li></ul>
     <div class="tablo-sar"><table><thead><tr><th>Test çağrıları kime giderdi?</th><th class="sayi">Bilene</th><th class="sayi">Toplanma</th><th class="sayi">Süre</th></tr></thead><tbody>
@@ -526,7 +528,7 @@ CIZ.ogrenme = async () => {
       ${r("Model, kalite ağırlığıyla", p.model, `isabet ${yuzde(p.model.isabet)}`)}
       ${r("Model + paylaştırma", p.politika, `çağrıların ${yek(p.paylastirilan, "i")} başka birine verildi`)}</tbody></table></div>
     <p class="kucuk">Bilene: konuyu son 90 günde en az 3 kez çözmüş birine gitme oranı. Toplanma: her konuda en çok çağrı alan kişinin payı (ortalama). Süre: seçilen kişinin o konudaki geçmiş ortanca süresi; konuda deneyimi yoksa 1,5 katı.</p>
-    <div class="not">Dürüst not: bu demo verisinde fark küçük. Asıl bağımlılık, vardiyada hiç yedeği olmayan konulardan geliyor (sipariş dalgası, ERP entegrasyonu); oraya paylaştırma değil eğitim planı ve çırak modu çare. Kalite ağırlığının etkisi de küçük, çünkü sentetik veride hızlı çözen zaten en çok çözen kişi. Gerçek veride ikisinin ayrıştığı durumlar (işi alan ama yavaş ya da yeniden açılan çözümler) daha çok olur.</div>
+    <div class="not">Dürüst not: bu demo verisinde fark küçük. Asıl bağımlılık, vardiyada hiç yedeği olmayan konulardan geliyor (sipariş dalgası, ERP entegrasyonu); oraya paylaştırma değil eğitim planı ve yanında öğrenme çare. Kalite ağırlığının etkisi de küçük, çünkü sentetik veride hızlı çözen zaten en çok çözen kişi. Gerçek veride ikisinin ayrıştığı durumlar (işi alan ama yavaş ya da yeniden açılan çözümler) daha çok olur.</div>
     <p style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0 0"><input type="checkbox" id="pmod" ${m.paylastirma ? "checked" : ""} style="width:auto;margin:0"><label for="pmod" style="margin:0">Canlı yönlendirmede paylaştırma açık</label></p></div>`; })()}
   <div class="iki">
     <div class="kart"><h3>Üç öğrenme</h3>
@@ -551,14 +553,14 @@ function formulKutu(f) {
   <p>Puan = 100 × ((${sy(f.yogunlasma)} × yoğunlaşma + ${sy(f.yedek)} × yedek riski) × (1 − otomasyon payı) + ${sy(f.kart)} × yazısızlık) × kritiklik çarpanı</p>
   <ul><li><b>Yoğunlaşma:</b> son ${f.pencere_gun} günde konuyu en çok çözen kişinin payı.</li>
   <li><b>Yedek riski:</b> konuyu en az ${f.yetkin_esigi} kez çözmüş kişi sayısına göre. 0-1 kişi → 1 · 2 kişi → 0,5 · 3 kişi → 0,2 · 4 ve üzeri → 0.</li>
-  <li><b>Yazısızlık:</b> çözüm kartı, reçete (taslak dahil) ya da dökümde yazılı talimat yoksa 1.</li>
+  <li><b>Yazısızlık:</b> çözüm kartı, otomatik çözüm (taslak dahil) ya da dökümde yazılı talimat yoksa 1.</li>
   <li><b>Otomasyon payı:</b> konunun çağrılarından otomasyonla insansız kapanması beklenen pay. Bu pay kişiye bağlı olmadığı için yoğunlaşma ve yedek bileşenleri (1 − pay) ile çarpılır.</li>
   <li><b>Pratiği kalmamış yedek:</b> 91-365 gün önce konuyu en az 3 kez çözmüş, son 60 günde hiç çözmemiş kişi. Puana girmez ama nedenlerde yazar; eğitim planı bu kişileri üçte bir süreyle “tazeler”.</li>
   <li><b>Kritiklik çarpanı:</b> 1 → ${sy(f.kritiklik[1])} · 2 → ${sy(f.kritiklik[2])} · 3 → ${sy(f.kritiklik[3])}.</li></ul>
   <p class="kucuk">${f.kirmizi} ve üzeri yüksek, ${f.sari}-${f.kirmizi - 1} orta, altı düşük. Ağırlıklar bir tercihtir; kod içinde tek satırda değiştirilebilir.</p></details>`;
 }
 function isiTablo(b) {
-  return `<div class="kart"><h3>${kac(b.birim)}</h3><p class="kucuk">Hücre: kişinin son 90 günde o konuda çözdüğü çağrı sayısı. Koyuluk payı gösterir. <b>○</b> kâğıtta yetkin ama fiilen çözmüyor. <b>↺</b> eskiden çözüyordu, pratiği kalmamış.</p>
+  return `<div class="kart"><h3>${kac(b.birim)}</h3><p class="kucuk">Hücre: kişinin son 90 günde o konuda çözdüğü çağrı sayısı. Koyuluk payı gösterir. <b>○</b> kâğıtta biliyor görünüyor ama fiilen çözmüyor. <b>↺</b> eskiden çözüyordu, pratiği kalmamış.</p>
   <div class="tablo-sar"><table class="isi"><thead><tr><th>Konu</th><th class="sayi">Risk</th>${b.kisiler.map(p => `<th class="kisi">${kac(p.ad)} <span style="opacity:.6">(${VARDIYA[p.vardiya][0]})</span></th>`).join("")}<th>Kâğıtta / fiilen</th></tr></thead>
   <tbody>${b.satirlar.map(s => `<tr><td class="ad">${kac(s.ad)}</td><td class="sayi">${puanKutu(s)}</td>
     ${s.hucreler.map(h => `<td class="h" style="background:rgba(20,80,107,${(h.pay * .85).toFixed(2)});color:${h.pay > .5 ? "#fff" : "inherit"}" ${h.eski ? 'title="Pratiği kalmamış: eskiden çözüyordu"' : ""}>${h.n || (h.eski ? "↺" : h.beyan ? "○" : "")}</td>`).join("")}
@@ -577,21 +579,26 @@ CIZ.risk = async () => {
   const r = await api("risk");
   $("#ana").innerHTML = `
   <h2>Risk haritası</h2>
-  <p class="alt">Hangi konu kimin elinde? Harita beyana değil, son 90 günde işi fiilen kimin çözdüğüne bakar. İki kaynağı birlikte okur: Usta’nın sistemsel çağrıları ve bakım sisteminden içe aktarılan teknik arıza dökümü.</p>
+  <p class="alt">Hangi iş tek kişiye bağlı? Harita, son 90 günde işi gerçekte kimin çözdüğüne bakar; kâğıttaki yetkinliğe değil. En riskli işler en üstte; her satırdan doğrudan “o kişi yoksa ne olur” ya da eğitim planına geçebilirsin.</p>
   <div class="izgara"><div class="olcu"><b style="color:var(--kirmizi)">${r.ozet.kirmizi}</b><span>Yüksek</span></div><div class="olcu"><b style="color:var(--sari)">${r.ozet.sari}</b><span>Orta</span></div><div class="olcu"><b style="color:var(--yesil)">${r.ozet.yesil}</b><span>Düşük</span></div><div class="olcu"><b>${sy(r.ozet.ortalama)}</b><span>Ortalama puan</span></div></div>
   ${r.kaynaklar.filter(k => k.eski).map(k => `<div class="not uyari">${kac(k.kaynak)} ${k.gun} gündür güncellenmedi. Bu kaynağın konuları eksik veriyle hesaplanıyor; son haftaların çözümleri sayılmadığı için risk yapay olarak yüksek görünebilir. Dökümün güncelini içe aktarın.</div>`).join("")}
-  <div id="seyir"><div class="kart kucuk">Seyir hesaplanıyor…</div></div>
-  <div id="firsat"></div>
-  ${formulKutu(r.formul)}
-  <div class="kart"><h3>Konular, riske göre</h3>
-    <div class="sira" style="margin-bottom:.4rem"><div><label for="rsev">Seviye</label><select id="rsev"><option value="">Hepsi</option><option value="kirmizi">Yüksek</option><option value="sari">Orta</option><option value="yesil">Düşük</option></select></div>
+  <div class="kart"><h3>En riskli işler</h3>
+    <div id="rliste">${riskListe(r.konular.slice(0, 5))}</div>
+    <p style="margin:.6rem 0 0"><button class="dugme kucuk ikincil" id="rhepsi">Bütün işler (${r.konular.length}) ve süzgeçler</button>
+      <button class="dugme kucuk ikincil" data-sayfa="plan">Bu riskleri düşürecek planı çıkar</button></p>
+    <div id="rsuzgec" hidden>
+    <div class="sira" style="margin:.8rem 0 .4rem"><div><label for="rsev">Seviye</label><select id="rsev"><option value="">Hepsi</option><option value="kirmizi">Yüksek</option><option value="sari">Orta</option><option value="yesil">Düşük</option></select></div>
       <div><label for="rbir">Birim</label><select id="rbir"><option value="">Hepsi</option>${[...new Set(r.konular.map(k => k.birim))].map(b => `<option>${kac(b)}</option>`).join("")}</select></div>
       <div style="flex:0 0 auto;align-self:flex-end"><a class="dugme ikincil" style="text-decoration:none;display:inline-block" href="/api/risk.csv">Excel için indir (CSV)</a></div></div>
     <p class="kucuk" style="margin:.2rem 0 0">Kaynaklar: ${r.kaynaklar.map(k => `${kac(k.kaynak)} (son kayıt ${tarih(k.son_kayit)}, son 90 günde ${k.pencerede})`).join(" · ")}</p>
-    <div id="rliste">${riskListe(r.konular)}</div></div>
-  <h3 style="margin:1rem 0 .5rem">Konu × kişi</h3>${r.matris.map(isiTablo).join("")}`;
-  const suz = () => { const sv = $("#rsev").value, bi = $("#rbir").value; $("#rliste").innerHTML = riskListe(r.konular.filter(k => (!sv || k.seviye === sv) && (!bi || k.birim === bi))) || ""; };
+    </div></div>
+  <details class="kart acilir"><summary><b>Kim hangi işi biliyor?</b> <span class="kucuk">· iş × kişi tablosu</span></summary>${r.matris.map(isiTablo).join("")}</details>
+  <details class="kart acilir"><summary><b>Risk zaman içinde nasıl değişti?</b></summary><div id="seyir"><p class="kucuk">Hesaplanıyor…</p></div></details>
+  <details class="kart acilir"><summary><b>Otomatikleştirilebilecek riskli işler</b></summary><div id="firsat"><p class="kucuk">Hesaplanıyor…</p></div></details>
+  ${formulKutu(r.formul)}`;
+  const suz = () => { const sv = $("#rsev").value, bi = $("#rbir").value; $("#rliste").innerHTML = riskListe(r.konular.filter(k => (!sv || k.seviye === sv) && (!bi || k.birim === bi))) || '<p class="kucuk">Bu süzgeçle konu yok.</p>'; };
   $("#rsev").onchange = $("#rbir").onchange = suz;
+  $("#rhepsi").onclick = () => { $("#rsuzgec").hidden = false; $("#rhepsi").hidden = true; suz(); };
   riskEkleri();
 };
 
@@ -633,22 +640,22 @@ function seyirKart(r) {
 }
 function firsatKart(f) {
   if (!f.length) return "";
-  return `<div class="kart"><h3>Riskli konularda reçete fırsatı</h3>
-    <p class="kucuk">Bu konuların yazılı çözümü yok ama uzmanın çağrılara düştüğü notlarda aynı çözüm yolu tekrar ediyor. Not taslak reçeteye çevrilirse “yazılı çözüm yok” bileşeni kalkar.</p>
+  return `<div class="kart"><h3>Riskli işlerde otomatik çözüm fırsatı</h3>
+    <p class="kucuk">Bu konuların yazılı çözümü yok ama uzmanın çağrılara düştüğü notlarda aynı çözüm yolu tekrar ediyor. Not taslak otomatik çözüme çevrilirse “yazılı çözüm yok” bileşeni kalkar.</p>
     <ul class="liste">${f.map((x, i) => `<li><span style="white-space:nowrap"><span class="puan ${x.seviye_once}">${x.puan_once}</span><span class="ok">→</span><span class="puan ${x.seviye_sonra}">${x.puan_sonra}</span></span>
       <div class="govde"><b>${kac(x.kategori)}</b> <span class="kucuk">· uzman ${kac(x.uzman || "-")} · bu yol ${x.tekrar} kez yazılmış</span>${adimlar(x.adimlar)}
-      <button class="dugme kucuk ikincil" data-firsat="${i}">Taslak reçeteye çevir</button></div></li>`).join("")}</ul></div>`;
+      <button class="dugme kucuk ikincil" data-firsat="${i}">Taslak otomatik çözüme çevir</button></div></li>`).join("")}</ul></div>`;
 }
 async function riskEkleri() {
   const [s, f] = await Promise.all([api("risk/seyri"), api("risk/firsatlar")]);
   if (durum.sayfa !== "risk") return;
   $("#seyir").innerHTML = seyirKart(s);
-  $("#firsat").innerHTML = firsatKart(f);
+  $("#firsat").innerHTML = firsatKart(f) || '<p class="kucuk">Şu an otomatikleştirilebilecek riskli iş yok.</p>';
   $("#firsat").onclick = async e => {
     const b = e.target.closest("[data-firsat]"); if (!b) return;
     const x = f[+b.dataset.firsat]; b.disabled = true;
     await api("otomasyon/recete", {kategori_id: x.kategori_id, not_metni: x.not_metni});
-    bildir(`${x.kategori}: taslak reçete oluşturuldu, risk yeniden hesaplandı.`); git("risk");
+    bildir(`${x.kategori}: taslak otomatik çözüm oluşturuldu, risk yeniden hesaplandı.`); git("risk");
   };
 }
 
@@ -711,14 +718,14 @@ function takipKart(t) {
   if (!t.var) return `<div class="kart"><h3>Kayıtlı plan</h3><p class="kucuk">Henüz kaydedilmiş bir plan yok. Planı çıkarıp “Bu planı kaydet” dersen, uygulanıp uygulanmadığını buradan takip edebilirsin.</p></div>`;
   const etiket = {"yetkin oldu": "yesil", "başladı": "sari", "henüz çözmedi": "kirmizi", "yazıldı": "yesil", "yazılmadı": "kirmizi"};
   return `<div class="kart"><h3>Kayıtlı planın takibi</h3>
-    <p class="kucuk">Plan tarihi ${tarih(t.plan_tarihi)}. Eğitimde ölçü: öğrenen kişi plan tarihinden sonra o konuda en az 3 çağrı çözdü mü? Kartta: konu için kart ya da reçete yazıldı mı?</p>
+    <p class="kucuk">Plan tarihi ${tarih(t.plan_tarihi)}. Eğitimde ölçü: öğrenen kişi plan tarihinden sonra o konuda en az 3 çağrı çözdü mü? Kartta: konu için kart ya da otomatik çözüm yazıldı mı?</p>
     <div class="izgara"><div class="olcu"><b>${yuzde(t.tutma_orani)}</b><span>Planın tutma oranı (${t.tamamlanan}/${t.toplam})</span></div>
       <div class="olcu"><b>${t.konular.filter(k => k.hedefe_ulasti).length}/${t.konular.length}</b><span>Hedef puana inen konu</span></div></div>
     <ul class="liste">${t.satirlar.map(s => `<li>${rozet(etiket[s.sonuc], s.sonuc)}<div class="govde"><b>${kac(s.kategori)}</b> <span class="kucuk">· ${s.tur === "kart" ? "kart: " + kac(s.ogreten || "-") : (s.tur === "tazeleme" ? "tazeleme: " : s.tur === "gecis" ? "geçiş eğitimi: " : "eğitim: ") + kac(s.ogreten || "-") + " → " + kac(s.ogrenen)}</span>
       ${s.tur !== "kart" ? `<div class="kucuk">Plandan sonra ${s.cozulen} çağrı çözdü${s.ort_sure ? ", ortalama " + s.ort_sure + " dk" : ""}</div>` : ""}</div>
       <span style="white-space:nowrap" title="Plan anı → hedef → bugün"><span class="puan ${sev(s.puan_once)}">${s.puan_once}</span><span class="ok">→</span><span class="puan ${sev(s.puan_simdi)}">${s.puan_simdi}</span></span></li>`).join("")}</ul>
     <p class="kucuk">Sağdaki sayılar: plan anındaki puan → bugünkü puan. Hedefe inemeyen konularda hangi satırın tutmadığına bak.</p>
-    ${t.simule ? "" : `<div class="not uyari">Plan yeni kaydedildi; henüz sonucu yok. Demo için planın 30 gün önce kaydedildiğini ve uygulandığını varsayarak o dönemin çağrılarını üretebilirsin. Bazı satırlar bilerek tutmaz.</div><p><button class="dugme ikincil" id="psim">30 gün sonrasını simüle et</button></p>`}</div>`;
+    ${t.simule ? "" : `<div class="not uyari">Plan yeni kaydedildi; henüz sonucu yok. Demo için planın 30 gün önce kaydedildiğini ve uygulandığını varsayarak o dönemin çağrılarını üretebilirsin. Bazı satırlar bilerek tutmaz.</div><p><span class="demo-etiket" title="Gösterim içindir; gerçek kullanımda bu düğme yok">Demo</span> <button class="dugme ikincil" id="psim">30 gün sonrasını simüle et</button></p>`}</div>`;
 }
 
 /* Hesap düğmesi geri bildirimi: sonuç aynı çıksa bile basıldığı belli olsun */
@@ -769,11 +776,11 @@ CIZ.giderse = async (ad) => {
         <div class="kucuk">Bu konunun ${yek(e.pay, "ini")} çözüyor · geride ${e.kalan_yetkin ? kac(e.kalan_yetkinler.join(", ")) : "bilen yok"} · ${sy(e.beklenen_cagri)} çağrı, süre ×${sy(e.sure_carpani)} → +${e.ek_dakika} dk</div></div></li>`).join("")}</ul>`
         : '<p class="kucuk">Bu kişi son 90 günde çağrı çözmemiş; gidişi haritayı değiştirmiyor.</p>'}
     </div>
-    ${y.otomasyonlar.length ? `<div class="kart"><h3>Bakımını yaptığı otomasyonlar</h3><p class="kucuk">Çağrı çözmek dışında da ona bağlı işler var: bu reçeteler bozulursa (sistem güncellemesi, şifre değişikliği…) düzeltecek kişi o. Yokken bozulan reçete askıya düşer ve çağrılar insana döner.</p>
+    ${y.otomasyonlar.length ? `<div class="kart"><h3>Bakımını yaptığı otomasyonlar</h3><p class="kucuk">Çağrı çözmek dışında da ona bağlı işler var: bu otomatik çözümler bozulursa (sistem güncellemesi, şifre değişikliği…) düzeltecek kişi o. Yokken bozulan otomatik çözüm askıya düşer ve çağrılar insana döner.</p>
       <ul class="liste">${y.otomasyonlar.map(a => `<li>${rozet("mor", {talep: "Talep", onarim: "Onarım", paket: "İK paketi", taslak: "Taslak"}[a.tur])}<div class="govde">${kac(a.ad)}</div></li>`).join("")}</ul></div>` : ""}
     <details class="kart"><summary><b>Hesabın varsayımları</b></summary>
       <ul><li>Beklenen çağrı = konunun günlük çağrı sayısı × gün × kişinin o konudaki payı.</li>
-      <li>Çözüm süresi çarpanı: geride yetkin biri varsa 1,1 · yoksa ama yazılı çözüm varsa 1,5 · ikisi de yoksa 2,5.</li>
+      <li>Çözüm süresi çarpanı: geride bilen biri varsa 1,1 · yoksa ama yazılı çözüm varsa 1,5 · ikisi de yoksa 2,5.</li>
       <li>Ek bekleme = beklenen çağrı × konunun temel çözüm süresi × (çarpan − 1).</li></ul></details>
     <p><button class="dugme" data-sayfa="plan" data-veri="60">Bu riski düşürecek planı çıkar</button> <button class="dugme ikincil" id="gdv">Devir dosyası hazırla</button></p>
     <div id="gdd"></div>`;
@@ -970,7 +977,7 @@ CIZ.plan = async (butce) => {
       <p class="kucuk">Amaç puanı, önce yeşil sınırının (35) üzerindeki riski düşürmeyi ödüllendirir; plan bu yüzden önce kırmızı konulara gider. Optimizasyon <b>amaç puanında</b> hiçbir zaman basit kuraldan kötü çıkmaz; fark bütçe dar olduğunda büyür. Toplam risk düşüşü kuralda daha yüksek görünebilir: kural zaten yeşil olan konuları da düşürür, bu da toplamı şişirir ama riski azaltmaz.</p></details>
     <p><button class="dugme" id="pkay">Bu planı kaydet</button> <span class="kucuk">Kaydedilen plan aşağıda takip edilir: kim öğrenmeye başladı, hangi kart yazıldı, risk hedefe indi mi?</span></p>
     <div class="kart"><h3>Plan sonrası harita</h3><ul class="liste">${p.harita_sonra.slice(0, 10).map(r => `<li>${puanKutu(r)}<div class="govde">${kac(r.ad)} <span class="kucuk">· ${kac(r.birim)}</span></div></li>`).join("")}</ul>
-      <p class="kucuk">Varsayım: eğitilen kişi konuyu diğer yetkinlerle eşit paylaşır. İlk 10 konu gösteriliyor.</p></div>`;
+      <p class="kucuk">Varsayım: eğitilen kişi konuyu işi bilen diğer kişilerle eşit paylaşır. İlk 10 konu gösteriliyor.</p></div>`;
   }
   async function takipYukle() {
     const t = await api("plan/takip");
@@ -1041,7 +1048,7 @@ CIZ.plan = async (butce) => {
 };
 
 /* ---------------------------------------------------------------- Değişimler */
-const DURUM_R = {yetkin: ["yesil", "Yetkin"], ogreniyor: ["sari", "Öğreniyor"], baslamadi: ["gri", "Başlamadı"]};
+const DURUM_R = {yetkin: ["yesil", "Biliyor"], ogreniyor: ["sari", "Öğreniyor"], baslamadi: ["gri", "Başlamadı"]};
 function gecisKart(g) {
   const yk = g.yeni_konu;
   return `<div class="kart"><h3>${g.eski_ad ? kac(g.eski_ad) + ' <span class="ok">→</span> ' : ""}${kac(g.yeni_ad)}</h3>
@@ -1056,11 +1063,11 @@ function gecisKart(g) {
 function alismaKart(a) {
   const k = a.kisi;
   return `<div class="kart"><h3>${kac(k.ad)} <span class="kucuk">· ${kac(k.birim)} · ${VARDIYA[k.vardiya]} vardiyası${k.ise_giris ? " · işe giriş " + kac(k.ise_giris) : ""}</span></h3>
-    <div class="izgara"><div class="olcu"><b>${a.yetkin} / ${a.toplam_konu}</b><span>Yetkin olduğu konu</span></div><div class="olcu"><b>${a.toplam_cozum}</b><span>Çözdüğü çağrı</span></div>
+    <div class="izgara"><div class="olcu"><b>${a.yetkin} / ${a.toplam_konu}</b><span>Bildiği konu</span></div><div class="olcu"><b>${a.toplam_cozum}</b><span>Çözdüğü çağrı</span></div>
       <div class="olcu"><b>${a.konular.filter(x => x.durum === "ogreniyor").length}</b><span>Öğrendiği konu</span></div></div>
-    <ul class="liste">${a.konular.map(x => `<li>${rozet(...DURUM_R[x.durum])}<div class="govde"><b>${kac(x.ad)}</b> ${x.planli ? rozet("mavi", "Eğitim planında") : ""} ${x.beyan ? rozet("gri", "Kâğıtta yetkin") : ""}
+    <ul class="liste">${a.konular.map(x => `<li>${rozet(...DURUM_R[x.durum])}<div class="govde"><b>${kac(x.ad)}</b> ${x.planli ? rozet("mavi", "Eğitim planında") : ""} ${x.beyan ? rozet("gri", "Kâğıtta biliyor") : ""}
       <div class="cubuk" style="margin:.3rem 0"><i style="width:${Math.min(100, x.cozum / x.esik * 100)}%"></i></div>
-      <div class="kucuk">${x.cozum} çözüm${x.kalan ? ` · yetkin sayılmasına ${x.kalan} kaldı` : ""}${x.ustalar.length ? " · usta: " + kac(x.ustalar.join(", ")) : " · bu konuyu bilen başka kimse yok"}${x.durum !== "yetkin" ? (x.cirak_uygun ? " · çırak modu çağrı verebilir" : x.kritiklik >= 3 ? " · kritik konu: çırak moduna girmez, eğitimle öğrenmeli" : "") : ""}</div></div></li>`).join("")}</ul></div>`;
+      <div class="kucuk">${x.cozum} çözüm${x.kalan ? ` · bilen sayılmasına ${x.kalan} çağrı kaldı` : ""}${x.ustalar.length ? " · usta: " + kac(x.ustalar.join(", ")) : " · bu konuyu bilen başka kimse yok"}${x.durum !== "yetkin" ? (x.cirak_uygun ? " · yanında öğrenerek çağrı alabilir" : x.kritiklik >= 3 ? " · kritik iş: yanında öğrenmeye uygun değil, eğitimle öğrenmeli" : "") : ""}</div></div></li>`).join("")}</ul></div>`;
 }
 CIZ.degisim = async () => {
   const d = await api("degisim");
@@ -1069,11 +1076,11 @@ CIZ.degisim = async () => {
   const kotu = d.receteler.filter(r => ["askida", "dususte"].includes(r.saglik.durum));
   $("#ana").innerHTML = `
   <h2>Değişimler</h2>
-  <p class="alt">Risk haritası geçmiş çağrılardan beslenir. Sistem değiştiğinde geçmiş yanıltır, yeni biri geldiğinde geçmiş hiç yoktur, otomasyon bozulduğunda eski başarı aldatır. Bu ekran değişimi kayda geçirir; harita, plan ve yönlendirme buna göre davranır.</p>
+  <p class="alt">Yeni bir sisteme geçtiysen, ekibe biri katıldıysa ya da ayrıldıysa burada kaydet. Harita geçmişten beslendiği için bu değişimleri kendisi bilemez; kaydedince risk, plan ve çağrı yönlendirmesi buna göre düzelir.</p>
 
   <h3 style="margin:1rem 0 .5rem">1. Sistem geçişi</h3>
-  <div class="kart"><p class="kucuk">Eski konu geçiş günü haritadan çıkar, yeni konu o gün başlar. İlk 60 gün (ya da 10 çağrıya kadar) yeni konunun puanı <b>geçicidir</b>: kâğıtta yetkin olanlar ve anahtar kullanıcılar yetkin sayılır. Ama çağrıların %60’ından fazlasını tek kişi çözüyorsa <b>erken uyarı</b> verilir: bilgi daha ilk haftalarda bir kişide toplanıyordur. Eski sistemde bu işi yapanlar geçiş adayıdır; yeni sistemi öğrenme süreleri yarıya iner. Usta’nın modeli eski çağrılardan yeni konuyu tanımayı öğrenir.</p>
-    ${d.simule.gecis || T.mod === "yerel" ? "" : `<p><button class="dugme ikincil" id="gsim">Örnek: 40 gün önce rapor küpünden Power BI’a geçildi</button></p>`}</div>
+  <div class="kart"><p class="kucuk">Eski konu geçiş günü haritadan çıkar, yeni konu o gün başlar. İlk 60 gün (ya da 10 çağrıya kadar) yeni konunun puanı <b>geçicidir</b>: kâğıtta biliyor görünenler ve anahtar kullanıcılar bilen sayılır. Ama çağrıların %60’ından fazlasını tek kişi çözüyorsa <b>erken uyarı</b> verilir: bilgi daha ilk haftalarda bir kişide toplanıyordur. Eski sistemde bu işi yapanlar geçiş adayıdır; yeni sistemi öğrenme süreleri yarıya iner. Usta’nın modeli eski çağrılardan yeni konuyu tanımayı öğrenir.</p>
+    ${d.simule.gecis || T.mod === "yerel" ? "" : `<p><span class="demo-etiket" title="Gösterim içindir; gerçek kullanımda bu düğme yok">Demo</span> <button class="dugme ikincil" id="gsim">Örnek: 40 gün önce rapor küpünden Power BI’a geçildi</button></p>`}</div>
   ${d.gecisler.map(gecisKart).join("")}
   <details class="kart"><summary><b>Yeni geçiş kaydet</b></summary>
     <div class="sira" style="margin-top:.5rem">
@@ -1086,9 +1093,9 @@ CIZ.degisim = async () => {
     <p style="margin-top:.6rem"><button class="dugme" id="gkay">Geçişi kaydet</button> <span class="kucuk">Açık çağrılar yeni konuya taşınır. Eski konuya bağlı otomasyonlar yeni sisteme uyarlanana kadar çalışmaz.</span></p></details>
 
   <h3 style="margin:1rem 0 .5rem">2. Yeni personel</h3>
-  <div class="kart"><p class="kucuk">Yeni gelen kimse yedek sayılmaz; bir konuda son 90 günde 3 çağrı çözünce yetkin olur. Ama Usta çağrıları geçmişte kimin çözdüğüne bakarak yönlendirdiği için yeni kişiye hiç çağrı gitmez. <b>Çırak modu</b> bu döngüyü kırar: kritik ve acil olmayan çağrılar, aynı vardiyada konuyu bilen bir usta varken yeni kişiye ya da eğitim planında o konuyu öğrenene verilir; usta takılırsa destek olur.</p>
-    <p style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0 0"><input type="checkbox" id="cmod" ${d.cirak_modu ? "checked" : ""} style="width:auto;margin:0"><label for="cmod" style="margin:0">Çırak modu açık</label></p>
-    ${d.simule.personel || T.mod === "yerel" ? "" : `<p><button class="dugme ikincil" id="psim2">Örnek: 35 gün önce Depo Sistemleri’ne giren Can Arslan</button></p>`}</div>
+  <div class="kart"><p class="kucuk">Yeni gelen kimse yedek sayılmaz; bir konuda son 90 günde 3 çağrı çözünce bilen sayılır. Ama Usta çağrıları geçmişte kimin çözdüğüne bakarak yönlendirdiği için yeni kişiye hiç çağrı gitmez. <b>Yanında öğrenme</b> bu döngüyü kırar: kritik ve acil olmayan çağrılar, aynı vardiyada konuyu bilen bir usta varken yeni kişiye ya da eğitim planında o konuyu öğrenene verilir; usta takılırsa destek olur.</p>
+    <p style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0 0"><input type="checkbox" id="cmod" ${d.cirak_modu ? "checked" : ""} style="width:auto;margin:0"><label for="cmod" style="margin:0">Yanında öğrenme açık</label></p>
+    ${d.simule.personel || T.mod === "yerel" ? "" : `<p><span class="demo-etiket" title="Gösterim içindir; gerçek kullanımda bu düğme yok">Demo</span> <button class="dugme ikincil" id="psim2">Örnek: 35 gün önce Depo Sistemleri’ne giren Can Arslan</button></p>`}</div>
   ${d.yeni_personel.length ? d.yeni_personel.map(alismaKart).join("") : '<div class="kart kucuk">Son 90 günde işe giren kimse yok.</div>'}
   <details class="kart"><summary><b>Yeni personel ekle</b></summary>
     <div class="sira" style="margin-top:.5rem">
@@ -1099,10 +1106,10 @@ CIZ.degisim = async () => {
     <p style="margin-top:.6rem"><button class="dugme" id="ykay">Ekle</button></p></details>
 
   <h3 style="margin:1rem 0 .5rem">3. Otomasyon sağlığı</h3>
-  <div class="kart"><p class="kucuk">Reçetelerin son 30 gündeki gerçek başarısı. Risk hesabı, yeterli deneme varsa beklenen değil gerçek başarıyı kullanır. Başarı %40’ın altına inerse reçete kendiliğinden askıya alınır.</p>
+  <div class="kart"><p class="kucuk">Otomatik çözümlerin son 30 gündeki gerçek başarısı. Risk hesabı, yeterli deneme varsa beklenen değil gerçek başarıyı kullanır. Başarı %40’ın altına inerse otomatik çözüm kendiliğinden askıya alınır.</p>
     <ul class="liste">${d.receteler.filter(r => r.saglik.durum !== "yetersiz_veri").map(r => `<li>${rozet(...SAGLIK_R[r.saglik.durum])}<div class="govde"><b>${kac(r.ad)}</b><div class="kucuk">${kac(r.saglik.metin)}</div>
       ${r.saglik.durum === "askida" ? `<button class="dugme kucuk ikincil" style="margin-top:.3rem" data-devreye="${kac(r.kod)}">Düzeltildi, yeniden devreye al</button>` : ""}</div></li>`).join("")}</ul>
-    ${(() => { const az = d.receteler.filter(r => r.saglik.durum === "yetersiz_veri"); return az.length ? `<p class="kucuk">${az.length} reçetede son 30 günde ölçüm için yeterli deneme yok (en az 5 gerekir); bunlarda risk hesabı beklenen başarıyı kullanır: ${kac(az.map(r => r.ad).join(", "))}.</p>` : ""; })()}
+    ${(() => { const az = d.receteler.filter(r => r.saglik.durum === "yetersiz_veri"); return az.length ? `<p class="kucuk">${az.length} otomatik çözümde son 30 günde ölçüm için yeterli deneme yok (en az 5 gerekir); bunlarda risk hesabı beklenen başarıyı kullanır: ${kac(az.map(r => r.ad).join(", "))}.</p>` : ""; })()}
     ${kotu.length || T.mod === "yerel" ? "" : `<p><button class="dugme ikincil" data-sayfa="otomasyon" data-veri="bozulma">Örnek: yazdırma sunucusu güncellendi, yazıcı otomasyonu bozuldu</button></p>`}</div>
 
   <h3 style="margin:1rem 0 .5rem">4. Ayrılan personel</h3>
@@ -1117,7 +1124,7 @@ CIZ.degisim = async () => {
   ana.onclick = async e => {
     const b = e.target;
     if (b.id === "gsim") { b.disabled = true; const r = await api("gecis/simule", {}); bildir(`Geçiş kaydedildi: ${r.tasinan_cagri} çağrı yeni konuya taşındı.`); T = await api("tanimlar"); git("degisim"); return; }
-    if (b.id === "psim2") { b.disabled = true; const r = await api("personel/simule", {}); bildir(`${r.kisi.ad} eklendi; çırak modu ona ${r.cagri} çağrı vermiş.`); T = await api("tanimlar"); git("degisim"); return; }
+    if (b.id === "psim2") { b.disabled = true; const r = await api("personel/simule", {}); bildir(`${r.kisi.ad} eklendi; yanında öğrenme ona ${r.cagri} çağrı vermiş.`); T = await api("tanimlar"); git("degisim"); return; }
     if (b.id === "gkay") {
       const anah = [...$("#ganah").selectedOptions].map(o => +o.value);
       const r = await api("gecis", {yeni_ad: $("#gyeni").value, tarih: $("#gtar").value, eski_kategori_id: +$("#geski").value || null,
@@ -1135,9 +1142,9 @@ CIZ.degisim = async () => {
       b.textContent = "Kaydedildi"; return;
     }
     const dv = b.closest("[data-devreye]");
-    if (dv) { dv.disabled = true; await api(`otomasyon/recete/${dv.dataset.devreye}/devreye-al`, {}); bildir("Reçete yeniden devrede."); git("degisim"); }
+    if (dv) { dv.disabled = true; await api(`otomasyon/recete/${dv.dataset.devreye}/devreye-al`, {}); bildir("Otomatik çözüm yeniden devrede."); git("degisim"); }
   };
-  $("#cmod").onchange = async e => { await api("cirak-modu", {acik: e.target.checked}); bildir(e.target.checked ? "Çırak modu açıldı." : "Çırak modu kapatıldı."); };
+  $("#cmod").onchange = async e => { await api("cirak-modu", {acik: e.target.checked}); bildir(e.target.checked ? "Yanında öğrenme açıldı." : "Yanında öğrenme kapatıldı."); };
 };
 
 /* ---------------------------------------------------------------- Kendi verinle dene */
@@ -1215,10 +1222,10 @@ CIZ.nasil = async () => {
       <li>Çağrı kapanınca model yeniden eğitilir.</li></ol>
       <p><button class="dugme kucuk ikincil" data-sayfa="ogrenme">Test sonuçları</button></p></div>
     <div class="kart"><h3>Emanet’in hesabı</h3>
-      <ol class="adim"><li>Son 90 günde her konuyu kim kaç kez çözmüş?</li><li>Yoğunlaşma, yedek sayısı, yazılı çözüm, otomasyon payı ve kritiklikten risk puanı.</li><li>Bir kişi çıkarılınca harita yeniden hesaplanır; ayrılırken devir dosyası çıkar.</li><li>İzin onaylanmadan önce o tarihlerde yedeksiz kalan konular gösterilir.</li><li>Eğitim planı sırt çantası problemi olarak çözülür; pratiği kalmamış yedekler daha ucuza tazelenir.</li><li>Kaydedilen plan takip edilir: öğrenen çağrı çözmeye başladı mı, risk hedefe indi mi? Seyir grafiği kararların etkisini gösterir.</li><li>Değişimler: sistem geçişinde yeni konunun puanı ilk haftalarda geçicidir, bilgi tek kişide toplanırsa erken uyarı verilir; yeni personele çırak modu kolay çağrılar verir; başarısı düşen otomasyon kendiliğinden askıya alınır.</li></ol></div>
+      <ol class="adim"><li>Son 90 günde her konuyu kim kaç kez çözmüş?</li><li>Yoğunlaşma, yedek sayısı, yazılı çözüm, otomasyon payı ve kritiklikten risk puanı.</li><li>Bir kişi çıkarılınca harita yeniden hesaplanır; ayrılırken devir dosyası çıkar.</li><li>İzin onaylanmadan önce o tarihlerde yedeksiz kalan konular gösterilir.</li><li>Eğitim planı sırt çantası problemi olarak çözülür; pratiği kalmamış yedekler daha ucuza tazelenir.</li><li>Kaydedilen plan takip edilir: öğrenen çağrı çözmeye başladı mı, risk hedefe indi mi? Seyir grafiği kararların etkisini gösterir.</li><li>Değişimler: sistem geçişinde yeni konunun puanı ilk haftalarda geçicidir, bilgi tek kişide toplanırsa erken uyarı verilir; yeni personele yanında öğrenme kolay çağrılar verir; başarısı düşen otomasyon kendiliğinden askıya alınır.</li></ol></div>
   </div>
   <div class="kart"><h3>Otomasyon</h3>
-    <p>Bazı çağrılar belirli yetkiler dahilinde insansız çözülür: kurulum ve yetki talepleri (eksik bilgi Teams’ten sorulur, gerekiyorsa yönetici onaylar), kilit açma, bilinen onarım adımları (yazıcı, rapor işi, terminal ağı), toplu arıza birleştirme, kapanış teyidi ve İK kaydıyla işe giriş/çıkış. Karar her zaman yazılı kurallardadır; makine öğrenmesi yalnızca konuyu tanır. Sık tekrar eden çözüm notları “reçete adayı” olarak önerilir.</p>
+    <p>Bazı çağrılar belirli yetkiler dahilinde insansız çözülür: kurulum ve yetki talepleri (eksik bilgi Teams’ten sorulur, gerekiyorsa yönetici onaylar), kilit açma, bilinen onarım adımları (yazıcı, rapor işi, terminal ağı), toplu arıza birleştirme, kapanış teyidi ve İK kaydıyla işe giriş/çıkış. Karar her zaman yazılı kurallardadır; makine öğrenmesi yalnızca konuyu tanır. Sık tekrar eden çözüm notları “otomatik çözüm adayı” olarak önerilir.</p>
     <p><button class="dugme kucuk ikincil" data-sayfa="otomasyon">Otomasyon ekranı</button></p></div>
   <div class="kart"><h3>Claude ile konuşma (MCP)</h3>
     <p>Aynı çekirdek bir MCP sunucusu olarak da açıktır: <code>${kac(location.origin)}/mcp</code>. Araçların bir kısmı veri değiştirdiği için erişim anahtar ister (Claude'da bağlayıcı adresi <code>…/mcp</code>, anahtar <code>Authorization: Bearer</code> başlığında); anahtar sunucuda <code>EMANET_MCP_ANAHTARLARI</code> ile tanımlanır. Demo sitesinde herkese açık değildir.</p>

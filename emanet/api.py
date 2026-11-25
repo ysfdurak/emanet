@@ -644,8 +644,8 @@ def risk_csv():
         h = risk.risk_haritasi(con)
     b = io.StringIO()
     w = csv.writer(b, delimiter=";")
-    w.writerow(["Konu", "Birim", "Kaynak", "Kritiklik", "Puan", "Seviye", "En çok çözen", "Payı", "Yetkin sayısı",
-                "Kâğıtta yetkin", "Yazılı çözüm", "Otomasyon payı", "Nedenler"])
+    w.writerow(["Konu", "Birim", "Kaynak", "Kritiklik", "Puan", "Seviye", "En çok çözen", "Payı", "Bilen sayısı",
+                "Kâğıtta bilen", "Yazılı çözüm", "Otomasyon payı", "Nedenler"])
     for r in h:
         w.writerow([_csv_hucre(x) for x in [r["ad"], r["birim"], r["kaynak"], r["kritiklik"], r["puan"],
                     {"kirmizi": "Yüksek", "sari": "Orta", "yesil": "Düşük"}[r["seviye"]] + (" (geçici)" if r["gecici"] else ""),
@@ -874,7 +874,7 @@ def cirak_modu(i: AcikIstek):
 def recete_devreye_al(kod: str):
     with KILIT:
         if not con.execute("SELECT 1 FROM recete WHERE kod=?", (kod,)).fetchone():
-            raise HTTPException(404, "Reçete bulunamadı")
+            raise HTTPException(404, "Otomatik çözüm bulunamadı")
         return otomasyon.yeniden_devreye_al(con, kod)
 
 

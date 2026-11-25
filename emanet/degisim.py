@@ -249,7 +249,7 @@ def ise_alisma(con: sqlite3.Connection, kisi_id: int, simdi: datetime | None = N
                 yetkin=yetkin, toplam_konu=len(konular), toplam_cozum=son[1], son_cozum=son[0],
                 cirak_modu=cirak, konular=konular,
                 ozet=((f"{p['ad']} {gun} gündür ekipte. " if gun is not None else f"{p['ad']}: ")
-                      + f"Birimin {len(konular)} konusundan {yetkin} tanesinde yetkin."))
+                      + f"Birimin {len(konular)} konusundan {yetkin} tanesini biliyor."))
 
 
 def yeni_personel(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]:

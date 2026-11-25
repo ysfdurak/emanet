@@ -198,9 +198,25 @@ düğmeleri çalışmaya devam eder. Ana menü son ziyaret edilen alt sekmeyi ha
 adı aldı ("Ne olur, gör", "İzinlere bak"). Aynı turda bulunan bir hata: `.kucuk` hem küçük düğme hem soluk
 açıklama metni sınıfıydı, bu yüzden koyu küçük düğmelerin yazısı griydi (Teams kartındaki "Evet, çözüldü").
 
-**Sıradaki adımlar (önerildi, sırayla):** sayfa içleri (kısa giriş + ilk ekranda eylem; Risk haritası
-varsayılan olarak en riskli 5 konu, matris ve seyir açılır bölümde), sonra kelimeler (reçete → otomatik
-çözüm, yetkin → bilen, çırak → yanında öğrensin) ve demo düğmelerinin tek "Demo" şeridine toplanması.
+**İkinci ve üçüncü adım (aynı gün):**
+
+| Sayfa | Önce | Sonra | Ne değişti |
+| --- | --- | --- | --- |
+| Risk haritası | 8.744 px, 1.537 kelime, ilk ekranda 0 eylem | 2.140 px, 296 kelime, en riskli iş ve "giderse?" ilk ekranda | En riskli 5 iş; tüm liste ve süzgeçler bir düğmeyle; iş × kişi tablosu, seyir, fırsatlar ve formül açılır |
+| Otomatik çözümler | İlk ekranda 0 eylem | 3 eylem | Kısa giriş, yetki çerçevesi kapalı, sayılar sayfa altına |
+| Bugün | 2.265 px | 1.492 px | Tur ve sayılar açılır, 3 hızlı giriş |
+| Kuyruk, Değişimler | Girişsiz ya da soyut giriş | Tek cümle "ne yaparsın" | |
+
+Kelimeler: ekranda "reçete" (31 yer) → **otomatik çözüm**, "yetkin" → **bilen / biliyor**, "çırak modu" →
+**yanında öğrenme**; sunucudan gelen mesajlar ve CSV başlıkları da. Kod içindeki adlar (`recete`,
+`yetkin_sayisi`, `cirak`) değişmedi: API ve veritabanı aynı, yalnız insanın okuduğu metin değişti.
+**Mülakat notu:** "Arayüz dili ile kod dili ayrı; kodda tutarlılık için eski adlar kaldı, kullanıcı
+kendi dilini görüyor." Gösterim düğmeleri (senaryolar, "örnek geçiş", "30 gün simüle et") sarı kesikli
+**DEMO** etiketiyle gerçek işlevlerden ayrıldı.
+
+**Burada bir test daha yapalım:** bu değişikliklerden sonra ilk kez gelen biri gibi aynı beş görevi telefonda
+yeniden dene (en riskli işi bul, biri yoksa, çağrı aç, devir dosyası, eğitim planı) ve takıldığın yeri yaz.
+Bu inceleme artık `kullanici-gozuyle-inceleme` becerisi olarak her projede tekrarlanıyor.
 
 ### Pilot bitiş ölçütleri (dış kaynak olmadan)
 
@@ -380,3 +396,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Takvimde süreli öteleme ve izin: 1–4 hafta ya da tarihe kadar, aralık etiketleri |
 | 25 Kasım 2026 | Menü 4 alan + Daha fazla; Biri yoksa (izin + ayrılık); Bugün sayfası; küçük düğme kontrastı; Teams gerçek bağlantı notu |
 | 25 Kasım 2026 | Ortak ölçüm ve geri bildirim (olcum.ysfdurak.com): yalnız emanet.ysfdurak.com'da yüklenir; her sayfa geçişi `olc("ekran", sayfa)` ile bildirilir (gidiş kuyruğa alınır, betik geç yüklenirse kaybolmaz). CSP'de yalnız `script-src` ve `connect-src`'ye bu adres eklendi. Kendi kurulumlarda dışarıya istek yok. Ders: ölçüm betiğini ayrı dosya yerine `app.js` başına koydum, çünkü sunucu `web/` içinden yalnız bilinen dosyaları sunuyor; yeni dosya izin listesine de eklenmeliydi. |
+| 25 Kasım 2026 | Sayfa içleri kısaldı (Risk 8.744 → 2.140 px), kelimeler sadeleşti, demo düğmeleri etiketlendi |

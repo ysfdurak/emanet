@@ -109,4 +109,4 @@ def test_risk_seyri(con):
     r = takip.risk_seyri(con)
     assert len(r["noktalar"]) >= 5 and r["noktalar"][-1]["tarih"] == BUGUN.isoformat()
     assert all(len(z["seri"]) == len(r["noktalar"]) for z in r["izlenen"])
-    assert any("Otomasyon" in o["metin"] for o in r["olaylar"])
+    assert any("Otomatik çözümler" in o["metin"] for o in r["olaylar"])

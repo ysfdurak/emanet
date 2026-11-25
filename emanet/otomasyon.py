@@ -250,7 +250,7 @@ def baslat(con: sqlite3.Connection, cagri_id: int) -> dict | None:
     cur = con.execute("INSERT INTO oto(cagri_id,recete_kod,kisi,durum,bilgiler,gunluk,baslangic) VALUES(?,?,?,?,?,?,?)",
                       (cagri_id, rc["kod"], c["acan_kisi"], "basladi", _js(o["bilgiler"]), "[]", _simdi()))
     o["id"] = cur.lastrowid
-    _yaz(o, "Otomasyon", "karar", f"'{rc['ad']}' reçetesi uydu ({SEVIYE_ADI[rc['seviye']]}). "
+    _yaz(o, "Otomasyon", "karar", f"'{rc['ad']}' otomatik çözümü uydu ({SEVIYE_ADI[rc['seviye']]}). "
          f"Otomasyon başarısız olursa çağrı {c['atanan'] or 'birime'} kalır.")
     if o["bilgiler"]:
         _yaz(o, "Otomasyon", "bilgi", "Metinden alınan bilgiler: " + ", ".join(
@@ -627,7 +627,7 @@ def recete_olustur(con: sqlite3.Connection, kategori_id: int, not_metni: str, ad
     if not k:
         raise ValueError("Konu bulunamadı")
     if con.execute("SELECT 1 FROM recete WHERE kaynak_not=?", (not_metni,)).fetchone():
-        raise ValueError("Bu çözüm yolu zaten reçeteye çevrildi")
+        raise ValueError("Bu çözüm yolu zaten otomatik çözüme çevrildi")
     n = con.execute("SELECT COUNT(*) FROM cagri WHERE kategori_id=? AND cozum_notu=?", (kategori_id, not_metni)).fetchone()[0]
     if n == 0:
         raise ValueError("Bu çözüm notu geçmiş çağrılarda yok")
@@ -815,7 +815,7 @@ def saglik(con: sqlite3.Connection, kod: str, son: str | None = None) -> dict:
     else:
         durum = "iyi"
     metin = {
-        "eski_sistem": "Bağlı olduğu konu sistem geçişiyle kapandı; reçete yeni sisteme uyarlanana kadar çalışmaz.",
+        "eski_sistem": "Bağlı olduğu konu sistem geçişiyle kapandı; otomatik çözüm yeni sisteme uyarlanana kadar çalışmaz.",
         "askida": f"Askıda: {rc.get('askida_neden') or ''}",
         "dususte": f"Son {SAGLIK_GUN} günde {n} denemenin {sayi(ok, 'i')} başarılı (%{round((oran or 0) * 100)}); "
                    f"beklenen %{round((beklenen or 0) * 100)}. Bir şey değişmiş olabilir.",
@@ -837,7 +837,7 @@ def saglik_kontrol(con: sqlite3.Connection, kod: str, o: dict | None = None) -> 
                  "yeni çağrılar doğrudan insana gidiyor")
         con.execute("UPDATE recete SET askida=1, askida_neden=?, askida_zaman=? WHERE kod=?", (neden, _simdi(), kod))
         if o is not None:
-            _yaz(o, "Otomasyon", "karar", f"Reçete askıya alındı: {neden}.", "hata")
+            _yaz(o, "Otomasyon", "karar", f"Otomatik çözüm askıya alındı: {neden}.", "hata")
         s = saglik(con, kod)
     return s
 
@@ -982,7 +982,7 @@ def _bozulma(con, hesaplar: list[dict], rnd: random.Random) -> dict:
     from . import usta
     rc = _recete(con, "YAZICI")
     if rc["askida"]:
-        raise ValueError("Yazıcı reçetesi zaten askıda. Önce yeniden devreye alın.")
+        raise ValueError("Yazıcı otomatik çözümü zaten askıda. Önce yeniden devreye alın.")
     con.execute("INSERT OR REPLACE INTO meta(anahtar,deger) VALUES('bozulma_YAZICI','0.15')")
     kat = con.execute("SELECT id FROM kategori WHERE kod='ETIKET_YAZICI'").fetchone()[0]
     metinler = ["{y} yazıcısı çevrimdışı görünüyor, etiket basmıyor.", "{y} etiket yazıcısında kuyruk takıldı.",
