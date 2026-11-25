@@ -84,4 +84,8 @@ footer{max-width:1100px;margin:0 auto;padding:0 1rem 2rem;color:var(--soluk);fon
 .akis .ik{flex:none;width:1.3rem;height:1.3rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;margin-top:.1rem}
 .ik.ok{background:var(--yesil-z);color:var(--yesil)} .ik.hata{background:var(--kirmizi-z);color:var(--kirmizi)} .ik.bekliyor{background:var(--sari-z);color:var(--sari)} .ik.yok{background:#eceae4;color:var(--soluk)}
 .mor{background:#ecebf8;color:#4b4d8f}
-#durum{position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);background:var(--murekkep);color:#fff;padding:.5rem .9rem;border-radius:8px;font-size:.88rem;max-width:90vw;z-index:9}
+#durum{position:fixed;left:50%;bottom:calc(1.25rem + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--murekkep);color:#fff;padding:.5rem .9rem;border-radius:8px;font-size:.88rem;max-width:90vw;z-index:9}
+
+/* Yeniden hesaplanan sonuç kısa bir süre vurgulanır: sonuç aynı çıksa da basıldığı görülür */
+@keyframes yenilendi{from{background:#fff3c4}to{background:transparent}}
+.yenilendi{animation:yenilendi 1.6s ease-out}

@@ -13,8 +13,10 @@ function ek(n, tur) {
   const d = {a: "ı", ı: "ı", o: "u", u: "u", e: "i", i: "i", ö: "ü", ü: "ü"}[u], i2 = "aıou".includes(u) ? "a" : "e";
   const v = "aeıioöuü".includes(s.at(-1));
   return {i: (v ? "y" : "") + d, in: (v ? "n" : "") + d + "n", ini: (v ? "s" : "") + d + "n" + d, ine: (v ? "s" : "") + d + "n" + i2,
-          inde: (v ? "s" : "") + d + "nd" + i2, inden: (v ? "s" : "") + d + "nd" + i2 + "n", de: ("fstkçşhp".includes(s.at(-1)) ? "t" : "d") + i2, e: (v ? "y" : "") + i2}[tur];
+          inde: (v ? "s" : "") + d + "nd" + i2, inden: (v ? "s" : "") + d + "nd" + i2 + "n", de: ("fstkçşhp".includes(s.at(-1)) ? "t" : "d") + i2, den: ("fstkçşhp".includes(s.at(-1)) ? "t" : "d") + i2 + "n", e: (v ? "y" : "") + i2}[tur];
 }
+// Sayı + ek; ondalıkta ek virgülden sonraki kısma göre seçilir (25,2 → "yirmi beş virgül iki" → 25,2'den)
+const sek = (x, tur) => { const m = sy(x); return m + "’" + ek(+(m.split(",")[1] ?? m.replace(/\./g, "")), tur); };
 const yek = (x, tur) => yuzde(x) + "’" + ek(Math.round(x * 100), tur);
 const SEVIYE = {kirmizi: "Yüksek", sari: "Orta", yesil: "Düşük"};
 const VARDIYA = {gunduz: "Gündüz", aksam: "Akşam", gece: "Gece"};
@@ -672,7 +674,10 @@ function takipKart(t) {
 async function dugmeyleHesapla(dugme, is, ileti, hedef) {
   const eski = dugme.textContent;
   dugme.disabled = true; dugme.textContent = "Hesaplanıyor…";
-  try { await is(); bildir(ileti()); if (hedef) $(hedef).scrollIntoView({behavior: "smooth", block: "start"}); }
+  try {
+    await is(); bildir(ileti());
+    if (hedef) { const h = $(hedef); h.classList.remove("yenilendi"); void h.offsetWidth; h.classList.add("yenilendi"); h.scrollIntoView({behavior: "smooth", block: "start"}); }
+  }
   finally { dugme.disabled = false; dugme.textContent = eski; }
 }
 
@@ -729,6 +734,31 @@ CIZ.giderse = async (ad) => {
 };
 
 /* ---------------------------------------------------------------- Plan */
+// Plan satırları adım adımdır; aynı konu birkaç satırda geçer. Ekranda konu konu toplanır.
+function planKonulari(satirlar) {
+  const m = new Map();
+  for (const s of satirlar) {
+    if (!m.has(s.kategori_id)) m.set(s.kategori_id, {kategori: s.kategori, once: s.puan_once, sonra: s.puan_sonra, saat: 0, adimlar: []});
+    const g = m.get(s.kategori_id); g.saat += s.saat; g.adimlar.push(s);
+  }
+  return [...m.values()];
+}
+function planCumlesi(s) {
+  const o = `<b>${kac(s.ogreten || "-")}</b>`, l = `<b>${kac(s.ogrenen || "-")}</b>`;
+  return {kart: `${o} çözümü adım adım karta yazar; herkes okuyabilir.`,
+          egitim: `${o}, ${l} kişisine bu konuyu öğretir.`,
+          tazeleme: `${o}, eskiden bu işi yapan ${l} kişisinin bilgisini tazeler.`,
+          gecis: `${o}, ${l} kişisini yeni sisteme geçirir.`}[s.tur] || kac(s.neden);
+}
+function planOzeti(p) {
+  if (!p.satirlar.length) return "Bu bütçeyle yapılabilecek bir adım yok; bütçeyi artırın.";
+  const say = t => p.satirlar.filter(s => s.tur === t).length, konu = planKonulari(p.satirlar).length;
+  const parca = [say("kart") && `${say("kart")} konunun çözümü karta yazılır`, say("egitim") && `${say("egitim")} kişi yeni bir konu öğrenir`,
+    say("tazeleme") && `${say("tazeleme")} kişinin eski bilgisi tazelenir`, say("gecis") && `${say("gecis")} kişi yeni sisteme geçirilir`].filter(Boolean);
+  return `${p.kullanilan_saat} saatlik eğitimle ${konu} konuda iş yapılır: ${parca.join(", ")}. `
+    + `Sonuçta yüksek riskli (kırmızı) konu sayısı ${sek(p.ozet_once.kirmizi, "den")} ${sek(p.ozet_sonra.kirmizi, "e")}, ortalama risk ${sek(p.ozet_once.ortalama, "den")} ${sek(p.ozet_sonra.ortalama, "e")} iner. `
+    + `Önce en riskli konular ele alınır; en ucuz adım genelde çözümü karta yazmaktır (2 saat).`;
+}
 CIZ.plan = async (butce) => {
   $("#ana").innerHTML = `
   <h2>Çapraz eğitim planı</h2>
@@ -748,12 +778,13 @@ CIZ.plan = async (butce) => {
       <div class="olcu"><b>${p.kullanilan_saat} / ${p.butce_saat}</b><span>Kullanılan saat</span></div>
       <div class="olcu"><b>${p.satirlar.length}</b><span>Adım</span></div>
     </div>
-    <div class="kart"><h3>Kim, kime, neyi?</h3>
-      ${p.satirlar.length ? `<ul class="liste">${p.satirlar.map(s => `<li>
-        <span style="white-space:nowrap"><span class="puan ${sev(s.puan_once)}">${s.puan_once}</span><span class="ok">→</span><span class="puan ${sev(s.puan_sonra)}">${s.puan_sonra}</span></span>
-        <div class="govde"><b>${kac(s.kategori)}</b> ${s.tur === "kart" ? rozet("mavi", "Kart yaz") : s.tur === "tazeleme" ? rozet("mor", "Tazeleme") : s.tur === "gecis" ? rozet("mor", "Geçiş eğitimi") : rozet("yesil", "Eğitim")} ${rozet("gri", s.saat + " saat")}
-        <div>${s.tur === "kart" ? kac(s.ogreten || "-") + " çözümü karta yazar" : kac(s.ogreten || "-") + ' <span class="ok">→</span> <b>' + kac(s.ogrenen) + "</b>"}</div>
-        <div class="kucuk">${kac(s.neden)}</div></div></li>`).join("")}</ul>`
+    <div class="not"><b>Bu plan ne diyor?</b> ${planOzeti(p)} <span class="kucuk">Hesaplandı: ${new Date().toLocaleTimeString("tr-TR")}</span></div>
+    <div class="kart"><h3>Konu konu ne yapılacak?</h3>
+      <p class="kucuk">Her konuda soldaki puan bugünkü risk, sağdaki bu konunun bütün adımları bitince beklenen risk. Altındaki adımlar o düşüşü birlikte sağlar.</p>
+      ${p.satirlar.length ? `<ul class="liste">${planKonulari(p.satirlar).map(g => `<li>
+        <span style="white-space:nowrap"><span class="puan ${sev(g.once)}">${g.once}</span><span class="ok">→</span><span class="puan ${sev(g.sonra)}">${g.sonra}</span></span>
+        <div class="govde"><b>${kac(g.kategori)}</b> ${rozet("gri", g.saat + " saat")}
+          <ol class="adim">${g.adimlar.map(s => `<li>${planCumlesi(s)} <span class="kucuk">(${s.saat} sa · ${kac(s.neden)})</span></li>`).join("")}</ol></div></li>`).join("")}</ul>`
       : '<p class="kucuk">Bu bütçeyle yapılabilecek bir adım yok.</p>'}
     </div>
     <div class="kart"><h3>İki yöntemin karşılaştırması</h3>

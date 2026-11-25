@@ -209,6 +209,15 @@ Bulunan ve düzeltilen üç takılma:
    yoktu. Hata değil, sessizlikti. Artık düğme "Hesaplanıyor…" der, bitince bildirim gösterir ve sonuca
    kaydırır (`dugmeyleHesapla`). Ya Giderse'deki "Hesapla" da aynı yardımcıyı kullanır.
 
+5. **Plan ekrandan anlaşılmıyordu (canlıda kullanıcı söyledi):** plan adım adım listeleniyordu; aynı konu
+   üç satırda tekrar ediyor, her satırda konunun *son* puanı (100 → 22) yazıyordu. Okuyan "bu tek adım
+   mı 22'ye indiriyor?" diye kalıyordu. Artık başta düz cümleyle **"Bu plan ne diyor?"** özeti var,
+   adımlar **konu konu** toplanıyor (`planKonulari`) ve her adım cümle olarak yazılıyor (`planCumlesi`:
+   "Murat Özkan, eskiden bu işi yapan Emre Çelik kişisinin bilgisini tazeler"). Türkçe ek için ondalık
+   sayıda virgülden sonraki kısma bakan `sek()` eklendi ("25,2'den").
+6. **Bildirim telefonda gözden kaçtı:** sonuç kutusunda "Hesaplandı: saat" yazıyor ve kutu kısa bir süre
+   sarı vurgulanıyor; geri bildirim artık yalnız alttaki bildirime bağlı değil.
+
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
 
@@ -265,3 +274,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Depo açıldı ve gönderildi; dependabot: Python imajında yalnız yama sürümleri, pytest 9.2; VPS'e kuruldu; Claude bağlayıcısı başlıkta anahtarla bağlandı; MCP anahtarı yenilendi (bkz. Testler: Ders) |
 | 25 Kasım 2026 | Pilot bitiş ölçütleri; gürültü testi (ölçüt 2 geçti); ilk kullanıcı testi (ölçüt 3 geçti, 3 düzeltme) |
 | 25 Kasım 2026 | Hesap düğmelerine geri bildirim ("Planı çıkar" sessiz kalıyordu) |
+| 25 Kasım 2026 | Plan ekranı konu konu, düz cümle özetli; sonuç vurgusu ve hesap saati |
