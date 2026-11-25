@@ -857,7 +857,7 @@ function devirTakvimi(d) {
 /* Devir sayfasının üstü: yönetici "bu hafta ne yapılacak?" sorusunun cevabını aramasın */
 function buHafta(d) {
   const os = d.takvim ? d.takvim.oturumlar.filter(o => o.hafta === 1) : [];
-  const isler = [...new Set(os.map(o => `${o.kategori}: ${o.tur === "kart" ? o.ogreten + " kartı yazar" : o.ogreten + " → " + o.ogrenen}`))];
+  const isler = [...new Set(os.map(o => `${o.kategori}: ${o.tur === "kart" ? o.ogreten + " kartı yazar" : o.tur === "kart_taslak" ? o.ogreten + " kart taslağını yazar" : o.tur === "kart_duzelt" ? o.ogreten + " taslağı düzeltir" : o.ogreten + " → " + o.ogrenen}`))];
   const bekleyen = [
     ...d.konular.filter(k => k.asama === 0 && k.devralan_id).map(k => `${k.devralan} ustayı izlesin (${k.ad})`),
     ...d.maddeler.filter(m => !m.yapildi && m.kod === "acik").map(m => m.metin),
@@ -1098,6 +1098,8 @@ function planKonulari(satirlar) {
 function planCumlesi(s) {
   const o = `<b>${kac(s.ogreten || "-")}</b>`, l = `<b>${kac(s.ogrenen || "-")}</b>`;
   return {kart: `${o} çözümü adım adım karta yazar; herkes okuyabilir.`,
+          kart_taslak: `${o} eski vakalara bakarak çözüm yollarını karta taslak olarak yazar; yazarken öğrenir.`,
+          kart_duzelt: `${o} ile ${l} taslağı birlikte okur, ${o} eksikleri düzeltir; kart yayımlanır.`,
           egitim: `${o} öğretir, ${l} öğrenir.`,
           tazeleme: `${o} ile ${l} eski bilgiyi tazeler (${l} bu işi eskiden yapıyordu).`,
           gecis: `${o} yeni sistemi ${l} ile birlikte uygular.`}[s.tur] || kac(s.neden);

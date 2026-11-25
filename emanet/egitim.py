@@ -72,15 +72,30 @@ def icerik(con: sqlite3.Connection, satir: dict, kart_planda: bool = False) -> d
                   or ["Çözüm notu yok: konuyu bilen kişi en sık yaptığı çözümü baştan yazar"])
         olcut = "Kart yayımlanır; bir sonraki çağrıda çözüm ekranında görünür"
         return dict(gundem=gundem, olcut=olcut, yol_sayisi=len(yollar), vakalar=yollar[:EN_FAZLA_VAKA])
-    n = TAZELEME_VAKA if tur == "tazeleme" else EN_FAZLA_VAKA
+    if tur == "kart_taslak":   # devirde: devralan yazar (yazarken öğrenir), ayrılan sonra düzeltir
+        gundem = ([f"Çözüm yolu {i} ({y['adet']} çağrı): vakaları aç, “{y['adimlar'][0]}” ile başlayan adımları taslağa yaz"
+                   for i, y in enumerate(yollar[:EN_FAZLA_VAKA], 1)]
+                  or ["Çözüm notu yok: ustaya en sık durumu sorup taslağa yaz"])
+        return dict(gundem=gundem, olcut="Taslak hazır; ayrılan kişiyle düzeltmeye geçilir",
+                    yol_sayisi=len(yollar), vakalar=yollar[:EN_FAZLA_VAKA])
+    if tur == "kart_duzelt":
+        gundem = [f"Taslağı {ogrenen} okur, {ogreten} eksik adımları ve yazılmamış püf noktalarını ekler",
+                  "Ne zaman başkasına sorulur (dış firma, BT) karta yazılır; kart yayımlanır"]
+        return dict(gundem=gundem, olcut="Kart yayımlanır; bir sonraki çağrıda çözüm ekranında görünür",
+                    yol_sayisi=len(yollar), vakalar=[])
+    n = 0 if satir.get("vakasiz") else TAZELEME_VAKA if tur == "tazeleme" else EN_FAZLA_VAKA
     vakalar = yollar[:n]
     gundem = []
-    if kart or kart_planda:
+    if satir.get("vakasiz"):
+        gundem.append(f"{ogrenen} kendi yazdığı kartı anlatır; {ogreten} takıldığı adımları gösterir")
+    elif kart or kart_planda:
         gundem.append("Kartı birlikte oku" + ("" if kart else " (bu planda yazılıyor)"))
     elif tur != "tazeleme":
         gundem.append("Konunun genel akışını anlat (yazılı çözüm yok)")
     gundem += [f"Vaka #{v['cagri_id']}: “{v['belirti'][:70]}” → {v['adimlar'][0]}" for v in vakalar]
-    if not vakalar:
+    if not vakalar and satir.get("vakasiz"):
+        pass   # vakalar kart taslağında tek tek geçildi; burada tekrar edilmez
+    elif not vakalar:
         gundem.append(f"Çözüm notu yok: {ogreten} en sık karşılaştığı durumları anlatır, {ogrenen} not alır")
     # Kalan oturumlar uygulamadır: öğrenen işi yapar, usta yanındadır (gerçek çağrı geldikçe ya da sahada)
     gundem.append(f"Birlikte uygulama: işi {ogrenen} yapar, {ogreten} yanında")

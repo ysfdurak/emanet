@@ -55,6 +55,9 @@ def test_asamalar_cagriyla_ilerler(con):
 
 def test_yetismezse_onerilen_haftalik_saat(con):
     d = devir.baslat(con, kid(con, "Murat Özkan"), "2026-12-16", simdi=S)
+    # Ortak kartla 4 saat yetişiyor; haftada 1 saatte yetişmez ve sistem yetecek saati önerir
+    devir.haftalik_sinir_ayarla(con, d["id"], 1.0)
+    d = devir.durum(con, d["id"], S)
     assert d["uyarilar"][0]["seviye"] == "kirmizi" and d["onerilen_sinir"] > d["haftalik_sinir"]
     devir.haftalik_sinir_ayarla(con, d["id"], d["onerilen_sinir"])
     assert all(u["seviye"] != "kirmizi" for u in devir.durum(con, d["id"], S)["uyarilar"])
@@ -93,3 +96,19 @@ def test_tutanak_ve_devralan_birim_kurali(con):
         devir.konu_guncelle(con, d["id"], 11, devralan_id=kid(con, "Kemal Yılmaz"))   # başka birim
     md = devir.tutanak(con, d["id"], S)
     assert md.startswith("# Devir tutanağı: Murat Özkan") and "| Devralan | Emre Çelik |" in md and "## Onay" in md
+
+
+def test_karti_devralan_yazar_ayrilan_duzeltir(con):
+    """Kart yoksa ve devralan seçiliyse: taslak devralanda, düzeltme ikisinde ve taslaktan sonra; öğretme kısalır."""
+    d = devir.baslat(con, kid(con, "Murat Özkan"), "2026-12-16", simdi=S)
+    os_ = d["takvim"]["oturumlar"]
+    taslak = [o for o in os_ if o["tur"] == "kart_taslak"]
+    duzelt = [o for o in os_ if o["tur"] == "kart_duzelt"]
+    if not taslak:
+        pytest.skip("Bu veride kartı ayrılanın yazacağı konu yok")
+    assert taslak[0]["ogreten"] != "Murat Özkan" and taslak[0]["ogrenen_id"] is None
+    assert duzelt and duzelt[0]["ogreten"] == "Murat Özkan" and duzelt[0]["ogrenen"] == taslak[0]["ogreten"]
+    assert min(o["tarih"] for o in duzelt) > max(o["tarih"] for o in taslak)
+    ogretme = [o for o in os_ if o["tur"] in ("tazeleme", "egitim") and o["kategori_id"] == taslak[0]["kategori_id"]]
+    assert all("Vaka #" not in m for o in ogretme for m in o["gundem"])     # vakalar taslakta geçildi
+    assert any("taslağı yazar" in m["metin"] for m in d["maddeler"])

@@ -277,9 +277,19 @@ görüşme açılır bölümde ("0/5 soru cevaplandı"); durum satırı dürüst
 zaten biliyor"; eskiden "5/6" yazıyordu, ilerleme var gibi görünüyordu); madde dili düzeltildi ("Açık
 çağrıları devredilsin" → "Açık çağrılar başkasına atansın"). Sonuç: 4813 → 2959 px, 797 → 486 kelime.
 
-**Alan uzmanı notu (öneri, uygulanmadı):** takvimde ayrılan kişi ilk 1,5 haftayı kartı tek başına yazmaya
-harcıyor, devralan ikinci haftada başlıyor. Sahada daha verimli yol: **kartı devralan yazar, ayrılan düzeltir.**
-Devralan yazarken öğrenir, ayrılanın saati yarıya iner, devir bir hafta erken başlar.
+**Alan uzmanı gözüyle: kartı devralan yazar, ayrılan düzeltir (onaylandı, uygulandı).** Eskiden ayrılan kişi
+ilk 1,5 haftayı kartı tek başına yazmaya harcıyor, devralan ikinci haftada başlıyordu. Şimdi kart yoksa ve
+devralan seçiliyse takvimde üç adım var:
+
+| Adım | Kim | Süre | Neden |
+| --- | --- | --- | --- |
+| Kart taslağı | Devralan, tek başına | kart süresi (ERP 4 sa) | Vakaları tek tek açıp yazarken öğrenir; vardiya çakışması gerekmez |
+| Düzeltme | Ayrılan + devralan | kartın yarısı (2 sa), taslaktan **sonra** | Eksik adımlar, yazılmamış püf noktaları, kime sorulur |
+| Öğretme | Ayrılan + devralan | kalan − kart süresi (en fazla yarısı düşer) | Vakalar taslakta geçildi, tekrar edilmez; "birlikte uygulama" gerçek çağrı ister, kısalmaz |
+
+Takvime bunun için "önceki adım bitmeden başlama" kuralı eklendi (`takvim.py`, satırdaki `onceki`).
+Murat örneği: ayrılanın devir saati 15 → 9; takvim 15 Aralık'ta bitiyor (çıkış 16 Aralık), haftalık saati
+artırma uyarısı kalktı. Bedeli: devralanın yükü artar (11 → 13 saat); ama bu saat zaten onun gelecekteki işi.
 
 ### İki aşamalı çağrı formu
 
@@ -581,3 +591,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Demo eğitim süreleri alan uzmanı gözüyle (28 konu, gerekçeli tablo); tercih ve beceriye alan uzmanı rolü |
 | 25 Kasım 2026 | Devir süreci: aşamalar çağrıyla, devralana yanında öğrenme, çıkışa yetişme ve önerilen haftalık saat, kontrol listesi, görüşme, tutanak; 117 test |
 | 25 Kasım 2026 | Devir sayfası kullanıcı gözüyle (Bu hafta kutusu, kısa takvim, dürüst durum satırı; 4813 → 2959 px); iki aşamalı çağrı formu (konuya özel sorular, hesaplanan öncelik, aynı sorun uyarısı, önce bunu dene); 123 test |
+| 25 Kasım 2026 | Devirde kartı devralan yazar, ayrılan düzeltir (takvimde adım sırası kuralı); ayrılanın saati 15 → 9; 124 test |

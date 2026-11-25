@@ -150,7 +150,8 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
     # Kart: yazılı çözümü olmayan konular ve devir sırasında kartı yazılanlar
     yazilan = {r[0] for r in con.execute("SELECT DISTINCT kategori_id FROM cozum_karti WHERE olusturma>=?", (d["baslangic"],))}
     # Kartı ayrılan kişi yazar, ama yalnız asıl ustası olduğu (çözümlerin en az %40'ı onda) konularda
-    maddeler += [dict(kod=f"kart:{k['kategori_id']}", metin=f"{k['ad']}: çözüm yolları karta yazılsın (ayrılmadan önce, {d['ad']} yazar)",
+    maddeler += [dict(kod=f"kart:{k['kategori_id']}", metin=f"{k['ad']}: çözüm yolları karta yazılsın ("
+                      + (f"{k['devralan']} taslağı yazar, {d['ad']} düzeltir)" if _ortak_kart(k) else f"ayrılmadan önce, {d['ad']} yazar)"),
                       yapildi=False, otomatik=True) for k in konular if not k["kart_var"] and k["ayrilan_pay"] >= 0.4]
     maddeler += [dict(kod=f"kart:{k['kategori_id']}", metin=f"{k['ad']}: kart yazıldı", yapildi=True, otomatik=True)
                  for k in konular if k["kart_var"] and k["kategori_id"] in yazilan]
@@ -164,6 +165,26 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
         if k["devralan_id"] is None or k["asama"] >= 3:
             continue
         ogreten_id = d["kisi_id"]
+        if _ortak_kart(k):
+            # Kartı devralan yazar, ayrılan düzeltir: devralan vakaları tek tek geçerken öğrenir, ayrılanın
+            # saati düşer, devir ilk hafta başlar. Vakalar kartta geçildiği için öğretmeden kart saati düşülür
+            # (en fazla yarısı; "birlikte uygulama" kısmı gerçek çağrı ister, kısalmaz).
+            ks = risk.kart_saati(next(x for x in v["kategoriler"] if x["id"] == k["kategori_id"]))
+            satirlar.append(dict(kategori_id=k["kategori_id"], kategori=k["ad"], tur="kart_taslak", saat=ks,
+                                 ogreten_id=k["devralan_id"], ogreten=k["devralan"], ogrenen_id=None, ogrenen=None,
+                                 puan_once=0, puan_sonra=0))
+            taslak = len(satirlar)
+            satirlar.append(dict(kategori_id=k["kategori_id"], kategori=k["ad"], tur="kart_duzelt",
+                                 saat=max(0.5, math.ceil(ks / 2 * 2) / 2), onceki=taslak,
+                                 ogreten_id=ogreten_id, ogreten=d["ad"], ogrenen_id=k["devralan_id"], ogrenen=k["devralan"],
+                                 puan_once=0, puan_sonra=0))
+            if k["kalan_saat"] > 0:
+                k["kalan_saat"] = max(math.ceil(k["kalan_saat"] / 2 * 2) / 2, k["kalan_saat"] - ks)
+                satirlar.append(dict(kategori_id=k["kategori_id"], kategori=k["ad"],
+                                     tur="tazeleme" if k["tazeleme"] else "egitim", saat=k["kalan_saat"], onceki=taslak,
+                                     vakasiz=True, ogreten_id=ogreten_id, ogreten=d["ad"],
+                                     ogrenen_id=k["devralan_id"], ogrenen=k["devralan"], puan_once=0, puan_sonra=0))
+            continue
         if not k["kart_var"] and k["ayrilan_pay"] >= 0.4:
             satirlar.append(dict(kategori_id=k["kategori_id"], kategori=k["ad"], tur="kart",
                                  saat=risk.kart_saati(next(x for x in v["kategoriler"] if x["id"] == k["kategori_id"])),
@@ -173,7 +194,7 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
             satirlar.append(dict(kategori_id=k["kategori_id"], kategori=k["ad"], tur="tazeleme" if k["tazeleme"] else "egitim",
                                  saat=k["kalan_saat"], ogreten_id=ogreten_id, ogreten=d["ad"],
                                  ogrenen_id=k["devralan_id"], ogrenen=k["devralan"], puan_once=0, puan_sonra=0))
-    kartli = {s["kategori_id"] for s in satirlar if s["tur"] == "kart"}
+    kartli = {s["kategori_id"] for s in satirlar if s["tur"] in ("kart", "kart_taslak")}
     for s in satirlar:
         s.update(egitim.icerik(con, s, kart_planda=s["kategori_id"] in kartli))
     t = (takvim.takvim_olustur(satirlar, simdi.date(), d["haftalik_sinir"], 1.0, 1, 5, ilk_gun=simdi.date())
@@ -218,6 +239,11 @@ def durum(con: sqlite3.Connection, devir_id: int, simdi: datetime | None = None)
                 gorusme=[dict(no=i, soru=q, cevap=gorusme.get(str(i), "")) for i, q in enumerate(GORUSME_SORULARI)],
                 takvim=t, uyarilar=uyarilar, ilerleme=ilerleme, onerilen_sinir=onerilen_sinir,
                 ozet=dict(konu=len(konular), tamam=tamam_konu, zaten=sum(1 for k in konular if k["zaten_biliyor"]), madde=len(maddeler), madde_tamam=sum(m["yapildi"] for m in maddeler)))
+
+
+def _ortak_kart(k: dict) -> bool:
+    """Kart henüz yok, ayrılan konunun asıl ustası ve devralan seçilmiş: kartı devralan yazar, ayrılan düzeltir."""
+    return not k["kart_var"] and k["ayrilan_pay"] >= 0.4 and k["devralan_id"] is not None and k["asama"] < 3
 
 
 def acik_devirler(con: sqlite3.Connection) -> list[dict]:

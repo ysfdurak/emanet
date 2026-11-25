@@ -19,7 +19,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 GUN_ADLARI = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-TUR_ADI = {"kart": "Çözümü yazar", "egitim": "Öğretir", "tazeleme": "Tazeler", "gecis": "Yeni sisteme geçirir"}
+TUR_ADI = {"kart": "Çözümü yazar", "kart_taslak": "Kart taslağını yazar", "kart_duzelt": "Taslağı düzeltir", "egitim": "Öğretir", "tazeleme": "Tazeler", "gecis": "Yeni sisteme geçirir"}
 EN_FAZLA_HAFTA = 104   # iki yıldan uzun takvim üretme; ayarlar imkânsızsa uyar
 
 VARSAYILAN = dict(haftalik_sinir=2.0, oturum_saat=1.0, gunluk_oturum=1, calisma_gunu=5)
@@ -91,12 +91,15 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
     gunluk: dict[tuple[int, int], int] = defaultdict(int)          # (kişi, gün sırası) → oturum
     oturumlar: list[dict] = []
     konu_bitis: dict[int, int] = {}
+    adim_son: dict[int, int] = {}   # adım no → son oturumunun gün sırası ("onceki": o adım bitmeden başlanmaz)
 
     for adim_no, s in enumerate(satirlar, 1):
         kisiler = [k for k in (s.get("ogreten_id"), s.get("ogrenen_id")) if k is not None]
         parca_sayisi = max(1, math.ceil(s["saat"] / oturum_saat - 1e-9))
         kalan = float(s["saat"])
         gun_sira = bas_sira   # adımın oturumları sırayla ilerler: bir sonraki oturum öncekinden önce olamaz
+        if s.get("onceki") in adim_son:   # ör. taslak bitmeden düzeltme olmaz
+            gun_sira = max(gun_sira, adim_son[s["onceki"]] + 1)
         for parca in range(1, parca_sayisi + 1):
             sure = min(oturum_saat, kalan)
             kalan = round(kalan - sure, 2)
@@ -120,6 +123,7 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
                 ogreten_id=s.get("ogreten_id"), ogreten=s.get("ogreten"),
                 ogrenen_id=s.get("ogrenen_id"), ogrenen=s.get("ogrenen")))
             konu_bitis[s["kategori_id"]] = max(konu_bitis.get(s["kategori_id"], 0), hafta + 1)
+            adim_son[adim_no] = gun_sira
             if parca < parca_sayisi:
                 gun_sira += 1   # aynı adımın sonraki parçası en erken ertesi gün
 
