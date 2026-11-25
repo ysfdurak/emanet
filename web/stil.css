@@ -136,3 +136,9 @@ details.kart>summary{cursor:pointer}
 .acilir .kart{border:0;box-shadow:none;padding:.4rem 0 0;margin:0}
 .acilir>summary{padding:.1rem 0}
 .demo-etiket{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#6b4e00;background:#f9eeda;border:1px dashed #c9a24a;border-radius:6px;padding:.05rem .4rem;vertical-align:middle}
+.gundem{margin:.3rem 0 0;padding-left:1.1rem;font-size:.86rem;color:var(--murekkep)}
+.gundem li+li{margin-top:.15rem}
+.icerik{margin:.3rem 0 .2rem}.icerik summary{cursor:pointer;color:var(--vurgu);font-size:.86rem;font-weight:600}
+.vakalar{list-style:none;padding:0;margin:.3rem 0}.vakalar>li{padding:.45rem .6rem;border:1px solid var(--cizgi);border-radius:8px;margin-bottom:.4rem;background:#faf9f6}
+.uyari-cip{border-color:#c9a24a;color:#6b4e00;background:#f9eeda}
+#pstablo input{width:5.5rem;text-align:right}

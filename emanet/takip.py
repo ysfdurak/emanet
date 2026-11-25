@@ -441,7 +441,15 @@ def dikkat(con: sqlite3.Connection, simdi: datetime | None = None) -> list[dict]
         elif g["gun"] < 0:
             liste.append(dict(seviye="mavi", metin=f"{-g['gun']} gün sonra sistem geçişi: {g['yeni_ad']}. Geçiş adaylarını hazırlayın.",
                               sayfa="degisim"))
-    for r in [r for r in risk.risk_haritasi(con, simdi) if r["seviye"] == "kirmizi" and r["yetkin_sayisi"] <= 1
+    harita = risk.risk_haritasi(con, simdi)
+    # Eğitim süreleri kullanıcıdan gelir; riskli bir konunun süresi girilmediyse plan tahminle hesaplar
+    onaysiz = {r["id"] for r in con.execute("SELECT id FROM kategori WHERE sure_onay=0 AND emeklilik IS NULL")}
+    riskli_suresiz = [r["ad"] for r in harita if r["seviye"] in ("kirmizi", "sari") and r["kategori_id"] in onaysiz]
+    if riskli_suresiz:
+        liste.append(dict(seviye="mavi", metin=f"{len(riskli_suresiz)} riskli konunun eğitim süresi girilmedi "
+                          f"({', '.join(riskli_suresiz[:3])}{'…' if len(riskli_suresiz) > 3 else ''}); "
+                          "plan bu konularda tahmini süre kullanıyor.", sayfa="plan", veri="sureler"))
+    for r in [r for r in harita if r["seviye"] == "kirmizi" and r["yetkin_sayisi"] <= 1
               and r["en_cok_cozen"] and not r["yeni_konu"]][:2]:
         liste.append(dict(seviye="kirmizi", metin=f"{r['ad']}: çağrıların {yuzde(r['yogunlasma'], 'ini')} "
                                                   f"{r['en_cok_cozen']['ad']} çözüyor, yedeği yok.",

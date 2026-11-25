@@ -15,7 +15,7 @@ from datetime import date
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import degisim, ogrenme, otomasyon, risk, takip, takvim, usta
+from . import degisim, egitim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
 
 sunucu = MCPServer(
@@ -298,8 +298,11 @@ def egitim_plani_oner(butce_saat: int = 40, yontem: str = "optimum", haftalik_si
     """
     takvim.ayar_dogrula(haftalik_sinir, oturum_saat, gunluk_oturum, calisma_gunu)
     with KILIT:
-        p = risk.egitim_plani(baglanti(), butce_saat, yontem)
+        c = baglanti()
+        p = egitim.plani_zenginlestir(c, risk.egitim_plani(c, butce_saat, yontem))
     p.pop("harita_sonra", None)
+    for s in p["satirlar"]:
+        s.pop("vakalar", None)   # gündemde vaka numaraları var; ayrıntı için egitim_icerigi aracı
     t = takvim.takvim_olustur(p["satirlar"], takvim.sonraki_pazartesi(date.today()), haftalik_sinir,
                               oturum_saat, gunluk_oturum, calisma_gunu)
     # Sohbette okunur kalsın: oturumlar haftaya göre kısa satırlar
@@ -310,6 +313,32 @@ def egitim_plani_oner(butce_saat: int = 40, yontem: str = "optimum", haftalik_si
             f"{o['gun']} {o['tarih']}: {o['kategori']} · {o['tur_adi']} · {kim} · {o['saat']} sa")
     p["takvim"] = t
     return p
+
+
+@arac
+def konu_sureleri() -> list[dict]:
+    """Konuların kart yazma ve öğretme süreleri (saat). sure_onay=1 kullanıcının girdiği, 0 tahmin.
+    Plan tahmini sürelerle hesaplanan adımları sure_tahmini=true diye işaretler."""
+    with KILIT:
+        return egitim.sureler(baglanti())
+
+
+@arac
+def konu_suresi_ayarla(konu: str, kart_saat: float, ogretme_saat: float) -> dict:
+    """Bir konunun kart yazma ve sıfırdan öğretme süresini ayarlar (yarım saatin katı, 0,5-200).
+    Kullanıcı söylemeden süre uydurma; kullanıcının verdiği sayıyı gir."""
+    with KILIT:
+        c = baglanti()
+        return egitim.sure_kaydet(c, _konu_bul(c, konu), kart_saat, ogretme_saat)
+
+
+@arac
+def egitim_icerigi(konu: str) -> dict:
+    """Bir konunun çözüm yolları ve her yoldan temsilci eski çağrı: eğitimde usta ile öğrenenin
+    üzerinden geçeceği vakalar (belirti, çözüm adımları, kaç çağrıda kullanıldı)."""
+    with KILIT:
+        c = baglanti()
+        return dict(yollar=egitim.cozum_yollari(c, _konu_bul(c, konu)))
 
 
 @arac

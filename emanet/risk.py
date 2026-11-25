@@ -47,6 +47,11 @@ KRITIKLIK_CARPANI = {1: 0.6, 2: 0.8, 3: 1.0}
 YEDEK_RISKI = {0: 1.0, 1: 1.0, 2: 0.5, 3: 0.2}
 KIRMIZI, SARI = 60, 35
 KART_YAZMA_SAATI = 2
+
+
+def kart_saati(k: dict) -> float:
+    """Konunun kart yazma süresi: kullanıcı girdiyse o, girmediyse varsayılan (KART_YAZMA_SAATI)."""
+    return k.get("kart_saat") or KART_YAZMA_SAATI
 VARDIYALAR = ("gunduz", "aksam", "gece")
 
 
@@ -397,13 +402,18 @@ def ya_giderse(con: sqlite3.Connection, kisi_id: int, gun: int = 21, dakika_mali
 
 # ---------------------------------------------------------------- eğitim planı
 
+def _yarim_saat(x: float) -> float:
+    """Süreyi yukarı doğru yarım saate yuvarlar (en az yarım saat): 1,2 → 1,5."""
+    return max(0.5, math.ceil(x * 2 - 1e-9) / 2)
+
+
 def _ogrenme_maliyeti(k: dict, ek: int, ucuzlar: list[float] | int = ()) -> int:
     """ek kişi eğitmenin saati. ucuzlar: daha ucuza öğrenecek adayların oranları, ucuzdan pahalıya
     (pratiği kalmamış yedek 1/3, eski sistemden gelen 1/2). Sonrakiler sıfırdan öğrenir."""
     if isinstance(ucuzlar, int):
         ucuzlar = [TAZELEME_ORANI] * ucuzlar
     ucuzlar = sorted(ucuzlar)
-    return sum(max(1, math.ceil(k["ogrenme_saati"] * ucuzlar[i])) if i < len(ucuzlar) else k["ogrenme_saati"]
+    return sum(_yarim_saat(k["ogrenme_saati"] * ucuzlar[i]) if i < len(ucuzlar) else k["ogrenme_saati"]
                for i in range(ek))
 
 
@@ -416,7 +426,7 @@ def _secenekler(k: dict, sayim: dict[int, int], eskiyen: list[float] | int = 0) 
         for ek in (0, 1, 2):
             if not kart and not ek:
                 continue
-            saat = (KART_YAZMA_SAATI if kart else 0) + _ogrenme_maliyeti(k, ek, eskiyen)
+            saat = (kart_saati(k) if kart else 0) + _ogrenme_maliyeti(k, ek, eskiyen)
             yeni = puan_hesapla(sayim, k["kritiklik"], bool(k["kart_var"]), ek, kart, oto_payi=k["oto_payi"])["ham"]
             if simdiki - yeni > 0.01:
                 # Amaç: önce yeşil sınırının (35) üzerindeki riski düşürmek. Sınırın altındaki
@@ -456,23 +466,27 @@ def _optimum_sec(konular: list[tuple[dict, list[dict]]], butce: int) -> dict[int
     Her konudan en fazla bir seçenek alınır; toplam saat bütçeyi aşmadan toplam risk düşüşü
     en büyük olan birleşim bulunur. dp[b] = b saatle ulaşılabilen en iyi kazanç.
     """
-    dp = [0.0] * (butce + 1)
+    # Süreler yarım saatin katı olabildiği için hesap yarım saat biriminde yapılır (b = yarım saat sayısı)
+    birim = lambda saat: int(round(saat * 2))  # noqa: E731
+    B = birim(butce)
+    dp = [0.0] * (B + 1)
     iz: list[list[dict | None]] = []
     for _, secenekler in konular:
-        yeni, sec = dp[:], [None] * (butce + 1)
+        yeni, sec = dp[:], [None] * (B + 1)
         for s in secenekler:
-            for b in range(s["saat"], butce + 1):
-                aday = dp[b - s["saat"]] + s["kazanc"]
+            w = birim(s["saat"])
+            for b in range(w, B + 1):
+                aday = dp[b - w] + s["kazanc"]
                 if aday > yeni[b] + 1e-9:
                     yeni[b], sec[b] = aday, s
         dp = yeni
         iz.append(sec)
-    secim, b = {}, max(range(butce + 1), key=lambda i: (dp[i], -i))
+    secim, b = {}, max(range(B + 1), key=lambda i: (dp[i], -i))
     for (k, _), sec in zip(reversed(konular), reversed(iz)):
         s = sec[b]
         if s:
             secim[k["id"]] = s
-            b -= s["saat"]
+            b -= birim(s["saat"])
     return secim
 
 
@@ -506,7 +520,7 @@ def egitim_plani(con: sqlite3.Connection, butce_saat: int = 40, yontem: str = "o
         sirali = sorted(v["sayim"][k["id"]].items(), key=lambda x: -x[1]) or sorted(sayim.items(), key=lambda x: -x[1])
         ogreten = sirali[0][0] if sirali else None
         if s["kart"]:
-            satirlar.append(dict(kategori_id=k["id"], kategori=k["ad"], tur="kart", saat=KART_YAZMA_SAATI,
+            satirlar.append(dict(kategori_id=k["id"], kategori=k["ad"], tur="kart", saat=kart_saati(k), sure_tahmini=not k.get("sure_onay"),
                                  ogreten_id=ogreten, ogreten=v["kisiler"][ogreten]["ad"] if ogreten else None,
                                  ogrenen_id=None, ogrenen=None, neden="Konunun yazılı çözümü yok"))
         yetkin = {p for p, n in sayim.items() if n >= yetkin_esigi(sum(sayim.values()))}
@@ -523,10 +537,10 @@ def egitim_plani(con: sqlite3.Connection, butce_saat: int = 40, yontem: str = "o
                                         yuk.get(p["id"], 0), -sayim.get(p["id"], 0), p["id"]))
             p = adaylar.pop(0)
             if p["id"] in eski_ids:
-                saat = max(1, math.ceil(k["ogrenme_saati"] * TAZELEME_ORANI))
+                saat = _yarim_saat(k["ogrenme_saati"] * TAZELEME_ORANI)
                 neden = f"Tazeleme: bu konuyu eskiden çözüyordu, son çözümü {eski_ids[p['id']]['ay_once']} ay önce"
             elif p["id"] in gecen_ids:
-                saat = max(1, math.ceil(k["ogrenme_saati"] * GECIS_ORANI))
+                saat = _yarim_saat(k["ogrenme_saati"] * GECIS_ORANI)
                 neden = f"Geçiş eğitimi: eski sistemde ({v['gecis'][k['id']]['eski_ad']}) bu işi düzenli yapıyordu"
             else:
                 saat = k["ogrenme_saati"]
@@ -539,7 +553,7 @@ def egitim_plani(con: sqlite3.Connection, butce_saat: int = 40, yontem: str = "o
             satirlar.append(dict(kategori_id=k["id"], kategori=k["ad"],
                                  tur="tazeleme" if p["id"] in eski_ids else ("gecis" if p["id"] in gecen_ids else "egitim"),
                                  saat=saat, ogreten_id=ogreten, ogreten=v["kisiler"][ogreten]["ad"] if ogreten else None,
-                                 ogrenen_id=p["id"], ogrenen=p["ad"], neden=neden))
+                                 ogrenen_id=p["id"], ogrenen=p["ad"], neden=neden, sure_tahmini=not k.get("sure_onay")))
     for r in satirlar:
         r["puan_once"], r["puan_sonra"] = once_s[r["kategori_id"]]["puan"], sonra_s[r["kategori_id"]]["puan"]
 

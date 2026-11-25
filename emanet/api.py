@@ -25,7 +25,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from . import __version__, degisim, ice_aktar, katalog, ogrenme, otomasyon, risk, takip, takvim, usta, veri_uret
+from . import __version__, degisim, egitim, ice_aktar, katalog, ogrenme, otomasyon, risk, takip, takvim, usta, veri_uret
 from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
@@ -725,7 +725,7 @@ def _plan_ve_takvim(i: PlanIstek) -> dict:
     # Ayarlar plan kaydedilmeden önce denetlenir: geçersiz ayar yarım kalmış kayıt bırakmasın
     takvim.ayar_dogrula(i.haftalik_sinir, i.oturum_saat, i.gunluk_oturum, i.calisma_gunu)
     with KILIT:
-        p = risk.egitim_plani(con, i.butce_saat, i.yontem, i.kaydet)
+        p = egitim.plani_zenginlestir(con, risk.egitim_plani(con, i.butce_saat, i.yontem, i.kaydet))
     p["takvim"] = takvim.takvim_olustur(
         p["satirlar"], i.baslangic or takvim.sonraki_pazartesi(date.today()), i.haftalik_sinir,
         i.oturum_saat, i.gunluk_oturum, i.calisma_gunu, i.hafta_sinir, set(i.kisi_yok))
@@ -735,6 +735,30 @@ def _plan_ve_takvim(i: PlanIstek) -> dict:
 @api.post("/api/egitim-plani")
 def egitim_plani(i: PlanIstek):
     return _plan_ve_takvim(i)
+
+
+class SureIstek(BaseModel):
+    kart_saat: float = Field(ge=0.5, le=200)
+    ogrenme_saati: float = Field(ge=0.5, le=200)
+
+
+@api.get("/api/konu-sureleri")
+def konu_sureleri():
+    with KILIT:
+        return egitim.sureler(con)
+
+
+@api.post("/api/konu-sureleri/{kategori_id}")
+def konu_suresi_kaydet(kategori_id: int, i: SureIstek):
+    with KILIT:
+        return egitim.sure_kaydet(con, kategori_id, i.kart_saat, i.ogrenme_saati)
+
+
+@api.get("/api/egitim-icerigi/{kategori_id}")
+def egitim_icerigi(kategori_id: int):
+    """Konunun çözüm yolları ve temsilci vakaları: eğitimde üzerinden geçilecek eski çağrılar."""
+    with KILIT:
+        return dict(yollar=egitim.cozum_yollari(con, kategori_id))
 
 
 @api.get("/api/egitim-plani/takvim.csv")
@@ -759,12 +783,12 @@ def egitim_takvimi_csv(butce_saat: int = 60, yontem: str = "optimum", haftalik_s
     t = _plan_ve_takvim(i)["takvim"]
     b = io.StringIO()
     w = csv.writer(b, delimiter=";")
-    w.writerow(["Hafta", "Tarih", "Gün", "Konu", "Ne yapılacak", "Veren", "Alan", "Süre (saat)", "Oturum"])
+    w.writerow(["Hafta", "Tarih", "Gün", "Konu", "Ne yapılacak", "Veren", "Alan", "Süre (saat)", "Oturum", "Oturumun gündemi"])
     for o in t["oturumlar"]:
         g = date.fromisoformat(o["tarih"])
         w.writerow([_csv_hucre(x) for x in [o["hafta"], g.strftime("%d.%m.%Y"), o["gun"], o["kategori"], o["tur_adi"],
                     o["ogreten"] or "", o["ogrenen"] or "", f"{o['saat']:g}".replace(".", ","),
-                    f"{o['parca']}/{o['parca_sayisi']}"]])
+                    f"{o['parca']}/{o['parca_sayisi']}", " | ".join(o.get("gundem") or [])]])
     return PlainTextResponse("\ufeff" + b.getvalue(), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": 'attachment; filename="emanet-egitim-takvimi.csv"'})
 

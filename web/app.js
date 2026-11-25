@@ -175,7 +175,7 @@ CIZ.genel = async () => {
   </div>
   <div class="kart"><h3>Bugün neye bakmalı?</h3>
     ${o.dikkat.length ? `<ul class="liste">${o.dikkat.map(d => `<li>${rozet(d.seviye, {kirmizi: "Acil", sari: "Dikkat", mavi: "Bilgi"}[d.seviye])}<div class="govde">${kac(d.metin)}</div>
-    <button class="dugme kucuk${d.seviye === "kirmizi" ? "" : " ikincil"}" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>${DIKKAT_EYLEM[d.sayfa] || "Aç"}</button></li>`).join("")}</ul>`
+    <button class="dugme kucuk${d.seviye === "kirmizi" ? "" : " ikincil"}" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>${d.veri === "sureler" ? "Süreleri gir" : DIKKAT_EYLEM[d.sayfa] || "Aç"}</button></li>`).join("")}</ul>`
       : '<p class="kucuk">Bugün acil bir iş yok. Riskleri haftada bir gözden geçirmek yeter.</p>'}
   </div>
   ${T.mod === "yerel" ? `<div class="not">Bu uygulama kendi verinle çalışıyor (yerel kurulum). Demo senaryoları ve otomasyon örnekleri kapalı; veri bu makineden çıkmaz.</div>` : `<details class="kart" ${sessionStorageAl("tur") ? "" : "open"} id="tur">
@@ -880,7 +880,7 @@ function takvimGorunumu(t) {
     return `<div class="kart hafta"><h3>${h}. hafta <span class="kucuk">· ${kisaTarih(iso(pzt))} – ${kisaTarih(iso(son))} · ${os.length} oturum, ${sy(os.reduce((a, o) => a + o.saat, 0))} saat</span></h3>
       ${[...gunler].map(([g, gos]) => `<div class="gun"><div class="gun-ad">${gunAy(g)}</div><ul class="oturumlar">${gos.map(o => `<li>
         <b>${kac(o.kategori)}</b> <span class="kucuk">${sy(o.saat)} sa${o.parca_sayisi > 1 ? ` · ${o.parca}/${o.parca_sayisi}` : ""}</span><br>
-        ${planCumlesi(o)}</li>`).join("")}</ul></div>`).join("")}
+        ${planCumlesi(o)}${(o.gundem || []).length ? `<ul class="gundem">${o.gundem.map(m => `<li>${kac(m)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul></div>`).join("")}
       ${haftaKontrolleri(t, h, os)}
       ${biten(h).length ? `<p class="kucuk tamam">Bu hafta tamamlanır: ${biten(h).map(k => `<b>${kac(k.kategori)}</b> (${k.puan_once} → ${k.puan_sonra})`).join(", ")}</p>` : ""}
     </div>`;
@@ -924,8 +924,8 @@ CIZ.plan = async (butce) => {
   <h2>Eğitim planı</h2>
   <p class="alt">Elindeki eğitim saatiyle, tek kişiye bağlı işleri en çok azaltacak adımları seçer: kim, neyi, kime öğretecek ve sonunda ne değişecek.</p>
   <details class="kart"><summary><b>Plan hangi adımları kullanır?</b></summary>
-    <ul><li><b>Karta yaz</b> (2 saat): işi bilen kişi çözümü adım adım yazar; herkes okuyabilir.</li>
-    <li><b>Öğret</b>: işi bilen kişi, aynı birimden birine konuyu öğretir. Süre konunun zorluğuna göre değişir.</li>
+    <ul><li><b>Karta yaz</b>: işi bilen kişi, eski çağrılardaki çözüm yollarını adım adım yazıya döker (kart = konunun yazılı çözüm talimatı). Süresini sen girersin.</li>
+    <li><b>Öğret</b>: usta ile öğrenen önce kartı okur, sonra konunun eski çağrılarının üzerinden geçer (belirti → teşhis → çözüm), sonra sıradaki gerçek çağrıyı öğrenen usta yanındayken çözer. Öğrenen 3 çağrıyı tek başına kapatınca konuyu “biliyor” sayılır. Süresini sen girersin.</li>
     <li><b>Tazele</b> (öğretmenin üçte biri): eskiden bu işi yapan ama uzun süredir yapmayan birinin bilgisi tazelenir.</li>
     <li><b>Yeni sisteme geçir</b> (öğretmenin yarısı): sistem değiştiyse, eski sistemde bu işi yapan yenisine alıştırılır.</li></ul></details>
   <div class="kart"><div class="sira">
@@ -941,6 +941,9 @@ CIZ.plan = async (butce) => {
         <div><label for="tcg">Çalışma günleri</label><select id="tcg"><option value="5" selected>Pazartesi–Cuma</option><option value="6">Pazartesi–Cumartesi</option></select></div>
         <div><label for="tbas">Başlangıç haftası</label><input id="tbas" type="date" value="${sonrakiPazartesi()}"></div>
       </div></details></div>
+  <details class="kart" id="psure" ${butce === "sureler" ? "open" : ""}><summary><b>Konu süreleri</b> <span class="kucuk" id="psozet">· kart yazma ve öğretme saatleri; sen girersin</span></summary>
+    <p class="kucuk">Plan bu süreleri kullanır. Girmediğin konularda tahmini süre kullanılır ve planda “tahmini süre” diye işaretlenir; yeni açılan bir konunun süresi de girilene kadar tahminidir. Tazeleme öğretmenin üçte biri, yeni sisteme geçiş yarısı sayılır.</p>
+    <div id="pstablo"><p class="kucuk">Yükleniyor…</p></div></details>
   <div id="ps"></div><div id="ptk"></div>`;
   async function hesapla() {
     const p = await api("egitim-plani", planIstegi());
@@ -966,7 +969,12 @@ CIZ.plan = async (butce) => {
       ${p.satirlar.length ? `<ul class="liste">${planKonulari(p.satirlar).map(g => `<li>
         <span style="white-space:nowrap"><span class="puan ${sev(g.once)}">${g.once}</span><span class="ok">→</span><span class="puan ${sev(g.sonra)}">${g.sonra}</span></span>
         <div class="govde"><b>${kac(g.kategori)}</b> ${rozet("gri", g.saat + " saat")} ${(t.konular.find(k => k.kategori_id === g.kategori_id) || {}).bitis_haftasi ? rozet("mavi", t.konular.find(k => k.kategori_id === g.kategori_id).bitis_haftasi + ". haftada biter") : ""}
-          <ol class="adim">${g.adimlar.map(s => `<li>${planCumlesi(s)} <span class="kucuk">(${s.saat} sa · ${kac(s.neden)})</span></li>`).join("")}</ol></div></li>`).join("")}</ul>`
+          <ol class="adim">${g.adimlar.map(s => `<li>${planCumlesi(s)} <span class="kucuk">(${sy(s.saat)} sa · ${kac(s.neden)})</span>
+            ${s.sure_tahmini ? `<button class="cip uyari-cip" data-sure-ac="${kac(s.kategori_id)}" title="Bu konunun süresini sen gir">tahmini süre · düzelt</button>` : ""}
+            <details class="icerik"><summary>Ne yapılacak?</summary>
+              <ul class="gundem">${(s.gundem || []).map(m => `<li>${kac(m)}</li>`).join("")}</ul>
+              ${s.tur !== "kart" && (s.vakalar || []).length ? `<p class="kucuk">Üzerinden geçilecek eski çağrılar:</p><ul class="vakalar">${s.vakalar.map(v => `<li><a href="#detay" data-cagri="${kac(v.cagri_id)}">#${kac(v.cagri_id)}</a> ${kac(v.belirti)}<div class="kucuk">${kac(v.cozen || "")} · ${kac(v.tarih)} · bu yol ${v.adet} çağrıda kullanıldı</div><ol class="adim">${v.adimlar.map(a => `<li>${kac(a)}</li>`).join("")}</ol></li>`).join("")}</ul>` : ""}
+              <p class="kucuk"><b>Tamamlanınca:</b> ${kac(s.olcut || "")}</p></details></li>`).join("")}</ol></div></li>`).join("")}</ul>`
       : '<p class="kucuk">Bu bütçeyle yapılabilecek bir adım yok.</p>'}
     </div>
     </div>
@@ -985,6 +993,8 @@ CIZ.plan = async (butce) => {
     if ($("#psim")) $("#psim").onclick = async () => { $("#psim").disabled = true; const r = await api("plan/simule", {}); bildir(`30 gün simüle edildi: ${r.uretilen_cagri} çağrı, ${r.yazilan_kart} kart.`); takipYukle(); };
   }
   $("#ana").onclick = async e => {
+    const sa = e.target.closest("[data-sure-ac]");
+    if (sa) { $("#psure").open = true; const tr = $("#sure-" + sa.dataset.sureAc); if (tr) { tr.scrollIntoView({behavior: "smooth", block: "center"}); tr.classList.add("yenilendi"); tr.querySelector("input").focus({preventScroll: true}); } return; }
     const gor = e.target.closest("[data-gor]");
     if (gor) {
       planGor = gor.dataset.gor;
@@ -1044,7 +1054,25 @@ CIZ.plan = async (butce) => {
   };
   // Takvim ayarı değişince plan yeniden hesaplanır (aynı plan, yeni takvim)
   ["#tsin", "#tot", "#tgo", "#tcg", "#tbas"].forEach(id => { $(id).onchange = () => $("#ph").click(); });
-  hesapla(); takipYukle();
+  async function sureYukle() {
+    const L = await api("konu-sureleri");
+    const girilen = L.filter(k => k.sure_onay).length;
+    $("#psozet").textContent = `· ${L.length} konudan ${girilen} tanesinin süresini girdin`;
+    $("#pstablo").innerHTML = `<div class="tablo-sar"><table><thead><tr><th>Konu</th><th class="sayi">Kartı yazmak (saat)</th><th class="sayi">Öğretmek (saat)</th><th></th></tr></thead><tbody>
+      ${L.map(k => `<tr id="sure-${k.kategori_id}"><td>${kac(k.ad)}<div class="kucuk">${kac(k.birim)}${k.acilis ? " · yeni konu" : ""}</div></td>
+        <td class="sayi"><input type="number" min="0.5" max="200" step="0.5" value="${k.kart_saat_etkin}" data-sk="kart" aria-label="${kac(k.ad)} kart yazma saati"></td>
+        <td class="sayi"><input type="number" min="0.5" max="200" step="0.5" value="${k.ogrenme_saati}" data-sk="ogr" aria-label="${kac(k.ad)} öğretme saati"></td>
+        <td>${k.sure_onay ? rozet("yesil", "Senin girdiğin") : rozet("sari", "Tahmini")} <button class="dugme kucuk ikincil" data-sure-kaydet="${kac(k.kategori_id)}">Kaydet</button></td></tr>`).join("")}
+      </tbody></table></div>`;
+  }
+  $("#psure").addEventListener("click", async e => {
+    const b = e.target.closest("[data-sure-kaydet]"); if (!b) return;
+    const tr = b.closest("tr"), kart = +tr.querySelector('[data-sk="kart"]').value, ogr = +tr.querySelector('[data-sk="ogr"]').value;
+    try { await api("konu-sureleri/" + b.dataset.sureKaydet, {kart_saat: kart, ogrenme_saati: ogr}); }
+    catch (err) { bildir(err.message); return; }
+    await sureYukle(); bildir("Süre kaydedildi; plan yeniden hesaplanıyor."); await hesapla();
+  });
+  hesapla(); takipYukle(); sureYukle().then(() => { if (butce === "sureler") $("#psure").scrollIntoView({behavior: "smooth"}); });
 };
 
 /* ---------------------------------------------------------------- Değişimler */

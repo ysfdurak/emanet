@@ -151,6 +151,48 @@ bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh
   - Gerçek veri gelince anlam benzerliği için yerel bir cümle modeli eklenebilir.
   - Ziyaretçi demosundaki model eğitimi isteği bekletiyor (ilk kapanışta 1-2 sn); arka plana alınabilir.
 
+### Eğitim neyi gösterir, süreler nereden gelir? (alan uzmanı gözüyle düzeltme)
+
+Kullanıcının eleştirisi: "Kart 2 saat gerçekçi değil; kart ne, eğitimde ne gösterilecek?" Haklıydı: kart yazma
+süresi koddaki sabitti (`KART_YAZMA_SAATI = 2`), öğretme süresi katalogdaki tahmindi ve planın "10 saat
+öğretir" dediği saatlerde ne yapılacağı hiçbir yerde yoktu.
+
+**Kart nedir:** konunun yazılı çözüm talimatı ("bu hata çıkarsa şunu yap", adım adım). Bilen kişi yokken
+başkası kartla çözebilsin diye.
+
+**Eğitimin içeriği eski çağrılardan çıkar (`emanet/egitim.py`):**
+
+```mermaid
+flowchart LR
+  N[Kapanmış çağrıların çözüm notları] --> G[İlk adıma göre grupla]
+  G --> Y[Çözüm yolları<br/>ERP: günlükte bul · servisi yeniden başlat]
+  Y --> K[Kart adımı: her yolu yaz]
+  Y --> V[Her yoldan bir temsilci vaka<br/>açıklayıcı belirti, teyitli, yeni]
+  V --> E[Eğitim gündemi: kartı oku → vakalar → birlikte uygulama]
+  E --> O[Ölçüt: 3 çağrıyı tek başına kapatınca biliyor]
+```
+
+- **Çözüm yolu:** notlar ilk adımlarına göre gruplanır; her grup bir yol, kaç çağrıda kullanıldığıyla.
+- **Temsilci vaka:** her yoldan, belirtisi en açıklayıcı olan (konunun anahtar kelimesini içeren,
+  "çalışmıyor, acil bakar mısınız" gibi genel olmayan) eski çağrı. Ekranda çağrının kendisine bağlantı var.
+- **Gündem oturumlara dağılır** (`takvim.oturum_gundemi`): ilk oturumlar kart ve vakalar, kalanlar "birlikte
+  uygulama". Takvimde ve Excel'de her oturumun ne yapacağı yazar.
+- **Tamamlanma beyanla değil çağrıyla ölçülür:** öğrenen 3 çağrıyı tek başına kapatınca "biliyor".
+
+**Süreleri kullanıcı girer:** Eğitim planı → "Konu süreleri" tablosu (kart yazma, öğretme; yarım saatin katı).
+Girilmeyen konu tahminle hesaplanır ve planda **"tahmini süre · düzelt"** diye işaretlenir; yeni açılan konu
+süresi girilene kadar tahminidir. Riskli bir konunun süresi yoksa Bugün sayfasında "Süreleri gir" uyarısı çıkar.
+Tazeleme öğretmenin üçte biri, yeni sisteme geçiş yarısı sayılır. Optimizasyon yarım saatlik süreler için
+yarım saat biriminde çalışır (sırt çantası dizisi 2 × bütçe uzunluğunda).
+
+**Mülakat sorusu:** *"Süreyi neden veriden hesaplamadın?"* Veriden kart yazma süresi çıkmaz; kimse bunu
+kaydetmiyor. Uydurulmuş bir sayı planı gerçekçi gösterir ama yanıltır. Bu yüzden süre işi bilen kişiden
+gelir, girilmeyen her yer açıkça "tahmini" diye işaretlenir.
+
+**Sıradaki (onaylandı):** devir dosyası bir sürece dönüşecek (izle → birlikte → tek başına, çağrıyla ölçülen),
+sonra çağrı açma formu iki aşamalı olacak (konuya özel sorular, aciliyet cevaplardan, açılmadan önce
+"aynı sorun bildirildi" ve "önce bunu dene").
+
 ### Gerçek Teams bağlantısı nasıl kurulur?
 
 Demoda Teams, uygulamanın içindeki "Teams kutusu"dur: mesajlar `mesaj` tablosuna yazılır, cevabı ekrandan sen
@@ -397,3 +439,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Menü 4 alan + Daha fazla; Biri yoksa (izin + ayrılık); Bugün sayfası; küçük düğme kontrastı; Teams gerçek bağlantı notu |
 | 25 Kasım 2026 | Ortak ölçüm ve geri bildirim (olcum.ysfdurak.com): yalnız emanet.ysfdurak.com'da yüklenir; her sayfa geçişi `olc("ekran", sayfa)` ile bildirilir (gidiş kuyruğa alınır, betik geç yüklenirse kaybolmaz). CSP'de yalnız `script-src` ve `connect-src`'ye bu adres eklendi. Kendi kurulumlarda dışarıya istek yok. Ders: ölçüm betiğini ayrı dosya yerine `app.js` başına koydum, çünkü sunucu `web/` içinden yalnız bilinen dosyaları sunuyor; yeni dosya izin listesine de eklenmeliydi. |
 | 25 Kasım 2026 | Sayfa içleri kısaldı (Risk 8.744 → 2.140 px), kelimeler sadeleşti, demo düğmeleri etiketlendi |
+| 25 Kasım 2026 | Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); süreler kullanıcıdan, girilmeyen tahmini işaretli; yarım saatlik optimizasyon; 3 MCP aracı |

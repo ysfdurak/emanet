@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS kategori (
     kaynak             TEXT NOT NULL DEFAULT 'usta',  -- usta | içe aktarılan dökümün adı
     talimat_var        INTEGER NOT NULL DEFAULT 0,    -- dökümde "yazılı talimat var" işareti
     acilis             TEXT,          -- konu bu tarihte başladıysa (yeni sistem); NULL = baştan beri var
-    emeklilik          TEXT           -- konu bu tarihte kapandıysa (eski sistem); NULL = hâlâ geçerli
+    emeklilik          TEXT,          -- konu bu tarihte kapandıysa (eski sistem); NULL = hâlâ geçerli
+    kart_saat          REAL,          -- çözüm kartını yazma süresi (saat); NULL = girilmedi, varsayılan kullanılır
+    sure_onay          INTEGER NOT NULL DEFAULT 0  -- 1 = kart ve öğretme sürelerini kullanıcı girdi; 0 = tahmin
 );
 
 CREATE TABLE IF NOT EXISTS cagri (
@@ -244,7 +246,8 @@ def baglan(yol: Path | str | None = None) -> sqlite3.Connection:
 
 # Eski bir veritabanı açılırsa sonradan eklenen sütunlar eklenir (veri silinmez).
 GOCLER = {
-    "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT")],
+    "kategori": [("acilis", "TEXT"), ("emeklilik", "TEXT"), ("kart_saat", "REAL"),
+                 ("sure_onay", "INTEGER NOT NULL DEFAULT 0")],
     "kisi": [("ise_giris", "TEXT"), ("cikis", "TEXT")],
     "recete": [("askida", "INTEGER NOT NULL DEFAULT 0"), ("askida_neden", "TEXT"), ("askida_zaman", "TEXT"),
                ("saglik_bas", "TEXT"), ("sahip", "TEXT")],

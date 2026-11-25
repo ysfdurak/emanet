@@ -42,6 +42,24 @@ def ayar_dogrula(haftalik_sinir: float, oturum_saat: float, gunluk_oturum: int, 
         raise ValueError("Çalışma günü 5 (Pzt–Cum) ya da 6 (Pzt–Cmt) olmalı")
 
 
+def oturum_gundemi(gundem: list[str], parca: int, parca_sayisi: int) -> list[str]:
+    """Adımın gündem maddelerini oturumlara sırayla dağıtır.
+
+    Madde oturumdan fazlaysa eşit bölünür; azsa her oturuma bir madde düşer ve son madde (genelde
+    "yanında öğrenme") kalan oturumlara yayılır: "Yanında öğrenme … (2/4)".
+    """
+    if not gundem:
+        return []
+    L, P, i = len(gundem), parca_sayisi, parca - 1
+    if L >= P:
+        return gundem[i * L // P:(i + 1) * L // P]
+    if i < L - 1:
+        return [gundem[i]]
+    kalan = P - (L - 1)
+    sira = i - (L - 1) + 1
+    return [gundem[-1] + (f" ({sira}/{kalan})" if kalan > 1 else "")]
+
+
 def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float = 2.0,
                    oturum_saat: float = 1.0, gunluk_oturum: int = 1, calisma_gunu: int = 5,
                    hafta_sinir: dict[int, float] | None = None,
@@ -91,7 +109,8 @@ def takvim_olustur(satirlar: list[dict], baslangic: date, haftalik_sinir: float 
                 haftalik[(k, hafta)] += sure
                 gunluk[(k, gun_sira)] += 1
             tarih = baslangic + timedelta(weeks=hafta, days=gun_ici)
-            oturumlar.append(dict(
+            gundem = oturum_gundemi(s.get("gundem") or [], parca, parca_sayisi)
+            oturumlar.append(dict(gundem=gundem,
                 hafta=hafta + 1, tarih=tarih.isoformat(), gun=GUN_ADLARI[tarih.weekday()],
                 adim=adim_no, parca=parca, parca_sayisi=parca_sayisi, saat=sure,
                 kategori_id=s["kategori_id"], kategori=s["kategori"], tur=s["tur"], tur_adi=TUR_ADI.get(s["tur"], s["tur"]),
