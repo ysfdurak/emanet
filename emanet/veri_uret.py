@@ -34,8 +34,8 @@ from . import katalog as K
 from .db import bosalt, meta_yaz
 
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
-# (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları)
-VERI_SURUMU = 3
+# (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi)
+VERI_SURUMU = 4
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -157,6 +157,25 @@ def _cihaz_ata(con: sqlite3.Connection, bugun: date, tohum: int) -> None:
             con.execute("UPDATE cagri SET cihaz=? WHERE id=?", (rnd.choices(aday, weights=agirlik)[0], c["id"]))
 
 
+def _kalite_gecmisi(con: sqlite3.Connection, tohum: int) -> None:
+    """Geçmiş çağrılara kapanış onayı ve "ilk seferde çözülmedi" izi (ölçüler ekranı için). Ayrı tohum.
+    Açanların çoğu onaylar, bir kısmı cevap vermez; kişi başına %1-8 çağrı ilk çözümden sonra yeniden açılmıştır."""
+    rnd = random.Random(tohum + 11)
+    oran = {}
+    for c in con.execute("SELECT id, acilis, sure_dk, cozen_kisi_id, acan_kisi FROM cagri "
+                         "WHERE kaynak='usta' AND durum='kapali' ORDER BY id").fetchall():
+        k = c["cozen_kisi_id"]
+        if k not in oran:
+            oran[k] = rnd.uniform(0.01, 0.08)
+        if rnd.random() < oran[k]:
+            an = datetime.fromisoformat(c["acilis"]) + timedelta(minutes=max(1, c["sure_dk"] * 0.4))
+            con.execute("INSERT INTO cagri_olay(cagri_id,zaman,tur,kisi_id,aciklama) VALUES(?,?,?,?,?)",
+                        (c["id"], an.isoformat(timespec="minutes"), "yeniden_acildi", k,
+                         "Açan kişi çözülmedi dedi; ilk çözüm tutmadı"))
+        if c["acan_kisi"] and rnd.random() < 0.82:
+            con.execute("UPDATE cagri SET teyit=1 WHERE id=?", (c["id"],))
+
+
 def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
          adet: int = 900, gun: int = 180) -> dict:
     bugun = bugun or date.today()
@@ -274,6 +293,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         olay(cid, acilis, "acildi")
         olay(cid, acilis, "atandi", kisi_id[atanan])
     _cihaz_ata(con, bugun, tohum)
+    _kalite_gecmisi(con, tohum)
     # Durumlar: açık çağrıların bir kısmına başlanmış, birinde açana soru sorulmuş (cevap bekleniyor)
     acik = con.execute("SELECT id, acilis, atanan_kisi_id, acan_kisi FROM cagri WHERE durum='acik' ORDER BY id").fetchall()
     for i, c in enumerate(acik[:3]):

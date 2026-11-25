@@ -30,7 +30,7 @@ from . import mcp_sunucu
 from .db import DB_YOLU, baglan, meta_al
 from .gercek_ip import gercek_ip
 from . import devir as devir_surec
-from . import cagri_formu
+from . import cagri_formu, olcum
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 log = logging.getLogger("emanet")
@@ -578,6 +578,14 @@ def cihaz_envanter(i: EnvanterIstek):
 def cihazlar_ozet():
     with KILIT:
         return cagri_formu.envanter_ozeti(con)
+
+
+@api.get("/api/olcumler")
+def olcumler(gun: int = Query(30, ge=7, le=180)):
+    """Kapanma süreleri, kişi başı iş yükü, ilk seferde çözme, haftalık akış."""
+    with KILIT:
+        usta.onaysizlari_kapat(con)
+        return olcum.cagri_olculeri(con, gun)
 
 
 @api.get("/api/cihazlar/tekrarlayan")

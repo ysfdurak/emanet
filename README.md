@@ -121,6 +121,7 @@ emanet/
   takvim.py       Eğitim planını kişi başı haftalık sınırla haftalara ve günlere yerleştirir
   egitim.py       Eğitim içeriği eski çağrılardan (çözüm yolları, vakalar, oturum gündemi); konu süreleri
   devir.py        Devir süreci: aşamalar, kontrol listesi, görüşme, devir takvimi, tutanak
+  olcum.py        Çağrı ölçüleri: kapanma süreleri, kişi başı iş yükü, ilk seferde çözme, haftalık akış
   cagri_formu.py  İki aşamalı çağrı formu: konuya özel sorular, öncelik hesabı, aynı sorun, kendin dene
   takip.py        İzin kontrolü, plan takibi, devir dosyası, risk seyri, reçete fırsatları, dikkat listesi
   degisim.py      Sistem geçişi, yeni personel ve işe alışma, gerçek ayrılış
@@ -141,12 +142,13 @@ docs/             PROJE.md (yaşayan doküman), HAKIMIYET.md (derin anlatım + s
 Sunucu çalışırken MCP adresi `/mcp` olur (Streamable HTTP) ve anahtar ister: Claude'da özel
 bağlayıcı adresi `https://<alan>/mcp`, anahtar istek başlığında `Authorization: Bearer <anahtar>` (önerilen; `…/mcp/<anahtar>` da çalışır ama anahtar adreste görünür). Anahtarlar
 `.env` içinde `EMANET_MCP_ANAHTARLARI` (virgülle, her biri en az 24 karakter; `openssl rand -hex 32`).
-MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 26 araç:
+MCP ortak demo verisiyle çalışır, ziyaretçi kopyalarını görmez. 27 araç:
 
 | Araç | Ne yapar |
 | --- | --- |
 | `cagri_ac` | Sistemsel çağrı açar; konu, atama ve çözüm yolunu döndürür. Etki ve kapsam verilirse öncelik hesaplanır; sorulmayan konu sorularını döndürür |
 | `cihaz_gecmisi` | Bir yazıcı ya da terminalin kaydı ve son çağrıları; boşsa tekrar tekrar arızalanan cihazlar |
+| `cagri_olculeri` | Kapanma süresi (ortanca, %90), kişi başı iş yükü ve konuya göre hız, ilk seferde çözme, haftalık akış |
 | `cagri_islem` | Çağrıyı işleme alır ya da açana soru sorar (durum: İşlemde, Bilgi bekleniyor) |
 | `cagrilari_listele` | Birime, kişiye, duruma göre çağrılar |
 | `nasil_cozuldu` | Bir sorun geçmişte nasıl çözülmüş, kaç kez, kim çözmüş |

@@ -392,6 +392,26 @@ stateDiagram-v2
 - Alan uzmanı notu: "Bilgi bekleniyor"da top açandadır; ileride çözüm süresi ölçülürken bu süre çözene
   yazılmamalı (SLA duraklatma). Şimdilik süre ölçümü değişmedi.
 
+**Ölçüler (kullanıcı isteği: "kapatma süreleri, üzerine aldığı çağrı sayısı gibi metrikleri görmek gerek").**
+Çağrılar → Ölçüler, son 7/30/90 gün (`emanet/olcum.py`, `/api/olcumler`, MCP `cagri_olculeri`):
+- **Özet:** açılan/kapanan, kapanma süresi ortanca ve %90'lık dilim, ilk seferde çözülen (yeniden açılmayan)
+  pay, şu an açık (bilgi bekleyen, onay bekleyen), en eski açık çağrının yaşı, açanın "çözüldü" dediği pay.
+- **Kimin üzerinde ne var:** kişi başı üzerindeki açık çağrı (başlanmadı, işlemde, bilgi bekliyor, yüksek
+  öncelik), en eskisinin yaşı, dönemde kapattığı, ortanca süre, konuya göre hız, yeniden açılan. "Yük fazla":
+  en az 3 açık ve ekip ortalamasının iki katı. Telefonda tablo yerine kart.
+- **Haftalık akış** (açılan ve kapanan; sürekli açılan fazlaysa iş birikiyor) ve **konulara göre** süreler.
+
+Alan uzmanı kararları:
+- **Ortalama değil ortanca:** birkaç günlük çağrı ortalamayı bozar. %90'lık dilim "kötü günleri" gösterir.
+- **Ham süre karşılaştırılmaz:** ERP çağrısı şifre çağrısından uzun sürer; kişinin hızı konunun tipik süresine
+  bölünür (1,0 = tipik). Yoksa zor işleri alan kişi "yavaş" görünür ve kimse zor işi almak istemez.
+- **Yarış tablosu değil:** kişiler ada göre sıralı. Amaç iş yükünü dengelemek ve yardıma ihtiyacı olanı görmek.
+  (Depoda rekabet temelli uygulamaların tutmadığı geri bildirimiyle de uyumlu.)
+- **Net süre:** "Bilgi bekleniyor"da geçen süre (top açandayken) çözenin süresinden düşülür.
+
+Demo verisi: geçmiş çağrıların %82'sinde açan onaylamış; kişi başına %1-8 çağrı ilk çözümden sonra yeniden
+açılmış (ayrı tohum; `VERI_SURUMU` 4). Bilinen sınır: süreler takvim dakikasıdır, vardiya dışı saatler düşülmez.
+
 **Mülakat sorusu:** *"Önceliği neden kullanıcıya seçtirmedin?"* Seçtirilen öncelik herkesin "yüksek" dediği bir
 alan olur ve sıralamayı anlamsızlaştırır. Kişinin bildiği şeyi soruyorum (iş durdu mu, kaç kişi, araç bekliyor
 mu); önceliği kuralla ben hesaplıyorum ve gerekçesini gösteriyorum. Kural tek dosyada, değiştirmek kolay.
@@ -653,3 +673,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Devralanın ayrı haftalık sınırı ve darboğaz cümlesi; çağrı formu telefonda (örnekler gizlenir, "soru açıldı" düğmesi), kuyrukta yer; README ve HAKIMIYET (39–44. sorular) güncel; 125 test |
 | 25 Kasım 2026 | Yazıcı ve terminal numarası gerekli; envanterden model ve yer; cihaz geçmişi ve tekrarlayan arıza uyarısı; MCP `cihaz_gecmisi`; 127 test |
 | 25 Kasım 2026 | Cihaz envanteri tabloda (CSV içe aktarma, tam liste, envanterde olmayan numaralar, modele göre arıza); çağrı durumları (Atandı, İşlemde, Bilgi bekleniyor, Çözüldü, Kapalı; soru, cevap ve onayla kendiliğinden); MCP `cagri_islem`; 130 test |
+| 25 Kasım 2026 | Ölçüler ekranı: kapanma süresi (ortanca, %90, bilgi beklemesi düşülmüş), kişi başı iş yükü ve konuya göre hız, ilk seferde çözme, haftalık akış, konulara göre; MCP `cagri_olculeri`; 133 test |

@@ -18,7 +18,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from . import degisim, egitim, ogrenme, otomasyon, risk, takip, takvim, usta
 from .db import baglan
 from . import devir as devir_surec
-from . import cagri_formu
+from . import cagri_formu, olcum
 
 sunucu = MCPServer(
     name="Emanet",
@@ -178,6 +178,16 @@ def nasil_cozuldu(sorun: str) -> dict:
     return dict(tahmini_konu=o["oneriler"][0]["ad"], konu_guveni=o["guven"], **_yol_sade(y),
                 benzer_cagrilar=[dict(metin=c["metin"], cozen=c["cozen"], sure_dk=c["sure_dk"], benzerlik=c["benzerlik"])
                                  for c in y["cagrilar"]])
+
+
+@arac
+def cagri_olculeri(gun: int = 30) -> dict:
+    """Çağrı ölçüleri (son 'gun' gün): kapanma süresi (ortanca ve %90; açandan bilgi beklenen süre düşülür),
+    kişi başı üzerindeki açık çağrı ve kapattığı, konuya göre hız (1,0 = konunun tipik hızı), ilk seferde
+    çözülen payı, yeniden açılan, haftalık açılan ve kapanan. Kişiler ada göre sıralıdır; amaç yarıştırmak değil
+    iş yükünü dengelemek."""
+    with KILIT:
+        return olcum.cagri_olculeri(baglanti(), gun)
 
 
 @arac

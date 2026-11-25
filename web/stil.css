@@ -167,3 +167,13 @@ label.satir input{width:auto;margin:0}
 dl.ek{display:grid;grid-template-columns:max-content 1fr;gap:.15rem .8rem;margin:.5rem 0;font-size:.88rem}
 dl.ek dt{color:var(--soluk,#5b6470)}
 dl.ek dd{margin:0}
+/* Ölçüler: haftalık akış çubukları */
+.akis-satir{display:grid;grid-template-columns:4.5rem 1fr 1fr;gap:.5rem;align-items:center;padding:.15rem 0}
+.akis-satir>div{display:flex;align-items:center;gap:.35rem;min-width:0}
+.cubuk{display:inline-block;height:.6rem;border-radius:3px;min-width:2px;flex:0 0 auto}
+.cubuk.acilan{background:#8aa3b8}.cubuk.kapanan{background:var(--vurgu)}
+@media (max-width:480px){.akis-satir{grid-template-columns:3.6rem 1fr}.akis-satir>div:last-child{grid-column:2}}
+.mobil{display:none}
+@media (max-width:640px){.mobil{display:block}.masaustu{display:none}}
+.akis-satir>div{overflow:hidden}
+

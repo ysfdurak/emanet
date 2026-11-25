@@ -66,11 +66,11 @@ const adimlar = a => `<ol class="adim">${(Array.isArray(a) ? a : a.split("\n")).
 // eski bağlantılar ve MCP/doküman adresleri çalışmaya devam eder.
 const ALANLAR = [
   ["bugun", "Bugün", ["genel"]],
-  ["cagrilar", "Çağrılar", ["cagri", "kuyruk", "kartlar", "otomasyon"]],
+  ["cagrilar", "Çağrılar", ["cagri", "kuyruk", "olcum", "kartlar", "otomasyon"]],
   ["riskler", "Riskler", ["risk", "giderse"]],
   ["egitim", "Eğitim", ["plan"]],
   ["fazla", "Daha fazla", ["degisim", "ekibim", "nasil", "ogrenme"]]];
-const ALT_AD = {cagri: "Çağrı aç", kuyruk: "Kuyruk", kartlar: "Çözüm notları", otomasyon: "Otomatik çözümler",
+const ALT_AD = {cagri: "Çağrı aç", kuyruk: "Kuyruk", olcum: "Ölçüler", kartlar: "Çözüm notları", otomasyon: "Otomatik çözümler",
   risk: "Risk haritası", giderse: "Biri yoksa", degisim: "Değişimler", ekibim: "Kendi verinle dene",
   nasil: "Nasıl çalışır", ogrenme: "Model nasıl öğreniyor"};
 // Alt sekmesi olmayan sayfalar hangi alt sekmeye sayılır
@@ -469,6 +469,44 @@ function ekBilgi(c) {
     e && e.ne_zaman && ["Ne zamana", e.ne_zaman]].filter(Boolean);
   return `<dl class="ek">${satir.map(([a, b]) => `<dt>${kac(a)}</dt><dd>${kac(b)}</dd>`).join("")}</dl>${e && e.oncelik_gerekce ? `<p class="kucuk">Öncelik neden böyle: ${kac(e.oncelik_gerekce)}</p>` : ""}`;
 }
+
+/* ---------------------------------------------------------------- Ölçüler */
+const dk = m => m == null ? "-" : m < 60 ? `${m} dk` : m < 1440 ? `${sy(Math.round(m / 6) / 10)} sa` : `${sy(Math.round(m / 144) / 10)} gün`;
+const yukDokum = k => [k.uzerinde - k.islemde - k.bekliyor && `${k.uzerinde - k.islemde - k.bekliyor} başlanmadı`, k.islemde && `${k.islemde} işlemde`,
+  k.bekliyor && `${k.bekliyor} bilgi bekliyor`, k.yuksek && `${k.yuksek} yüksek öncelik`].filter(Boolean).join(" · ");
+const saatYas = s => s == null ? "-" : s < 24 ? `${sy(Math.round(s))} sa` : `${sy(Math.round(s / 2.4) / 10)} gün`;
+CIZ.olcum = async (gun) => {
+  gun = +gun || 30;
+  const o = await api("olcumler?gun=" + gun), z = o.ozet;
+  const enCok = Math.max(1, ...o.haftalar.flatMap(h => [h.acilan, h.kapanan]));
+  const cubuk = (n, r) => `<span class="cubuk ${r}" style="width:calc((100% - 5.5rem) * ${(n / enCok).toFixed(3)})"></span>`;
+  $("#ana").innerHTML = `<h2>Ölçüler</h2>
+    <p class="alt">Çağrılar ne kadar sürede kapanıyor, kimin üzerinde ne var, ilk seferde çözülüyor mu. Süreler ortanca (tipik çağrı) ve %90'lık dilimle verilir; açandan bilgi beklenen süre düşülür.</p>
+    <div class="secim" role="group" aria-label="Dönem">${[7, 30, 90].map(g => `<button class="dugme kucuk${g === gun ? "" : " ikincil"}" data-sayfa="olcum" data-veri="${g}" aria-pressed="${g === gun}">Son ${g} gün</button>`).join("")}</div>
+    <div class="izgara">
+      <div class="olcu"><b>${z.acilan} / ${z.kapanan}</b><span>Açılan / kapanan</span></div>
+      <div class="olcu"><b>${dk(z.ortanca_dk)}</b><span>Kapanma süresi, ortanca (%90: ${dk(z.p90_dk)})</span></div>
+      <div class="olcu"><b>${z.ilk_seferde == null ? "-" : yuzde(z.ilk_seferde)}</b><span>İlk seferde çözülen (${z.yeniden_acilan} yeniden açıldı)</span></div>
+      <div class="olcu"><b>${z.acik}</b><span>Şu an açık · ${z.bilgi_bekleniyor} bilgi bekliyor · ${z.onay_bekleyen} onay bekliyor</span></div>
+      <div class="olcu"><b>${saatYas(z.en_eski_acik_saat)}</b><span>En eski açık çağrının yaşı</span></div>
+      <div class="olcu"><b>${z.onaylanan_pay == null ? "-" : yuzde(z.onaylanan_pay)}</b><span>Açanın "çözüldü" dediği</span></div>
+    </div>
+    <div class="kart"><h3>Kimin üzerinde ne var</h3>
+      <p class="kucuk">Ada göre sıralı; bu bir yarış tablosu değil. Amaç iş yükünü dengelemek ve yardıma ihtiyacı olanı görmek. <b>Konuya göre</b>: kişinin süresi o konunun tipik süresine bölünür (1,0 = konunun tipik süresi; 1,5 = %50 daha uzun). Ham süre karşılaştırılmaz, çünkü ERP çağrısı şifre çağrısından doğal olarak uzun sürer.</p>
+      <div class="tablo-sar masaustu"><table><thead><tr><th>Kişi</th><th class="sayi">Üzerinde</th><th class="sayi">En eski</th><th class="sayi">Kapattığı</th><th class="sayi">Ortanca</th><th class="sayi">Konuya göre</th><th class="sayi">Yeniden açılan</th></tr></thead><tbody>
+      ${o.kisiler.map(k => `<tr><td>${kac(k.ad)} <span class="kucuk">${kac(VARDIYA[k.vardiya] || "")}</span>${k.yuk_fazla ? " " + rozet("sari", "Yük fazla") : ""}</td>
+        <td class="sayi">${k.uzerinde}${k.uzerinde ? `<div class="kucuk">${yukDokum(k)}</div>` : ""}</td>
+        <td class="sayi">${saatYas(k.en_eski_saat)}</td><td class="sayi">${k.kapattigi}<div class="kucuk">${k.konu_sayisi} konu</div></td>
+        <td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}</td><td class="sayi">${k.yeniden_acilan}</td></tr>`).join("")}</tbody></table></div>
+      <ul class="liste mobil">${o.kisiler.map(k => `<li><div class="govde"><b>${kac(k.ad)}</b> <span class="kucuk">${kac(VARDIYA[k.vardiya] || "")}</span>${k.yuk_fazla ? " " + rozet("sari", "Yük fazla") : ""}
+        <div class="kucuk">Üzerinde <b>${k.uzerinde}</b>${k.uzerinde ? ` (${yukDokum(k)}, en eskisi ${saatYas(k.en_eski_saat)})` : ""}</div>
+        <div class="kucuk">${k.kapattigi} kapattı · ${k.konu_sayisi} konu · ortanca ${dk(k.ortanca_dk)} · konuya göre ${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}${k.yeniden_acilan ? " · " + k.yeniden_acilan + " yeniden açıldı" : ""}</div></div></li>`).join("")}</ul>
+      <p class="kucuk">Yük fazla: üzerinde en az 3 açık çağrı var ve ekip ortalamasının iki katı. Çağrıyı detay ekranından başkasına yönlendirebilirsin.</p></div>
+    <div class="kart"><h3>Haftalık akış</h3><p class="kucuk">Açılan kapanandan sürekli fazlaysa iş birikiyor.</p>
+      <div class="akis">${o.haftalar.map(h => `<div class="akis-satir"><span class="kucuk">${kac(tarihKisa(h.bitis))}</span><div>${cubuk(h.acilan, "acilan")}<span class="kucuk">${h.acilan} açıldı</span></div><div>${cubuk(h.kapanan, "kapanan")}<span class="kucuk">${h.kapanan} kapandı</span></div></div>`).join("")}</div></div>
+    <div class="kart"><h3>Konulara göre</h3><div class="tablo-sar"><table><thead><tr><th>Konu</th><th class="sayi">Kapanan</th><th class="sayi">Ortanca</th><th class="sayi">%90</th><th class="sayi">Açık</th></tr></thead><tbody>
+      ${o.konular.map(k => `<tr><td>${kac(k.ad)}</td><td class="sayi">${k.kapanan}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${dk(k.p90_dk)}</td><td class="sayi">${k.acik}</td></tr>`).join("")}</tbody></table></div></div>`;
+};
 
 /* ---------------------------------------------------------------- Kuyruk */
 CIZ.kuyruk = async () => {

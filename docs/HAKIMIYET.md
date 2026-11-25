@@ -412,6 +412,7 @@ Sorular:
 45. Cihaz numarasını neden ayrı sütunda tutup tek biçime getiriyorsun?
 46. Çağrının neden iki durumu var (durum ve asama)? "Çözüldü" hangi tarafta sayılıyor?
 47. Envanterde olmayan bir numara gelince sistem onu neden kendisi eklemiyor?
+48. Kişilerin çözüm süresini neden doğrudan karşılaştırmıyorsun, "konuya göre" ne demek?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -583,3 +584,6 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
     durumda onay bekliyor; açan "devam ediyor" derse not öğrenmeden çıkarılır ve çağrı yeniden açılır.
 47. Envanterin sahibi demirbaş sistemi. Yazım hatası ("YZ-70") kendiliğinden eklenirse sahte cihaz doğar ve
     geçmiş bölünür. Bu yüzden ayrı listelenir; düzeltme ya da envanter güncellemesi insanın kararı.
+48. Konular doğal olarak farklı sürer (ERP saatler, şifre dakikalar). Ham süreyle zor işleri alan kişi yavaş
+    görünür ve kimse zor işi almak istemez. Her çağrının süresi o konunun ortancasına bölünür; kişinin bu
+    oranların ortancası 1,0 ise konunun tipik hızındadır. Kişiler ada göre sıralı: amaç yük dengesi.
