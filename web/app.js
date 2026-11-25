@@ -1,3 +1,20 @@
+// Anonim kullanım ölçümü ve geri bildirim düğmesi (ortak servis: olcum.ysfdurak.com; kaynak: ysfdurak.com → sunucu/olcum).
+// Yalnız resmî demo adresinde yüklenir: kendi sunucusuna kurulan kopyalar dışarıya hiç istek atmaz.
+// Gönderilenler: ekran adı, aktif süre, cihaz türü, dil. Çağrı metni, kişi adı, IP gönderilmez; çerez yok; DNT/GPC'ye uyar.
+const OLCUM_ACIK = location.hostname === "emanet.ysfdurak.com";
+if (OLCUM_ACIK) {
+  const s = document.createElement("script");
+  s.src = "https://olcum.ysfdurak.com/olcum.js";
+  s.defer = true;
+  s.dataset.proje = "emanet";
+  document.head.appendChild(s);
+}
+function olc(tur, ad) {
+  if (!OLCUM_ACIK) return;
+  if (window.olcum && window.olcum[tur]) window.olcum[tur](ad);
+  else (window.olcumKuyruk ||= []).push([tur, ad]);
+}
+
 "use strict";
 const $ = (s, k = document) => k.querySelector(s);
 const kac = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -70,6 +87,7 @@ window.addEventListener("popstate", e => { const s = (e.state && e.state.sayfa) 
 async function git(sayfa, veri) {
   const ayni = durum.sayfa === sayfa;
   durum.sayfa = sayfa; durum.veri = veri; navCiz();
+  olc("ekran", sayfa);
   // Telefonda geri tuşu uygulamadan çıkmasın: her sayfa geçmişe eklenir (aynı sayfanın yenilenmesi eklenmez)
   if (!_geri && !ayni) history.pushState({sayfa, veri}, "", "#" + sayfa); else if (!_geri) history.replaceState({sayfa, veri}, "", "#" + sayfa);
   const ana = $("#ana"); ana.onclick = ana.onchange = ana.oninput = null;
