@@ -240,6 +240,12 @@ Bulunan ve düzeltilen üç takılma:
     yine 3. haftadır, bu yüzden değişiklikler takvim kaysa da doğru haftada kalır. Takvim ayarları
     başlangıçta açık. **Sınır:** değişiklikler sayfa yenilenince sıfırlanır (kalıcı hali Excel);
     **şöyle daha iyi olur:** "Bu planı kaydet" takvim değişikliklerini de saklasın.
+11. **"Şu tarihe ya da şu kadar haftaya kadar ötele" (kullanıcı):** her hafta kartında "Durdur ya da izin
+    ekle" bölümü: kim (herkes ya da bir kişi) ve ne kadar (1–4 hafta ya da "şu tarihte yeniden başla").
+    Sunucu değişmedi: aralık, istemcide hafta hafta açılıp aynı `hafta_sinir` ve `kisi_yok` listelerine
+    yazılır. Etiketler ardışık haftaları tek aralıkta toplar (`araliklar()`: [2,3,4,7] → 2–4 ve 7) ve
+    tarihleriyle gösterir: "Eğitim durdu: 2.–4. hafta (7 Aralık – 25 Aralık) ✕". Bir tıkla bütün aralık
+    geri alınır. Takvim hafta hafta çalıştığı için seçilen tarihin düştüğü hafta yeniden başlama haftasıdır.
 
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
@@ -320,3 +326,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Eğitim planı sadeleşti (amaç cümlesi, açılır teknik bölümler); masaüstünde sekmeler sarılıyor |
 | 25 Kasım 2026 | Eğitim takvimi: parametrik (haftalık sınır, oturum, gün, başlangıç), darboğaz kişi, CSV, MCP aracına takvim; 100 test |
 | 25 Kasım 2026 | Takvimde elle değişiklik: hafta ötele, haftaya özel saat, kişi o hafta yok; geri alınabilir etiketler; ayarlar açık |
+| 25 Kasım 2026 | Takvimde süreli öteleme ve izin: 1–4 hafta ya da tarihe kadar, aralık etiketleri |

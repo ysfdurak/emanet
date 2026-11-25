@@ -741,7 +741,7 @@ function sonrakiPazartesi() {
 // Takvimde elle yapılan değişiklikler: haftaya özel sınır (0 = ötelendi) ve o hafta olmayan kişiler.
 // Sayfa yenilenince sıfırlanır; kalıcı hali Excel çıktısıdır.
 const planDeg = {hafta_sinir: {}, kisi_yok: []};
-let planGor = "takvim";
+let planGor = "takvim", sonTakvim = null;
 function planIstegi() {
   return {butce_saat: +$("#pb").value || 0, yontem: $("#py").value, haftalik_sinir: +$("#tsin").value || 2,
           oturum_saat: +$("#tot").value, gunluk_oturum: +$("#tgo").value, calisma_gunu: +$("#tcg").value,
@@ -755,9 +755,16 @@ function csvAdresi() {
 }
 function degisiklikSeridi(t) {
   const adi = id => (t.kisiler.find(k => k.kisi_id === id) || T.kisiler.find(k => k.id === id) || {ad: "#" + id}).ad;
+  const bitisGunu = h => { const d = new Date(haftaTarihi(t, h) + "T12:00:00"); d.setDate(d.getDate() + t.ayarlar.calisma_gunu - 1); return d.toISOString().slice(0, 10); };
+  const metin = ([a, b]) => (a === b ? `${a}. hafta` : `${a}.–${b}. hafta`) + ` (${kisaTarih(haftaTarihi(t, a))} – ${kisaTarih(bitisGunu(b))})`;
+  const durdu = araliklar(Object.entries(planDeg.hafta_sinir).filter(([, v]) => +v === 0).map(([h]) => +h));
+  const saatler = Object.entries(planDeg.hafta_sinir).filter(([, v]) => +v > 0);
+  const kisiler = [...new Set(planDeg.kisi_yok.map(([k]) => k))];
   const p = [
-    ...Object.entries(planDeg.hafta_sinir).map(([h, v]) => `<button class="cip" data-dsil="h:${kac(h)}" title="Geri al">${kac(h)}. hafta ${+v === 0 ? "ötelendi" : "kişi başı " + sy(+v) + " sa"} ✕</button>`),
-    ...planDeg.kisi_yok.map(([k, h]) => `<button class="cip" data-dsil="k:${kac(k)}:${kac(h)}" title="Geri al">${kac(adi(k))} ${kac(h)}. hafta yok ✕</button>`)];
+    ...durdu.map(r => `<button class="cip" data-dsil="hr:${r[0]}:${r[1]}" title="Geri al">Eğitim durdu: ${metin(r)} ✕</button>`),
+    ...saatler.map(([h, v]) => `<button class="cip" data-dsil="h:${kac(h)}" title="Geri al">${kac(h)}. hafta kişi başı ${sy(+v)} sa ✕</button>`),
+    ...kisiler.flatMap(k => araliklar(planDeg.kisi_yok.filter(([kk]) => kk === k).map(([, h]) => h))
+      .map(r => `<button class="cip" data-dsil="kr:${kac(k)}:${r[0]}:${r[1]}" title="Geri al">${kac(adi(k))} yok: ${metin(r)} ✕</button>`))];
   return p.length ? `<div class="not degisiklik"><b>Elle değişiklikler:</b> ${p.join(" ")} <button class="dugme kucuk ikincil" data-dsil="hepsi">Hepsini geri al</button></div>` : "";
 }
 const kisaTarih = iso => new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {day: "numeric", month: "long"});
@@ -771,17 +778,29 @@ function takvimOzeti(t) {
 }
 function haftaKontrolleri(t, h, os) {
   const sinir = planDeg.hafta_sinir[h] ?? t.ayarlar.haftalik_sinir;
-  const yoklar = planDeg.kisi_yok.filter(([, hh]) => hh === h).map(([k]) => k);
-  const adaylar = [...new Map(os.flatMap(o => [[o.ogreten_id, o.ogreten], [o.ogrenen_id, o.ogrenen]]).filter(([id]) => id != null)).entries()]
-    .filter(([id]) => !yoklar.includes(id));
   return `<div class="hafta-ayar">
-    <button class="dugme kucuk ikincil" data-hotele="${h}" title="Bu hafta eğitim yapılmaz, oturumlar sonraki haftalara kayar">Bu haftayı ötele</button>
-    <span class="saat-ayar"><span class="kucuk">Kişi başı</span>
+    <span class="saat-ayar"><span class="kucuk">Bu hafta kişi başı</span>
       <button class="dugme kucuk ikincil" data-hsaat="${h}" data-fark="-${t.ayarlar.oturum_saat}" aria-label="${h}. hafta saati azalt" ${sinir <= t.ayarlar.oturum_saat ? "disabled" : ""}>−</button>
       <b>${sy(sinir)} sa</b>
       <button class="dugme kucuk ikincil" data-hsaat="${h}" data-fark="${t.ayarlar.oturum_saat}" aria-label="${h}. hafta saati artır" ${sinir >= 40 ? "disabled" : ""}>+</button></span>
-    ${adaylar.length ? `<label class="gizli-etiket" for="hy${h}">${h}. hafta olmayan kişi</label><select id="hy${h}" class="kisi-yok" data-hafta="${h}"><option value="">Bu hafta yok…</option>${adaylar.map(([id, ad]) => `<option value="${kac(id)}">${kac(ad)}</option>`).join("")}</select>` : ""}
+    <details class="degistir"><summary>Durdur ya da izin ekle…</summary>
+      <div class="sira">
+        <div><label for="dk${h}">Kim</label><select id="dk${h}" data-dk="kim"><option value="">Herkes: eğitimi durdur</option>${t.kisiler.map(k => `<option value="${kac(k.kisi_id)}">${kac(k.ad)} izinde / yok</option>`).join("")}</select></div>
+        <div><label for="ds${h}">Ne kadar</label><select id="ds${h}" data-dk="sure"><option value="1">Yalnız bu hafta</option><option value="2">2 hafta</option><option value="3">3 hafta</option><option value="4">4 hafta</option><option value="tarih">Şu tarihte yeniden başla…</option></select></div>
+        <div data-dk-tarih hidden><label for="dt${h}">Yeniden başlama tarihi</label><input id="dt${h}" type="date" data-dk="tarih" min="${haftaTarihi(t, h + 1)}"></div>
+        <div style="flex:0 0 auto"><button class="dugme kucuk" data-uygula="${h}">Uygula</button></div>
+      </div>
+      <p class="kucuk">${h}. haftadan başlar. Takvim hafta hafta çalışır: seçilen tarihin düştüğü hafta yeniden başlama haftasıdır.</p></details>
   </div>`;
+}
+// Takvimin h. haftasının pazartesisi (ISO) ve bir tarihin düştüğü hafta numarası
+function haftaTarihi(t, h) { const d = new Date(t.ayarlar.baslangic + "T12:00:00"); d.setDate(d.getDate() + (h - 1) * 7); return d.toISOString().slice(0, 10); }
+function tarihHaftasi(t, iso) { return Math.floor((new Date(iso + "T12:00:00") - new Date(t.ayarlar.baslangic + "T12:00:00")) / 864e5 / 7) + 1; }
+// Ardışık haftaları aralığa topla: [2,3,4,7] → [[2,4],[7,7]]
+function araliklar(haftalar) {
+  const a = [...new Set(haftalar)].sort((x, y) => x - y), r = [];
+  for (const h of a) { const son = r.at(-1); if (son && son[1] === h - 1) son[1] = h; else r.push([h, h]); }
+  return r;
 }
 function takvimGorunumu(t) {
   const haftalar = new Map();
@@ -867,7 +886,7 @@ CIZ.plan = async (butce) => {
   <div id="ps"></div><div id="ptk"></div>`;
   async function hesapla() {
     const p = await api("egitim-plani", planIstegi());
-    const t = p.takvim;
+    const t = p.takvim; sonTakvim = t;
     $("#pozet").textContent = `· haftada ${sy(t.ayarlar.haftalik_sinir)} sa, ${sy(t.ayarlar.oturum_saat)} saatlik oturum, ${t.ayarlar.calisma_gunu === 6 ? "Pzt–Cmt" : "Pzt–Cum"}`;
     const k = p.karsilastirma, once = p.ozet_once, sonra = p.ozet_sonra;
     $("#ps").innerHTML = `
@@ -917,6 +936,25 @@ CIZ.plan = async (butce) => {
     }
     const ot = e.target.closest("[data-hotele]"), hs = e.target.closest("[data-hsaat]"), ds = e.target.closest("[data-dsil]");
     if (ot) { planDeg.hafta_sinir[ot.dataset.hotele] = 0; return degistir(`${ot.dataset.hotele}. hafta ötelendi; oturumlar sonraki haftalara kaydı.`); }
+    const uy = e.target.closest("[data-uygula]");
+    if (uy) {
+      const kutu = uy.closest("details"), h = +uy.dataset.uygula, t = sonTakvim;
+      const kim = kutu.querySelector('[data-dk="kim"]').value, sure = kutu.querySelector('[data-dk="sure"]').value;
+      let n = +sure;
+      if (sure === "tarih") {
+        const tr = kutu.querySelector('[data-dk="tarih"]').value;
+        if (!tr) return bildir("Yeniden başlama tarihini seçin.");
+        n = tarihHaftasi(t, tr) - h;
+        if (n < 1) return bildir(`Tarih ${h}. haftadan sonra olmalı (en erken ${kisaTarih(haftaTarihi(t, h + 1))}).`);
+        if (n > 52) return bildir("En fazla 52 hafta ötelenebilir.");
+      }
+      for (let w = h; w < h + n; w++) {
+        if (kim) { if (!planDeg.kisi_yok.some(([k, hh]) => k === +kim && hh === w)) planDeg.kisi_yok.push([+kim, w]); }
+        else planDeg.hafta_sinir[w] = 0;
+      }
+      const ad = kim ? kutu.querySelector('[data-dk="kim"]').selectedOptions[0].textContent.replace(" izinde / yok", "") : "Eğitim";
+      return degistir(`${ad} ${n === 1 ? h + ". hafta" : h + "." + "–" + (h + n - 1) + ". haftalar"} dışarıda; ${kisaTarih(haftaTarihi(t, h + n))} haftası yeniden başlar.`);
+    }
     if (hs) {
       const h = hs.dataset.hsaat, v = Math.max(0, Math.min(40, (planDeg.hafta_sinir[h] ?? +$("#tsin").value) + +hs.dataset.fark));
       if (v === +$("#tsin").value) delete planDeg.hafta_sinir[h]; else planDeg.hafta_sinir[h] = v;
@@ -926,6 +964,8 @@ CIZ.plan = async (butce) => {
       const [tur, a, b] = ds.dataset.dsil.split(":");
       if (tur === "hepsi") { planDeg.hafta_sinir = {}; planDeg.kisi_yok = []; }
       else if (tur === "h") delete planDeg.hafta_sinir[a];
+      else if (tur === "hr") { for (let h = +a; h <= +b; h++) delete planDeg.hafta_sinir[h]; }
+      else if (tur === "kr") { const [, k, h1, h2] = ds.dataset.dsil.split(":").map(Number); planDeg.kisi_yok = planDeg.kisi_yok.filter(([kk, h]) => !(kk === k && h >= h1 && h <= h2)); }
       else planDeg.kisi_yok = planDeg.kisi_yok.filter(([k, h]) => !(k === +a && h === +b));
       return degistir("Değişiklik geri alındı.");
     }
@@ -938,6 +978,7 @@ CIZ.plan = async (butce) => {
     const y = scrollY; await hesapla(); scrollTo(0, y); bildir(ileti);
   }
   $("#ana").onchange = e => {
+    if (e.target.dataset.dk === "sure") { e.target.closest(".sira").querySelector("[data-dk-tarih]").hidden = e.target.value !== "tarih"; return; }
     const s = e.target.closest("select.kisi-yok");
     if (!s || !s.value) return;
     planDeg.kisi_yok.push([+s.value, +s.dataset.hafta]);
