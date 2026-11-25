@@ -204,6 +204,11 @@ Bulunan ve düzeltilen üç takılma:
    hiçbir zaman kötü çıkmaz" diyordu ama ekranda kuralın risk düşüşü daha büyüktü (302 / 290). Not
    düzeltildi: üstünlük amaç puanında; kural yeşil konuları da düşürdüğü için toplamı şişirir.
 
+4. **"Planı çıkar" çalışmıyor gibi görünüyordu (canlıda kullanıcı fark etti):** sayfa açılırken plan zaten
+   hesaplanıyor; düğme aynı planı yeniden hesaplayınca ekranda hiçbir şey değişmiyor, geri bildirim de
+   yoktu. Hata değil, sessizlikti. Artık düğme "Hesaplanıyor…" der, bitince bildirim gösterir ve sonuca
+   kaydırır (`dugmeyleHesapla`). Ya Giderse'deki "Hesapla" da aynı yardımcıyı kullanır.
+
 Ders: 13 ekranın hepsi "hata yok, CSP yok" testinden geçmişti; bu üç sorunu teknik test değil,
 görev odaklı bakış buldu.
 
@@ -259,3 +264,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 24 Kasım 2026 | Güvenlik temeli: PolyForm Shield, ziyaretçi başına veri kopyası, CSP (sayfa üç dosyaya ayrıldı), Origin denetimi, gövde ve hız sınırları, gerçek IP, `/docs` kapalı, anahtarlı MCP, CSV formül enjeksiyonu, öznitelik kaçışı, sabit ve özetli bağımlılıklar, Python servis şablonuna uygun Docker/compose, CI ve dependabot; ysfdurak.com PR #55; bu doküman |
 | 25 Kasım 2026 | Depo açıldı ve gönderildi; dependabot: Python imajında yalnız yama sürümleri, pytest 9.2; VPS'e kuruldu; Claude bağlayıcısı başlıkta anahtarla bağlandı; MCP anahtarı yenilendi (bkz. Testler: Ders) |
 | 25 Kasım 2026 | Pilot bitiş ölçütleri; gürültü testi (ölçüt 2 geçti); ilk kullanıcı testi (ölçüt 3 geçti, 3 düzeltme) |
+| 25 Kasım 2026 | Hesap düğmelerine geri bildirim ("Planı çıkar" sessiz kalıyordu) |

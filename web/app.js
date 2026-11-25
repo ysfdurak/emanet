@@ -668,6 +668,14 @@ function takipKart(t) {
     ${t.simule ? "" : `<div class="not uyari">Plan yeni kaydedildi; henüz sonucu yok. Demo için planın 30 gün önce kaydedildiğini ve uygulandığını varsayarak o dönemin çağrılarını üretebilirsin. Bazı satırlar bilerek tutmaz.</div><p><button class="dugme ikincil" id="psim">30 gün sonrasını simüle et</button></p>`}</div>`;
 }
 
+/* Hesap düğmesi geri bildirimi: sonuç aynı çıksa bile basıldığı belli olsun */
+async function dugmeyleHesapla(dugme, is, ileti, hedef) {
+  const eski = dugme.textContent;
+  dugme.disabled = true; dugme.textContent = "Hesaplanıyor…";
+  try { await is(); bildir(ileti()); if (hedef) $(hedef).scrollIntoView({behavior: "smooth", block: "start"}); }
+  finally { dugme.disabled = false; dugme.textContent = eski; }
+}
+
 /* ---------------------------------------------------------------- Ya giderse */
 CIZ.giderse = async (ad) => {
   // Doğrudan sekmeden gelinirse boş sayfa yerine en riskli konunun ustasıyla başla
@@ -715,7 +723,9 @@ CIZ.giderse = async (ad) => {
     <div id="gdd"></div>`;
     $("#gdv").onclick = async () => { $("#gdd").innerHTML = devirKart(await api("devir/" + $("#gk").value)); $("#gdd").scrollIntoView({behavior: "smooth"}); };
   }
-  $("#gh").onclick = hesapla; if (ad) hesapla();
+  $("#gh").onclick = () => dugmeyleHesapla($("#gh"), hesapla,
+    () => `${$("#gk").selectedOptions[0].textContent.split(" · ")[0]} için yeniden hesaplandı.`, "#gs");
+  if (ad) hesapla();
 };
 
 /* ---------------------------------------------------------------- Plan */
@@ -762,7 +772,9 @@ CIZ.plan = async (butce) => {
   $("#ana").onclick = async e => {
     if (e.target.id === "pkay") { await api("egitim-plani", {butce_saat: +$("#pb").value || 0, yontem: $("#py").value, kaydet: true}); bildir("Plan kaydedildi."); takipYukle(); $("#ptk").scrollIntoView({behavior: "smooth"}); }
   };
-  $("#ph").onclick = hesapla; hesapla(); takipYukle();
+  $("#ph").onclick = () => dugmeyleHesapla($("#ph"), hesapla,
+    () => `Plan hesaplandı: ${$("#pb").value || 0} saat, ${$("#py").selectedOptions[0].textContent.toLowerCase()}.`, "#ps");
+  hesapla(); takipYukle();
 };
 
 /* ---------------------------------------------------------------- Değişimler */
