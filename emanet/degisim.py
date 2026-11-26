@@ -300,6 +300,8 @@ def kisi_ayrildi(con: sqlite3.Connection, kisi_id: int, tarih=None) -> dict:
     tarih = _tarih(tarih or _bugun())
     once = risk.ozet(risk.risk_haritasi(con))
     con.execute("UPDATE kisi SET aktif=0, cikis=? WHERE id=?", (tarih, kisi_id))
+    # Ayrılık tek kayıttır: açık devri varsa o da kapanır (devir ekranı ile değişimler ekranı aynı sonucu verir)
+    devir_kapandi = con.execute("UPDATE devir SET durum='tamam' WHERE kisi_id=? AND durum='acik'", (kisi_id,)).rowcount
     con.execute("DELETE FROM egitim_plani WHERE durum='planlandi' AND (ogrenen_id=? OR ogreten_id=?)", (kisi_id, kisi_id))
     sahipsiz = [r[0] for r in con.execute("SELECT ad FROM recete WHERE sahip=?", (p["ad"],))]
     con.execute("UPDATE recete SET sahip=NULL WHERE sahip=?", (p["ad"],))
@@ -314,4 +316,4 @@ def kisi_ayrildi(con: sqlite3.Connection, kisi_id: int, tarih=None) -> dict:
             yeniden.append(dict(id=c["id"], atanan=None))
     sonra = risk.ozet(risk.risk_haritasi(con))
     return dict(kisi=dict(id=kisi_id, ad=p["ad"], cikis=tarih), yeniden_atanan=yeniden, sahipsiz_receteler=sahipsiz,
-                ozet_once=once, ozet_sonra=sonra)
+                ozet_once=once, ozet_sonra=sonra, devir_kapandi=devir_kapandi)

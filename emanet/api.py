@@ -173,6 +173,12 @@ if MCP_ACIK and MCP_ANAHTARLARI:
 @contextlib.asynccontextmanager
 async def yasam(_: FastAPI):
     gunluk_kontrol()
+    # Modeli açılışta ısıt: ısıtılmazsa sunucu yeniden başladıktan sonraki ilk ziyaretçi ~3 sn "Yükleniyor…" görür.
+    with KILIT:
+        try:
+            usta.olculer(ana_con)
+        except Exception:      # ısıtma başarısızsa ilk istek eskisi gibi kendisi eğitir
+            log.exception("Model ısıtılamadı")
     if mcp_app is not None:
         async with mcp_sunucu.sunucu.session_manager.run():
             yield
@@ -768,9 +774,9 @@ def cagri_kapat(cagri_id: int, i: KapatIstek):
 
 
 @api.get("/api/kartlar")
-def kart_liste(q: str | None = None):
+def kart_liste(q: str | None = Query(None, max_length=100), alan: str | None = Query(None, max_length=20)):
     with KILIT:
-        return usta.kartlar(con, q)
+        return usta.kartlar(con, q, alan)
 
 
 @api.get("/api/model")
@@ -1055,9 +1061,12 @@ def devir_sinir(devir_id: int, i: DevirSinirIstek):
 
 @api.post("/api/devir-sureci/{devir_id}/kapat")
 def devir_kapat(devir_id: int):
+    """Devri tamamla = kişi ayrıldı: tek akış. Kişi pasif olur, açık çağrıları yeniden yönlendirilir."""
     with KILIT:
-        devir_surec.kapat(con, devir_id)
-        return {"ok": True}
+        d = con.execute("SELECT kisi_id, cikis_tarihi FROM devir WHERE id=? AND durum='acik'", (devir_id,)).fetchone()
+        if not d:
+            raise HTTPException(404, "Açık devir bulunamadı")
+        return degisim.kisi_ayrildi(con, d["kisi_id"], d["cikis_tarihi"])
 
 
 @api.post("/api/devir-sureci/{devir_id}/ilerlet")

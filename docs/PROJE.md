@@ -98,10 +98,8 @@ Ayrıntı: [deploy/KURULUM.md](../deploy/KURULUM.md).
 
 1. GitHub'da `ysfdurak/emanet` deposu → kod gönderilir → dal koruması.
    Dal koruması (26 Kasım denetimi): `main` için "test" denetimi zorunlu, zorla gönderme ve silme kapalı.
-   **Eksik:** PR zorunluluğu yok ve yöneticiler kuralı atlayabiliyor (`enforce_admins: false`); bu yüzden
-   Claude'un doğrudan `main`'e gönderdiği commit'ler CI'yı beklemeden giriyor. Birleşen dallar otomatik silinmiyor.
-   Önerilen: PR zorunlu (onay sayısı 0, tek geliştirici), "yöneticiler de uysun", birleşen dal silinsin;
-   akış dal → PR → CI yeşil → birleştir → VPS güncelle olur.
+   26 Kasım'da tamamlandı: PR zorunlu (onay 0, tek geliştirici), yöneticiler de uyar, birleşen dal silinir.
+   Akış: dal → PR → CI "test" yeşil → birleştir → VPS güncelle.
 2. ysfdurak.com PR #54, sonra #55 birleşir.
 3. Cloudflare: `emanet` A kaydı, turuncu bulut.
 4. VPS: `bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh` (MCP anahtarını kendisi üretir).
@@ -594,6 +592,18 @@ başlık sırası) ve bir çağrı baştan sona açıldı.
 - Çözüm kütüphanesinde ekip (Donanım, WMS…) süzgeci.
 - Sunucu yeniden başlayınca ilk ziyaretçi birkaç saniye "Yükleniyor…" görüyor (model ısınması); açılışta önceden ısıtma.
 
+### Onaylanan dört madde (26 Kasım 2026, altıncı tur)
+
+| Madde | Ne yapıldı | Neden (alan uzmanı) |
+| --- | --- | --- |
+| Kişi hızı | `veri_uret`: kişi başına hız çarpanı (0,8-1,4), ayrı tohumla (`tohum+77`) üretilir; ana rastgele akış ve ayarlı senaryolar bozulmadı. `VERI_SURUMU` 9. Ölçüler'de "konuya göre" artık 0,74× ile 1,45× arası | Aynı konuyu herkes aynı sürede çözmez; hepsi 1,0× olunca sütun işe yaramaz görünüyordu |
+| Kendin dene | `KENDIN_DENE_BELIRTI`: terminal, yazıcı, bilgisayar için belirti başına adımlar; belirti seçilince (ya da metinden önerilince) kutu değişir. Test: her adım gerçek bir seçeneğe bağlı | Donan terminale Wi-Fi adımı, kırık ekrana yeniden başlatma önerilmez |
+| Ayrılık tek akış | Devri tamamla = ayrıldı kaydı (`/devir-sureci/{id}/kapat` → `kisi_ayrildi`); `kisi_ayrildi` açık devri de kapatır. Değişimler'de açık devirler listesi + "Devri başlat"; ani ayrılık açılır bölümde | İki ayrı kayıt çelişebiliyordu (devir "tamam" ama kişi aktif) |
+| Kütüphane süzgeci ve ısıtma | Çözüm kütüphanesinde ekip çipleri (`/api/kartlar?alan=`); açılışta model ısıtma (ilk istek 3,3 sn → 0,04 sn) | Teknisyen kendi ekibinin kartlarına bakar; deploy sonrası ilk ziyaretçi boş ekran görmesin |
+
+Dal koruması kullanıcı tarafından tamamlandı (PR zorunlu, yöneticiler de uyar, birleşen dal silinir); bu tur
+ilk kez dal → PR → CI → birleştirme akışıyla gönderildi. 153 test.
+
 ### Pilot bitiş ölçütleri (dış kaynak olmadan)
 
 Dördü de sağlanınca durum "Tamamlandı" olur; siteye proje sayfası ve Rota girdisi eklenir.
@@ -793,3 +803,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Yanlış yönlendirme: 'Bu benim işim değil' ile ileri aktarım, ikinci aktarımda BT müdürü, yönlendirme kaybı, sistem kaydı, belirti kuralı önerisi (insan onaylar); MCP `cagri_aktar`; 149 test |
 | 26 Kasım 2026 | Kullanıcı gözüyle dördüncü tur: Ölçüler özet cümlesi ve açılır bölümler (5808 → 3781 px), eğitim takviminde sonraki haftalar kapalı (12 636 → 6455 px), kuyruk sırası öncelik + en eski, Risk ilk ekranında eylem, Çağrılar alt menüsü satır kırar; dal koruması durumu belgelendi |
 | 26 Kasım 2026 | Dış göz turu: metinden cevap önerisi (donma → WMS düzeldi), Bugün listesi kısaldı, risk etiketi, Ölçüler kişi listesi, Nasıl çalışır güncel, iki erişilebilirlik düzeltmesi; 150 test |
+| 26 Kasım 2026 | Altıncı tur: kişi hız farkı (VERI_SURUMU 9), belirtiye göre kendin dene, ayrılık tek akış, kütüphane ekip süzgeci, açılışta model ısıtma; ilk PR akışı; 153 test |

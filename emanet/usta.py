@@ -531,9 +531,10 @@ def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:
                 toplu_olay=toplu)
 
 
-def kartlar(con: sqlite3.Connection, q: str | None = None) -> dict:
+def kartlar(con: sqlite3.Connection, q: str | None = None, alan: str | None = None) -> dict:
+    """Çözüm kartları; alan (donanim, ag, wms, erp, bt) verilirse yalnız o ekibin konuları."""
     satirlar = [dict(r) for r in con.execute(
-        "SELECT ck.*, k.ad AS kategori, b.ad AS birim, p.ad AS yazan, "
+        "SELECT ck.*, k.ad AS kategori, k.alan, b.ad AS birim, p.ad AS yazan, "
         "(SELECT COUNT(*) FROM cagri c WHERE c.kart_id=ck.id) AS kullanim "
         "FROM cozum_karti ck JOIN kategori k ON k.id=ck.kategori_id JOIN birim b ON b.id=k.birim_id "
         "LEFT JOIN kisi p ON p.id=ck.yazan_kisi_id WHERE k.kaynak='usta' ORDER BY k.birim_id, k.ad, ck.id")]
@@ -541,12 +542,16 @@ def kartlar(con: sqlite3.Connection, q: str | None = None) -> dict:
         aranan = kucult(q.strip())
         satirlar = [s for s in satirlar
                     if aranan in kucult(" ".join([s["baslik"], s["adimlar"], s["kategori"], s["kok_neden"] or ""]))]
+    if alan:
+        satirlar = [s for s in satirlar if s["alan"] == alan]
     kartsiz = [dict(r) for r in con.execute(
-        "SELECT k.id, k.ad, b.ad AS birim, k.kritiklik, "
+        "SELECT k.id, k.ad, k.alan, b.ad AS birim, k.kritiklik, "
         "(SELECT COUNT(*) FROM cagri c WHERE c.kategori_id=k.id AND c.cozum_notu IS NOT NULL) AS notlu, "
         "(SELECT COUNT(*) FROM cagri c WHERE c.kategori_id=k.id AND c.durum='kapali') AS toplam "
         "FROM kategori k JOIN birim b ON b.id=k.birim_id WHERE k.kaynak='usta' "
         "AND NOT EXISTS (SELECT 1 FROM cozum_karti ck WHERE ck.kategori_id=k.id) ORDER BY k.kritiklik DESC, k.ad")]
+    if alan:
+        kartsiz = [k for k in kartsiz if k["alan"] == alan]
     return dict(kartlar=satirlar, kartsiz_kategoriler=kartsiz)
 
 
