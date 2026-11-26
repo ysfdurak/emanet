@@ -97,6 +97,11 @@ Ortak altyapıdaki yeri: ysfdurak.com PR #55 (`sunucu/kurulum-emanet.sh`, Caddy 
 Ayrıntı: [deploy/KURULUM.md](../deploy/KURULUM.md).
 
 1. GitHub'da `ysfdurak/emanet` deposu → kod gönderilir → dal koruması.
+   Dal koruması (26 Kasım denetimi): `main` için "test" denetimi zorunlu, zorla gönderme ve silme kapalı.
+   **Eksik:** PR zorunluluğu yok ve yöneticiler kuralı atlayabiliyor (`enforce_admins: false`); bu yüzden
+   Claude'un doğrudan `main`'e gönderdiği commit'ler CI'yı beklemeden giriyor. Birleşen dallar otomatik silinmiyor.
+   Önerilen: PR zorunlu (onay sayısı 0, tek geliştirici), "yöneticiler de uysun", birleşen dal silinsin;
+   akış dal → PR → CI yeşil → birleştir → VPS güncelle olur.
 2. ysfdurak.com PR #54, sonra #55 birleşir.
 3. Cloudflare: `emanet` A kaydı, turuncu bulut.
 4. VPS: `bash ~/ysfdurak.com/sunucu/kurulum-emanet.sh` (MCP anahtarını kendisi üretir).
@@ -547,6 +552,25 @@ kendi dilini görüyor." Gösterim düğmeleri (senaryolar, "örnek geçiş", "3
 yeniden dene (en riskli işi bul, biri yoksa, çağrı aç, devir dosyası, eğitim planı) ve takıldığın yeri yaz.
 Bu inceleme artık `kullanici-gozuyle-inceleme` becerisi olarak her projede tekrarlanıyor.
 
+### Kullanıcı gözüyle dördüncü tur (26 Kasım 2026)
+
+Son iki günde çağrı formu, ölçüler, tesisler ve yönlendirme eklendi; ekranlar büyüdü. 390 px ölçümü:
+
+| Sayfa | Önce | Sonra | Ne değişti |
+| --- | --- | --- | --- |
+| Ölçüler | 5808 px, 1022 kelime | 3781 px, 690 kelime | Üstte tek cümle özet ("Tipik çağrı 24 dk bekletiyor; sürenin %51'i vardiya beklemesi…"), 4 ana sayı; diğer 4 sayı, Tesisler, Yönlendirme, Süre nereye, Haftalık akış ve Konular açılır bölüm (başlığında özetiyle). Yönlendirme, müdür kararı ya da kural önerisi varsa açık gelir. |
+| Eğitim planı | 12 636 px | 6455 px | İlk iki hafta açık, sonraki haftalar başlığıyla (tarih, oturum, saat) kapalı. |
+| Risk haritası | ilk ekranda 0 eylem | 1 | Tesis kapsama tablosu "En riskli işler"in altına, kapalı ve özetli ("12 vardiyada yerinde kimse yok, 4'ünde tek kişi"). |
+| Kuyruk | yalnız açılış tarihine göre | öncelik + bekleme | Alan uzmanı: kuyruk "en yeni üstte" değil, önce yüksek öncelik, aynı öncelikte **en eski** (ilk gelen ilk çıkar); topu açanda olanlar (bilgi/onay bekleniyor) sona. |
+| Çağrılar alt menüsü | 5 hap, telefonda 3,5'i görünüyordu | iki satır, hepsi görünür | Yatay kaydırma yerine satır kırma. |
+| Cihaz geçmişi | menüde yoktu | Kuyruk açıklamasında düğme | Yalnız Bugün listesinden ulaşılabiliyordu. |
+
+Ders: bu bulguların hiçbiri test kırmadı; hepsi "telefonda gez ve ölç" ile bulundu. Kuyruk sırası ise
+alan uzmanı sorusuydu ("teknisyen kuyruğa bakınca hangisini alır?").
+
+**Sıradaki (onay bekleyen):** Bugün listesi büyüdü (müdür kararı, tekrarlayan cihaz, kural önerisi, vardiya boşluğu);
+satır sınırı ya da "hepsini gör" eklenebilir. Ölçüler'deki kişi listesi telefonda 14 kart; "yalnız üzerinde iş olanlar" süzgeci düşünülebilir.
+
 ### Pilot bitiş ölçütleri (dış kaynak olmadan)
 
 Dördü de sağlanınca durum "Tamamlandı" olur; siteye proje sayfası ve Rota girdisi eklenir.
@@ -744,3 +768,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Ana kategoriler (isteğe bağlı, olasılık şişirmeden daraltır); tesisler: yerinde atama, tesis bazında toplu arıza ve 'zaten bildirildi', kuyruk ve ölçüler süzgeci, Tesisler kartı, yerinde BT olmayan vardiyalar uyarısı, envanterde tesis; 141 test |
 | 25 Kasım 2026 | Kullanıcı düzeltmesi: gruplar yerine çağrı alanları ve ekipleri (Donanım, Ağ, WMS, ERP, BT genel); alan belirtiden (terminal donuyor → WMS, açılmıyor → donanım); Riskler'de tesis kapsama tablosu; 143 test |
 | 25 Kasım 2026 | Yanlış yönlendirme: 'Bu benim işim değil' ile ileri aktarım, ikinci aktarımda BT müdürü, yönlendirme kaybı, sistem kaydı, belirti kuralı önerisi (insan onaylar); MCP `cagri_aktar`; 149 test |
+| 26 Kasım 2026 | Kullanıcı gözüyle dördüncü tur: Ölçüler özet cümlesi ve açılır bölümler (5808 → 3781 px), eğitim takviminde sonraki haftalar kapalı (12 636 → 6455 px), kuyruk sırası öncelik + en eski, Risk ilk ekranında eylem, Çağrılar alt menüsü satır kırar; dal koruması durumu belgelendi |

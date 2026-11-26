@@ -497,7 +497,11 @@ def cagrilari_listele(con: sqlite3.Connection, durum: str | None = "acik", birim
         kosul.append("c.lokasyon_id=?"); arg.append(lokasyon_id)
     arg.append(max(1, min(int(limit), 200)))
     return [dict(r) for r in con.execute(
-        _CAGRI_SQL + "WHERE " + " AND ".join(kosul) + " ORDER BY c.acilis DESC, c.id DESC LIMIT ?", arg)]
+        # Kuyruk sırası (alan uzmanı): açıklar önce; top açandaysa (bilgi/onay bekleniyor) sona; sonra öncelik,
+        # aynı öncelikte en eski önce (ilk gelen ilk çıkar). Kapalılar en yeni kapanan önce.
+        _CAGRI_SQL + "WHERE " + " AND ".join(kosul) + " ORDER BY c.durum='kapali', "
+        "c.asama IN ('bilgi_bekleniyor','cozuldu'), CASE WHEN c.durum='acik' THEN -c.aciliyet END, "
+        "CASE WHEN c.durum='acik' THEN c.acilis END, c.kapanis DESC, c.id DESC LIMIT ?", arg)]
 
 
 def cagri_detay(con: sqlite3.Connection, cagri_id: int) -> dict:

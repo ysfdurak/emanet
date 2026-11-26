@@ -24,7 +24,7 @@ nav::-webkit-scrollbar{display:none}
 #nav{justify-content:flex-start}
 @media (max-width:420px){#nav{gap:0;padding:.45rem .3rem 0}#nav button{padding:.55rem .55rem;font-size:.86rem}}
 /* Alt sekmeler: açık zeminde hap düğmeler */
-.altnav{max-width:1100px;margin:0 auto;display:flex;gap:.4rem;overflow-x:auto;padding:.8rem 1rem 0;scrollbar-width:none}
+.altnav{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:.4rem;padding:.8rem 1rem 0}
 .altnav::-webkit-scrollbar{display:none}
 .altnav[hidden]{display:none}
 .altnav button{flex:none;font:inherit;font-size:.88rem;border:1px solid var(--cizgi);background:var(--kagit);color:var(--murekkep);border-radius:999px;padding:.35rem .85rem;cursor:pointer;white-space:nowrap}
@@ -185,3 +185,7 @@ dl.ek dd{margin:0}
 .lejant .nokta{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
 .grup-sec{margin:.35rem 0 .2rem;display:flex;flex-wrap:wrap;align-items:center;gap:.1rem .2rem}
 .grup-sec .soluk{color:var(--soluk)}
+/* Ölçüler: dönem ve tesis tek satır; özet cümle */
+.donem{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.3rem 0 .6rem}
+.donem select{width:auto;flex:1 1 10rem;max-width:16rem;margin:0}
+.ozet-cumle{font-size:1.02rem;margin:.2rem 0 .8rem;line-height:1.5}

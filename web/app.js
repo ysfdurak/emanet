@@ -524,13 +524,13 @@ const saatYas = s => s == null ? "-" : s < 24 ? `${sy(Math.round(s))} sa` : `${s
 /* Yanlış yönlendirme: ekibe göre aktarım oranı, kayıp süre, BT müdüründe bekleyenler, kural önerileri */
 function yonlendirmeKart(y, z) {
   if (!y) return "";
-  return `<div class="kart"><h3>Yönlendirme</h3>
+  return `<details class="kart acilir" ${y.mudurde.length || y.kural_onerileri.length ? "open" : ""}><summary><b>Yönlendirme</b> <span class="kucuk">· ${y.aktarilan} çağrı başka ekibe aktarıldı${y.mudurde.length ? ` · ${y.mudurde.length} müdür kararında` : ""}${y.kural_onerileri.length ? ` · ${y.kural_onerileri.length} kural önerisi` : ""}</span></summary>
     <p class="kucuk">Atanan kişi "bu benim işim değil" deyip başka ekibe aktardıysa yönlendirme yanlıştı. Bu dönem ${y.aktarilan} çağrı aktarıldı${y.oran != null ? ` (${yuzde(y.oran)})` : ""}; yanlış ekipte geçen ${sy(z.yonlendirme_kaybi_saat)} saat kimsenin hızına yazılmadı.</p>
     <ul class="liste">${y.alanlar.map(a => `<li><div class="govde"><b>${kac(a.ad)}</b> <span class="kucuk">· ${a.acilan} çağrı · ${a.aktarilan} başka ekibe aktarıldı</span></div>${a.oran != null && a.oran >= 0.1 ? rozet("sari", yuzde(a.oran)) : `<span class="kucuk">${a.oran != null ? yuzde(a.oran) : "-"}</span>`}</li>`).join("")}</ul>
     ${y.mudurde.length ? `<div class="not uyari">${y.mudurde.length} çağrı ${kac(y.koordinator.ad)} kararını bekliyor: ${y.mudurde.map(c => `<a href="#detay" data-cagri="${kac(c.id)}">#${kac(c.id)}</a>`).join(", ")}</div>` : ""}
     ${y.kural_onerileri.map(k => `<div class="not"><b>Kural önerisi.</b> ${kac(k.konu)}: “${kac(k.belirti)}” diyen çağrılar şu an <b>${kac(k.su_an_ad)}</b> ekibine gidiyor; son 90 günde ${k.aktarilan} kez${k.toplam ? ` (aynı belirtili ${k.toplam} çağrıdan, ${yuzde(k.oran)})` : ""} <b>${kac(k.onerilen_ad)}</b> ekibine aktarıldı.
       <p style="margin:.4rem 0 0"><button class="dugme kucuk" data-kural="1" data-kod="${kac(k.kod)}" data-belirti="${kac(k.belirti)}" data-kalan="${kac(k.onerilen)}">${kac(k.onerilen_ad)} ekibine çevir</button>
-      <button class="dugme kucuk ikincil" data-kural="0" data-kod="${kac(k.kod)}" data-belirti="${kac(k.belirti)}" data-kalan="${kac(k.onerilen)}">Böyle kalsın</button></p></div>`).join("")}</div>`;
+      <button class="dugme kucuk ikincil" data-kural="0" data-kod="${kac(k.kod)}" data-belirti="${kac(k.belirti)}" data-kalan="${kac(k.onerilen)}">Böyle kalsın</button></p></div>`).join("")}</details>`;
 }
 /* Toplam süre nereye gitti: çalışma, vardiya beklemesi (kapsama boşluğu), bilgi bekleme, depo kapalı */
 function sureNereye(z, konular) {
@@ -538,11 +538,12 @@ function sureNereye(z, konular) {
   const parca = [["calisma", "Çalışma", "çözenin vardiyasında"], ["bekleme", "Vardiya beklemesi", "çözen vardiyada değilken"],
     ["bilgi", "Bilgi bekleme", "top açanda"], ["kapali", "Depo kapalı", "pazar"]];
   const en = [...konular].sort((a, b) => b.bekleme_saat - a.bekleme_saat)[0];
-  return `<div class="kart"><h3>Süre nereye gitti</h3>
+  const calismaPay = Math.round(t.calisma / top * 100), beklemePay = Math.round(t.bekleme / top * 100);
+  return `<details class="kart acilir"><summary><b>Süre nereye gitti</b> <span class="kucuk">· %${calismaPay} çalışma, %${beklemePay} vardiya beklemesi</span></summary>
     <div class="yigin" role="img" aria-label="${parca.map(([k, a]) => a + " " + t[k] + " saat").join(", ")}">${parca.filter(([k]) => t[k]).map(([k]) => `<span class="y-${k}" style="width:${(t[k] / top * 100).toFixed(1)}%"></span>`).join("")}</div>
     <ul class="lejant">${parca.map(([k, a, n]) => `<li><span class="nokta y-${k}"></span><b>${a}</b> ${t[k]} sa <span class="kucuk">· ${n}</span></li>`).join("")}</ul>
     <p class="kucuk">Vardiya beklemesi kişinin değil kapsamanın süresidir: çağrı, bilen birinin vardiyası gelene kadar bekledi. Kişi ölçüleri yalnız çalışma süresiyle hesaplanır.
-    ${en && en.bekleme_saat >= 8 ? `En çok <b>${kac(en.ad)}</b> bekledi (${sy(en.bekleme_saat)} saat). Bu, risk haritasındaki tek kişiye bağlılığın saatle ölçülmüş hâli. <button class="dugme kucuk ikincil" data-sayfa="plan">Eğitim planına bak</button>` : ""}</p></div>`;
+    ${en && en.bekleme_saat >= 8 ? `En çok <b>${kac(en.ad)}</b> bekledi (${sy(en.bekleme_saat)} saat). Bu, risk haritasındaki tek kişiye bağlılığın saatle ölçülmüş hâli. <button class="dugme kucuk ikincil" data-sayfa="plan">Eğitim planına bak</button>` : ""}</p></details>`;
 }
 /* Öncelik hedefleri kullanıcıdan gelir; girilmeyen öncelikte hedef yoktur */
 function hedefKart(z) {
@@ -556,6 +557,18 @@ function hedefKart(z) {
       <td><button class="dugme kucuk ikincil" data-hedef="${o}">Kaydet</button></td></tr>`).join("")}</tbody></table></div></details>`;
 }
 let olcumTesis = "";
+/* "Bu ekran ne diyor?" tek cümle: yöneticinin aradığı sonuç sayıların içinde kaybolmasın */
+function olcumOzeti(o) {
+  const z = o.ozet, t = z.toplam_saat, top = Math.max(1, t.calisma + t.bekleme + t.bilgi + t.kapali);
+  const en = [...o.konular].sort((a, b) => b.bekleme_saat - a.bekleme_saat)[0];
+  const yuk = o.kisiler.filter(k => k.yuk_fazla).map(k => k.ad.split(" ")[0]);
+  const p = [`Tipik çağrı açanı ${dk(z.hizmet_ortanca_dk)} bekletiyor`];
+  if (t.bekleme / top >= 0.25) p.push(`sürenin %${Math.round(t.bekleme / top * 100)}'i bilen birinin vardiyasını beklemekle geçiyor${en && en.bekleme_saat >= 8 ? ` (en çok ${en.ad})` : ""}`);
+  if (yuk.length) p.push(`${yuk.join(", ")} üzerinde fazla iş var`);
+  if (o.yonlendirme && o.yonlendirme.mudurde.length) p.push(`${o.yonlendirme.mudurde.length} çağrı müdür kararı bekliyor`);
+  if (o.yonlendirme && o.yonlendirme.kural_onerileri.length) p.push(`${o.yonlendirme.kural_onerileri.length} kural önerisi var`);
+  return kac(p.join("; ") + ".");
+}
 CIZ.olcum = async (gun) => {
   gun = +gun || 30;
   const o = await api("olcumler?gun=" + gun + (olcumTesis ? "&lokasyon_id=" + olcumTesis : "")), z = o.ozet;
@@ -563,25 +576,21 @@ CIZ.olcum = async (gun) => {
   const cubuk = (n, r) => `<span class="cubuk ${r}" style="width:calc((100% - 5.5rem) * ${(n / enCok).toFixed(3)})"></span>`;
   $("#ana").innerHTML = `<h2>Ölçüler</h2>
     <p class="alt">Çağrılar ne kadar sürede kapanıyor, kimin üzerinde ne var, ilk seferde çözülüyor mu. Depo 6 gün, 3 vardiya çalışır. Süreler ortanca (tipik çağrı) ve %90'lık dilimle verilir.</p>
-    <div class="sira" style="align-items:flex-end"><div class="secim" role="group" aria-label="Dönem">${[7, 30, 90].map(g => `<button class="dugme kucuk${g === gun ? "" : " ikincil"}" data-sayfa="olcum" data-veri="${g}" aria-pressed="${g === gun}">Son ${g} gün</button>`).join("")}</div>
-      ${(T.lokasyonlar || []).length > 1 ? `<div style="max-width:16rem"><label for="ot">Tesis</label>${tesisSec("ot", +olcumTesis || null, "Bütün tesisler")}</div>` : ""}</div>
+    <div class="donem">${[7, 30, 90].map(g => `<button class="dugme kucuk${g === gun ? "" : " ikincil"}" data-sayfa="olcum" data-veri="${g}" aria-pressed="${g === gun}">${g} gün</button>`).join("")}
+      ${(T.lokasyonlar || []).length > 1 ? `<label class="gizli-etiket" for="ot">Tesis</label>${tesisSec("ot", +olcumTesis || null, "Bütün tesisler")}` : ""}</div>
+    <p class="ozet-cumle">${olcumOzeti(o)}</p>
     <div class="izgara">
-      <div class="olcu"><b>${z.acilan} / ${z.kapanan}</b><span>Açılan / kapanan</span></div>
       <div class="olcu"><b>${dk(z.hizmet_ortanca_dk)}</b><span>Açanın beklediği, ortanca (%90: ${dk(z.hizmet_p90_dk)})</span></div>
+      <div class="olcu"><b>${z.acik}</b><span>Şu an açık · ${z.bilgi_bekleniyor} bilgi bekliyor · ${z.onay_bekleyen} onay bekliyor</span></div>
+      <div class="olcu"><b>${z.ilk_seferde == null ? "-" : yuzde(z.ilk_seferde)}</b><span>İlk seferde çözülen (${z.yeniden_acilan} yeniden açıldı)</span></div>
+      <div class="olcu"><b>${z.acilan} / ${z.kapanan}</b><span>Açılan / kapanan</span></div>
+    </div>
+    <details class="kart acilir"><summary><b>Diğer ölçüler</b> <span class="kucuk">· çalışma süresi, ilk tepki, en eski çağrı, onay</span></summary><div class="izgara">
       <div class="olcu"><b>${dk(z.ortanca_dk)}</b><span>Çözenin çalıştığı, ortanca (%90: ${dk(z.p90_dk)})</span></div>
       <div class="olcu"><b>${dk(z.tepki_ortanca_dk)}</b><span>İlk tepki, ortanca (${z.tepki_olculen} çağrıda ölçüldü)</span></div>
-      <div class="olcu"><b>${z.ilk_seferde == null ? "-" : yuzde(z.ilk_seferde)}</b><span>İlk seferde çözülen (${z.yeniden_acilan} yeniden açıldı)</span></div>
-      <div class="olcu"><b>${z.acik}</b><span>Şu an açık · ${z.bilgi_bekleniyor} bilgi bekliyor · ${z.onay_bekleyen} onay bekliyor</span></div>
       <div class="olcu"><b>${saatYas(z.en_eski_acik_saat)}</b><span>En eski açık çağrının yaşı</span></div>
       <div class="olcu"><b>${z.onaylanan_pay == null ? "-" : yuzde(z.onaylanan_pay)}</b><span>Açanın "çözüldü" dediği</span></div>
-    </div>
-    ${(o.tesisler || []).length > 1 ? `<div class="kart"><h3>Tesisler</h3><p class="kucuk">Cihaz ve ağ arızaları yerinde bakılır: tesiste bu işlere bakan kişi yoksa ya da tek kişiyse, o kişinin vardiyası dışında arıza uzaktan yönlendirilir.</p>
-      <ul class="liste">${o.tesisler.map(t => `<li><div class="govde"><b>${kac(t.ad)}</b> <span class="kucuk">· ${t.kapanan} kapandı · açanın beklediği ${dk(t.ortanca_hizmet_dk)} · ${t.acik} açık</span>
-        <div class="kucuk">Yerinde cihaz/ağ işine bakan: ${t.yerinde_kisi.length ? t.yerinde_kisi.map(k => kac(k.ad) + " (" + kac(VARDIYA[k.vardiya] || k.vardiya) + ")").join(", ") : "kimse yok"}</div></div>
-        ${t.yerinde_kisi.length <= 1 ? rozet("sari", t.yerinde_kisi.length ? "Tek kişi" : "Yerinde kimse yok") : ""}</li>`).join("")}</ul></div>` : ""}
-    ${yonlendirmeKart(o.yonlendirme, z)}
-    ${sureNereye(z, o.konular)}
-    ${hedefKart(z)}
+    </div></details>
     <div class="kart"><h3>Kimin üzerinde ne var</h3>
       <p class="kucuk">Ada göre sıralı; bu bir yarış tablosu değil. Amaç iş yükünü dengelemek ve yardıma ihtiyacı olanı görmek. <b>Konuya göre</b>: kişinin süresi o konunun tipik süresine bölünür (1,0 = konunun tipik süresi; 1,5 = %50 daha uzun). Ham süre karşılaştırılmaz, çünkü ERP çağrısı şifre çağrısından doğal olarak uzun sürer.</p>
       <div class="tablo-sar masaustu"><table><thead><tr><th>Kişi</th><th class="sayi">Üzerinde</th><th class="sayi">En eski</th><th class="sayi">Kapattığı</th><th class="sayi">İlk tepki</th><th class="sayi">Ortanca</th><th class="sayi">Konuya göre</th><th class="sayi">Yeniden açılan</th></tr></thead><tbody>
@@ -593,10 +602,17 @@ CIZ.olcum = async (gun) => {
         <div class="kucuk">Üzerinde <b>${k.uzerinde}</b>${k.uzerinde ? ` (${yukDokum(k)}, en eskisi ${saatYas(k.en_eski_saat)})` : ""}</div>
         <div class="kucuk">${k.kapattigi} kapattı · ${k.konu_sayisi} konu · ilk tepki ${dk(k.tepki_ortanca_dk)} · ortanca ${dk(k.ortanca_dk)} · konuya göre ${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}${k.yeniden_acilan ? " · " + k.yeniden_acilan + " yeniden açıldı" : ""}</div></div></li>`).join("")}</ul>
       <p class="kucuk">Yük fazla: üzerinde en az 3 açık çağrı var ve ekip ortalamasının iki katı. Çağrıyı detay ekranından başkasına yönlendirebilirsin.</p></div>
-    <div class="kart"><h3>Haftalık akış</h3><p class="kucuk">Açılan kapanandan sürekli fazlaysa iş birikiyor.</p>
-      <div class="akis">${o.haftalar.map(h => `<div class="akis-satir"><span class="kucuk">${kac(tarihKisa(h.bitis))}</span><div>${cubuk(h.acilan, "acilan")}<span class="kucuk">${h.acilan} açıldı</span></div><div>${cubuk(h.kapanan, "kapanan")}<span class="kucuk">${h.kapanan} kapandı</span></div></div>`).join("")}</div></div>
-    <div class="kart"><h3>Konulara göre</h3><div class="tablo-sar"><table><thead><tr><th>Konu</th><th class="sayi">Kapanan</th><th class="sayi">Ortanca</th><th class="sayi">%90</th><th class="sayi">Vardiya beklemesi</th><th class="sayi">Açık</th></tr></thead><tbody>
-      ${o.konular.map(k => `<tr><td>${kac(k.ad)}</td><td class="sayi">${k.kapanan}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${dk(k.p90_dk)}</td><td class="sayi">${k.bekleme_saat ? sy(k.bekleme_saat) + " sa" : "-"}</td><td class="sayi">${k.acik}</td></tr>`).join("")}</tbody></table></div></div>`;
+    ${(o.tesisler || []).length > 1 ? `<details class="kart acilir"><summary><b>Tesisler</b> <span class="kucuk">· ${o.tesisler.filter(t => t.yerinde_kisi.length <= 1).length} tesiste yerinde tek kişi ya da kimse yok</span></summary><p class="kucuk">Cihaz ve ağ arızaları yerinde bakılır: tesiste bu işlere bakan kişi yoksa ya da tek kişiyse, o kişinin vardiyası dışında arıza uzaktan yönlendirilir.</p>
+      <ul class="liste">${o.tesisler.map(t => `<li><div class="govde"><b>${kac(t.ad)}</b> <span class="kucuk">· ${t.kapanan} kapandı · açanın beklediği ${dk(t.ortanca_hizmet_dk)} · ${t.acik} açık</span>
+        <div class="kucuk">Yerinde cihaz/ağ işine bakan: ${t.yerinde_kisi.length ? t.yerinde_kisi.map(k => kac(k.ad) + " (" + kac(VARDIYA[k.vardiya] || k.vardiya) + ")").join(", ") : "kimse yok"}</div></div>
+        ${t.yerinde_kisi.length <= 1 ? rozet("sari", t.yerinde_kisi.length ? "Tek kişi" : "Yerinde kimse yok") : ""}</li>`).join("")}</ul></details>` : ""}
+    ${yonlendirmeKart(o.yonlendirme, z)}
+    ${sureNereye(z, o.konular)}
+    ${hedefKart(z)}
+    <details class="kart acilir"><summary><b>Haftalık akış</b> <span class="kucuk">· açılan ve kapanan, son 8 hafta</span></summary><p class="kucuk">Açılan kapanandan sürekli fazlaysa iş birikiyor.</p>
+      <div class="akis">${o.haftalar.map(h => `<div class="akis-satir"><span class="kucuk">${kac(tarihKisa(h.bitis))}</span><div>${cubuk(h.acilan, "acilan")}<span class="kucuk">${h.acilan} açıldı</span></div><div>${cubuk(h.kapanan, "kapanan")}<span class="kucuk">${h.kapanan} kapandı</span></div></div>`).join("")}</div></details>
+    <details class="kart acilir"><summary><b>Konulara göre</b> <span class="kucuk">· süre, vardiya beklemesi, açık</span></summary><div class="tablo-sar"><table><thead><tr><th>Konu</th><th class="sayi">Kapanan</th><th class="sayi">Ortanca</th><th class="sayi">%90</th><th class="sayi">Vardiya beklemesi</th><th class="sayi">Açık</th></tr></thead><tbody>
+      ${o.konular.map(k => `<tr><td>${kac(k.ad)}</td><td class="sayi">${k.kapanan}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${dk(k.p90_dk)}</td><td class="sayi">${k.bekleme_saat ? sy(k.bekleme_saat) + " sa" : "-"}</td><td class="sayi">${k.acik}</td></tr>`).join("")}</tbody></table></div></details>`;
   if ($("#ot")) $("#ot").onchange = e => { olcumTesis = e.target.value; CIZ.olcum(gun); };
   $("#ana").onclick = async e => {
     const kr = e.target.closest("[data-kural]");
@@ -618,7 +634,8 @@ CIZ.olcum = async (gun) => {
 CIZ.kuyruk = async () => {
   $("#ana").innerHTML = `
   <h2>Çağrı kuyruğu</h2>
-  <p class="alt">Açık çağrılar, en acil olan üstte. Bir çağrıya dokununca kime gittiğini, nedenini ve bu sorunun daha önce nasıl çözüldüğünü görürsün.</p>
+  <p class="alt">Önce yüksek öncelik, aynı öncelikte en eski; açandan cevap ya da onay bekleyenler sonda. Bir çağrıya dokununca kime gittiğini, nedenini ve bu sorunun daha önce nasıl çözüldüğünü görürsün.
+    <button class="dugme kucuk ikincil" data-sayfa="cihaz">Cihaz geçmişi</button></p>
   <div class="kart"><div class="sira">
     <div><label for="fd">Durum</label><select id="fd"><option value="acik">Açık (hepsi)</option><option value="atandi">Atandı, başlanmadı</option><option value="islemde">İşlemde</option>
       <option value="bilgi_bekleniyor">Bilgi bekleniyor</option><option value="cozuldu">Çözüldü, onay bekleniyor</option><option value="kapali">Kapalı (son 50)</option></select></div>
@@ -949,7 +966,8 @@ function kapsamaKart(k) {
   if (!k || k.tesisler.length < 2) return "";
   const V = [["gunduz", "Gündüz"], ["aksam", "Akşam"], ["gece", "Gece"]];
   const hucre = ad => ad.length ? kac(ad.join(", ")) + (ad.length === 1 ? " " + rozet("sari", "tek") : "") : rozet("kirmizi", "yok");
-  return `<details class="kart" ${k.tesisler.some(t => t.bos) ? "open" : ""}><summary><b>Tesislere göre yerinde kapsama</b> <span class="kucuk">· cihaz ve ağ arızasına yerinde kim bakıyor</span></summary>
+  const bos = k.tesisler.reduce((a, t) => a + t.bos, 0), tek = k.tesisler.reduce((a, t) => a + t.tek, 0);
+  return `<details class="kart acilir"><summary><b>Tesislere göre yerinde kapsama</b> <span class="kucuk">· ${bos ? `${bos} vardiyada yerinde kimse yok` : "boşluk yok"}${tek ? `, ${tek} vardiyada tek kişi` : ""}</span></summary>
     <p class="kucuk">Program işleri (WMS, ERP, BT genel) uzaktan çözülür, tesisten bağımsızdır. Cihaz ve ağ işleri yerinde bakılır: bir vardiyada <b>yok</b> yazıyorsa o saatlerde arıza uzaktan yönlendirilir; <b>tek</b> yazıyorsa o kişi izindeyken aynı durum olur.</p>
     ${k.tesisler.map(t => `<h4 style="margin:.7rem 0 .2rem">${kac(t.ad)} <span class="kucuk">· 90 günde ${t.yerinde_cagri_90} yerinde çağrı</span></h4>
       <div class="tablo-sar"><table><thead><tr><th>Vardiya</th>${k.alanlar.map(a => `<th>${kac(a.ad)}</th>`).join("")}</tr></thead><tbody>
@@ -962,7 +980,6 @@ CIZ.risk = async () => {
   <p class="alt">Hangi iş tek kişiye bağlı? Harita, son 90 günde işi gerçekte kimin çözdüğüne bakar; kâğıttaki yetkinliğe değil. En riskli işler en üstte; her satırdan doğrudan “o kişi yoksa ne olur” ya da eğitim planına geçebilirsin.</p>
   <div class="izgara"><div class="olcu"><b style="color:var(--kirmizi)">${r.ozet.kirmizi}</b><span>Yüksek</span></div><div class="olcu"><b style="color:var(--sari)">${r.ozet.sari}</b><span>Orta</span></div><div class="olcu"><b style="color:var(--yesil)">${r.ozet.yesil}</b><span>Düşük</span></div><div class="olcu"><b>${sy(r.ozet.ortalama)}</b><span>Ortalama puan</span></div></div>
   ${r.kaynaklar.filter(k => k.eski).map(k => `<div class="not uyari">${kac(k.kaynak)} ${k.gun} gündür güncellenmedi. Bu kaynağın konuları eksik veriyle hesaplanıyor; son haftaların çözümleri sayılmadığı için risk yapay olarak yüksek görünebilir. Dökümün güncelini içe aktarın.</div>`).join("")}
-  ${kapsamaKart(kap)}
   <div class="kart"><h3>En riskli işler</h3>
     <div id="rliste">${riskListe(r.konular.slice(0, 5))}</div>
     <p style="margin:.6rem 0 0"><button class="dugme kucuk ikincil" id="rhepsi">Bütün işler (${r.konular.length}) ve süzgeçler</button>
@@ -973,6 +990,7 @@ CIZ.risk = async () => {
       <div style="flex:0 0 auto;align-self:flex-end"><a class="dugme ikincil" style="text-decoration:none;display:inline-block" href="/api/risk.csv">Excel için indir (CSV)</a></div></div>
     <p class="kucuk" style="margin:.2rem 0 0">Kaynaklar: ${r.kaynaklar.map(k => `${kac(k.kaynak)} (son kayıt ${tarih(k.son_kayit)}, son 90 günde ${k.pencerede})`).join(" · ")}</p>
     </div></div>
+  ${kapsamaKart(kap)}
   <details class="kart acilir"><summary><b>Kim hangi işi biliyor?</b> <span class="kucuk">· iş × kişi tablosu</span></summary>${r.matris.map(isiTablo).join("")}</details>
   <details class="kart acilir"><summary><b>Risk zaman içinde nasıl değişti?</b></summary><div id="seyir"><p class="kucuk">Hesaplanıyor…</p></div></details>
   <details class="kart acilir"><summary><b>Otomatikleştirilebilecek riskli işler</b></summary><div id="firsat"><p class="kucuk">Hesaplanıyor…</p></div></details>
@@ -1381,13 +1399,16 @@ function takvimGorunumu(t) {
     const pzt = new Date(t.ayarlar.baslangic + "T12:00:00"); pzt.setDate(pzt.getDate() + (h - 1) * 7);
     const son = new Date(pzt); son.setDate(son.getDate() + t.ayarlar.calisma_gunu - 1);
     const iso = d => d.toISOString().slice(0, 10);
-    return `<div class="kart hafta"><h3>${h}. hafta <span class="kucuk">· ${kisaTarih(iso(pzt))} – ${kisaTarih(iso(son))} · ${os.length} oturum, ${sy(os.reduce((a, o) => a + o.saat, 0))} saat</span></h3>
+    // İlk iki hafta açık; sonrakiler başlığıyla kapalı durur (telefonda plan 12 bin px'ti).
+    const bas = `${h}. hafta <span class="kucuk">· ${kisaTarih(iso(pzt))} – ${kisaTarih(iso(son))} · ${os.length} oturum, ${sy(os.reduce((a, o) => a + o.saat, 0))} saat</span>`;
+    const acik = h <= 2, kap = acik ? "</div>" : "</details>";
+    return `${acik ? `<div class="kart hafta"><h3>${bas}</h3>` : `<details class="kart hafta acilir"><summary><b>${bas}</b></summary>`}
       ${[...gunler].map(([g, gos]) => `<div class="gun"><div class="gun-ad">${gunAy(g)}</div><ul class="oturumlar">${gos.map(o => `<li>
         <b>${kac(o.kategori)}</b> <span class="kucuk">${sy(o.saat)} sa${o.parca_sayisi > 1 ? ` · ${o.parca}/${o.parca_sayisi}` : ""}</span><br>
         ${planCumlesi(o)}${(o.gundem || []).length ? `<ul class="gundem">${o.gundem.map(m => `<li>${kac(m)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul></div>`).join("")}
       ${haftaKontrolleri(t, h, os)}
       ${biten(h).length ? `<p class="kucuk tamam">Bu hafta tamamlanır: ${biten(h).map(k => `<b>${kac(k.kategori)}</b> (${k.puan_once} → ${k.puan_sonra})`).join(", ")}</p>` : ""}
-    </div>`;
+    ${kap}`;
   }).join("");
 }
 function kisiGorunumu(t) {
