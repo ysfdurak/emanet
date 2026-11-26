@@ -418,6 +418,10 @@ Sorular:
 51. Tuzla'da gündüz bir yazıcı bozuldu, oradaki tek BT çalışanı akşamcı. Çağrı kime gider?
 52. Atanan kişi "bu benim işim değil" derse çağrı nereye gider, neden ikinci seferde müdüre gider?
 53. Sistem bir belirti kuralının yanlış olduğunu fark ederse kuralı neden kendisi değiştirmiyor?
+54. Kişi "terminal donuyor EL-014" yazıp aşağıdaki belirtiyi seçmezse çağrı hangi ekibe gider, neden?
+    (`cagri_formu.metinden_cevaplar`) "Oturum açılmıyor" metninde neden "Açılmıyor" seçilmez?
+55. Devir sayfasında "Devri tamamla" ile Değişimler'deki "Ayrıldı olarak kaydet" arasındaki fark ne?
+56. Sunucu yeniden başlayınca ilk istek neden 3 saniye sürüyordu, nasıl düzeldi? Isıtma başarısız olursa ne olur?
 
 ## 7. Arayüz ve API (api.py, web/index.html, web/app.js, web/stil.css)
 
@@ -606,3 +610,13 @@ belirleyici sözcükleri yazıyor; emin olmadığında soruyor. Risk puanı ise 
     seçer ve bu karar aktarım sayılmaz. Yanlış ekipte geçen süre kimsenin hızına yazılmaz.
 53. Aktarımlar gürültülü olabilir (yorgun biri yanlış ekibe atabilir) ve kural bütün çağrıları etkiler. Sistem
     kanıtı sayıyla gösterir ("9 çağrının 4'ü"); karar insanda. "Böyle kalsın" denirse öneri bir daha çıkmaz.
+54. Metindeki ifadeler cevaplara önceden işlenir: "donuyor" → "Ekran donuyor…" seçili gelir, belirti kuralı
+    WMS der. Bu olmadan çağrı konunun varsayılan ekibine (donanım) düşüyordu. Eşleşen ifadelerden başka bir
+    eşleşmenin içinde kalan sayılmaz: "oturum açılmıyor" eşleşince "açılmıyor" düşer. İki ayrı belirti
+    kalırsa (şarj + kırık) öneri verilmez; tahmin yerine kişi seçer. Öneri kullanıcıya gösterilir, değiştirilebilir.
+55. Fark kalmadı: ikisi aynı `degisim.kisi_ayrildi`'yı çağırır (kişi pasif, açık çağrılar yeniden yönlendirilir,
+    plan görevleri düşer) ve açık devir varsa kapanır. Ana yol devirdir; "Ayrıldı olarak kaydet" yalnız devir
+    yapılamayan ani ayrılık için açılır bölümde durur. Önceden ikisi ayrı kayıttı ve çelişebiliyordu.
+56. `usta.olculer` modelin test başarısını ilk çağrıda hesaplıyor (eğitim + değerlendirme). Artık `yasam`
+    (FastAPI lifespan) açılışta bir kez çağırır; ziyaretçi kopyaları aynı önbellekten yararlanır. Isıtma hata
+    verirse kayda yazılır, uygulama yine açılır; ilk istek eskisi gibi kendisi hesaplar.

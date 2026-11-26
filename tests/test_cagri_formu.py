@@ -155,3 +155,22 @@ def test_metinden_cevap_onerisi():
     assert "belirti" not in F.metinden_cevaplar("EL_TERMINALI", "şarj olmuyor, ekranı da kırık")       # iki belirti: kişi seçer
     assert F.metinden_cevaplar("ETIKET_YAZICI", "yz7 basmıyor") == {"cihaz": "YZ-07"}
     assert F.metinden_cevaplar("DALGA", "EL-014 dalga açılmıyor") == {}                               # soru yoksa öneri yok
+
+
+def test_kendin_dene_belirtiye_gore(con):
+    f = F.form(con, kid(con, "EL_TERMINALI"), metin="terminal donuyor EL-014")
+    assert f["onerilen"]["belirti"] in f["kendin_dene_belirti"]
+    donma = f["kendin_dene_belirti"]["Ekran donuyor ya da uygulama kapanıyor"]
+    assert not any("Wi-Fi" in a for a in donma)                     # donmada Wi-Fi adımı yok
+    # Her belirti adımı gerçekten formdaki bir seçeneğe bağlı (yazım farkı olursa adım hiç görünmez)
+    for kod, harita in F.KENDIN_DENE_BELIRTI.items():
+        secenek = next(s["secenekler"] for s in F.sorular(kod) if s["kod"] == "belirti")
+        assert set(harita) <= set(secenek), kod
+
+
+def test_kutuphane_ekip_suzgeci(con):
+    from emanet import usta
+    hepsi = usta.kartlar(con)["kartlar"]
+    donanim = usta.kartlar(con, alan="donanim")
+    assert donanim["kartlar"] and len(donanim["kartlar"]) < len(hepsi)
+    assert all(k["alan"] == "donanim" for k in donanim["kartlar"] + donanim["kartsiz_kategoriler"])

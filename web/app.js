@@ -290,7 +290,7 @@ CIZ.cagri = async (veri) => {
 
     F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false}; sonAlan = null;
     $("#asama2").innerHTML = `<h3>2. Birkaç soru <span class="kucuk">· ${kac(f.kategori)}</span></h3>
-      ${f.kendin_dene.length ? `<div class="not"><b>Açmadan önce bir dakika dene:</b><ol class="gundem">${f.kendin_dene.map(a => `<li>${kac(a)}</li>`).join("")}</ol>
+      ${f.kendin_dene.length ? `<div class="not"><b>Açmadan önce bir dakika dene:</b><ol class="gundem" id="kdadim">${f.kendin_dene.map(a => `<li>${kac(a)}</li>`).join("")}</ol>
         <button type="button" class="dugme kucuk ikincil" id="kc">Bununla çözüldü, çağrı açmıyorum</button>${f.kendin_cozdu ? ` <span class="kucuk">Bu adımlarla ${f.kendin_cozdu} kez çağrı açmaya gerek kalmadı.</span>` : ""}</div>` : ""}
       ${f.otomatik_cozum ? `<p class="kucuk">Bu konuda otomatik çözüm var (${kac(f.otomatik_cozum)}): çağrıyı açınca sistem önce kendisi dener, olmazsa kişiye düşer.</p>` : ""}
       <div id="benzer"></div>
@@ -309,8 +309,14 @@ CIZ.cagri = async (veri) => {
       <div id="oncelik" class="kucuk" aria-live="polite">${f.talep ? "Ne zamana lazım olduğunu seç; öncelik buna göre belirlenir." : "Öncelik için iş durumu ve kimi etkilediğini seç."}</div>
       <div id="eksik" class="kucuk"></div>
       <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>`;
-    oneriUygula(f.onerilen || {});
+    oneriUygula(f.onerilen || {}); kendinDene();
     benzerCiz(f.benzer); ekipGuncelle();
+  }
+  /* "Bir dakika dene" adımları belirtiye göre değişir (donuyorsa Wi-Fi adımı değil uygulamayı yeniden aç) */
+  function kendinDene() {
+    const el = $("#kdadim"); if (!el || !F) return;
+    const adim = (F.form.kendin_dene_belirti || {})[F.cevaplar.belirti] || F.form.kendin_dene;
+    el.innerHTML = adim.map(a => `<li>${kac(a)}</li>`).join("");
   }
   /* Metinden çıkan cevaplar (cihaz no, belirti) önceden işaretlenir; kişi değiştirebilir. */
   function oneriUygula(o) {
@@ -434,7 +440,7 @@ CIZ.cagri = async (veri) => {
     const sec = e.target.closest("[data-cevap],[data-etki],[data-kapsam],[data-nezaman]");
     if (sec) {
       sec.parentElement.querySelectorAll(".cip").forEach(b => b.setAttribute("aria-pressed", b === sec));
-      if (sec.dataset.cevap) { const [kod, ...d] = sec.dataset.cevap.split("|"); F.cevaplar[kod] = d.join("|"); ekipGuncelle(); }
+      if (sec.dataset.cevap) { const [kod, ...d] = sec.dataset.cevap.split("|"); F.cevaplar[kod] = d.join("|"); ekipGuncelle(); if (kod === "belirti") kendinDene(); }
       if (sec.dataset.etki) F.etki = sec.dataset.etki;
       if (sec.dataset.kapsam) F.kapsam = sec.dataset.kapsam;
       if (sec.dataset.nezaman) F.ne_zaman = sec.dataset.nezaman;
@@ -892,9 +898,17 @@ CIZ.otomasyon = async (veri) => {
 /* ---------------------------------------------------------------- Kartlar */
 CIZ.kartlar = async () => {
   $("#ana").innerHTML = `<h2>Çözüm kütüphanesi</h2><p class="alt">Yazılı çözüm kartları. Kartı olmayan konularda Usta, çağrılara düşülen notlardan yol gösterir; not da yoksa bilgi yalnızca kişilerde durur.</p>
-    <div class="kart"><label for="q">Kartlarda ara</label><input id="q" placeholder="Örn. ribon, adres, şifre"></div><div id="kk"></div>`;
+    <div class="kart"><label for="q">Kartlarda ara</label><input id="q" placeholder="Örn. ribon, adres, şifre">
+      <div class="cipler" role="group" aria-label="Ekip" style="margin-top:.5rem">${T.alanlar.map(a => `<button type="button" class="cip" data-ksuz="${kac(a.kod)}" aria-pressed="false">${kac(a.ad)}</button>`).join("")}</div></div><div id="kk"></div>`;
+  let kalan = null;   // ekip süzgeci (data-alan menüye, data-kalan kural düğmelerine ayrılmış)
+  $("#ana").onclick = e => {
+    const b = e.target.closest("[data-ksuz]"); if (!b) return;
+    kalan = kalan === b.dataset.ksuz ? null : b.dataset.ksuz;
+    document.querySelectorAll("[data-ksuz]").forEach(x => x.setAttribute("aria-pressed", x.dataset.ksuz === kalan)); yukle();
+  };
   async function yukle() {
-    const k = await api("kartlar" + ($("#q").value ? "?q=" + encodeURIComponent($("#q").value) : ""));
+    const q = new URLSearchParams(); if ($("#q").value) q.set("q", $("#q").value); if (kalan) q.set("alan", kalan);
+    const k = await api("kartlar?" + q);
     $("#kk").innerHTML = `<div class="iki genis"><div>${k.kartlar.map(c => `<div class="kart"><b>${kac(c.baslik)}</b> ${rozet("mavi", c.kategori)}${adimlar(c.adimlar)}
       <div class="kucuk">Kök neden: ${kac(c.kok_neden || "-")} · Yazan: ${kac(c.yazan || "-")} · ${c.kullanim} çağrıda kullanıldı</div></div>`).join("") || '<div class="kart kucuk">Eşleşen kart yok.</div>'}</div>
       <div class="kart"><h3>Kartı olmayan konular</h3><ul class="liste">${k.kartsiz_kategoriler.map(c => `<li>${rozet(c.kritiklik === 3 ? "kirmizi" : c.kritiklik === 2 ? "sari" : "gri", "Kritiklik " + c.kritiklik)}<div class="govde">${kac(c.ad)}<div class="kucuk">${kac(c.birim)} · ${c.toplam} çağrının ${c.notlu} tanesinde çözüm notu var</div></div></li>`).join("")}</ul></div></div>`;
@@ -1158,7 +1172,7 @@ CIZ.devir = async (id) => {
         ${devirDarbogaz(d)}
         ${devirTakvimi(d)}` : '<p class="kucuk">Kalan oturum yok: konular devredildi ya da devralan seçilmedi.</p>'}</div>
     <p><a class="dugme" href="/api/devir-sureci/${kac(d.id)}/tutanak.md" download>Devir tutanağını indir</a>
-      ${d.durum === "acik" ? `<button class="dugme ikincil" id="dkapat">Devri tamamla</button>` : ""}
+      ${d.durum === "acik" ? `<button class="dugme ikincil" id="dkapat">Devri tamamla, ayrıldı olarak kaydet</button>` : ""}
       ${d.durum === "acik" && T.mod !== "yerel" ? `<span class="demo-etiket" title="Gösterim içindir; gerçek kullanımda bu düğme yok">Demo</span> <button class="dugme ikincil" id="dilerlet">2 hafta ilerlet</button>` : ""}</p>`;
   };
   ciz(); surenDevirler();
@@ -1180,7 +1194,11 @@ CIZ.devir = async (id) => {
       for (const t of document.querySelectorAll("[data-gorusme]")) await api(`devir-sureci/${d.id}/gorusme/${t.dataset.gorusme}`, {cevap: t.value});
       return yenile("devir-sureci/" + d.id, undefined, "Görüşme cevapları kaydedildi.");
     }
-    if (e.target.id === "dkapat") { await api(`devir-sureci/${d.id}/kapat`, {}); return yenile("devir-sureci/" + d.id, undefined, "Devir tamamlandı olarak kaydedildi."); }
+    if (e.target.id === "dkapat") {
+      if (e.target.dataset.onay !== "1") { e.target.dataset.onay = "1"; e.target.textContent = "Kişi pasif olacak; emin misin? Yeniden tıkla"; return; }
+      const r = await api(`devir-sureci/${d.id}/kapat`, {}); T = await api("tanimlar");
+      return yenile("devir-sureci/" + d.id, undefined, `Devir tamamlandı; ${r.kisi.ad} ayrıldı olarak kaydedildi${r.yeniden_atanan.length ? `, ${r.yeniden_atanan.length} açık çağrısı yeniden yönlendirildi` : ""}.`);
+    }
     if (e.target.id === "dilerlet") { e.target.disabled = true; try { const r = await api(`devir-sureci/${d.id}/ilerlet`, {}); d = r.devir; ciz(); bildir(`İki hafta ilerletildi: devralanlar ${r.uretilen_cagri} çağrı çözdü.`); } catch (err) { bildir(err.message); } }
   };
 };
@@ -1646,7 +1664,7 @@ function alismaKart(a) {
       <div class="kucuk">${x.cozum} çözüm${x.kalan ? ` · bilen sayılmasına ${x.kalan} çağrı kaldı` : ""}${x.ustalar.length ? " · usta: " + kac(x.ustalar.join(", ")) : " · bu konuyu bilen başka kimse yok"}${x.durum !== "yetkin" ? (x.cirak_uygun ? " · yanında öğrenerek çağrı alabilir" : x.kritiklik >= 3 ? " · kritik iş: yanında öğrenmeye uygun değil, eğitimle öğrenmeli" : "") : ""}</div></div></li>`).join("")}</ul></div>`;
 }
 CIZ.degisim = async () => {
-  const d = await api("degisim");
+  const [d, devirler] = await Promise.all([api("degisim"), api("devir-sureci")]);
   const kat = T.kategoriler, bugun = new Date().toISOString().slice(0, 10);
   const kisiSec = (id, coklu) => `<select id="${kac(id)}" ${coklu ? 'multiple size="5"' : ""}>${T.birimler.filter(b => T.kisiler.some(p => p.birim_id === b.id)).map(b => `<optgroup label="${kac(b.ad)}">${T.kisiler.filter(p => p.birim_id === b.id).map(p => `<option value="${kac(p.id)}">${kac(p.ad)}</option>`).join("")}</optgroup>`).join("")}</select>`;
   const kotu = d.receteler.filter(r => ["askida", "dususte"].includes(r.saglik.durum));
@@ -1689,11 +1707,14 @@ CIZ.degisim = async () => {
     ${kotu.length || T.mod === "yerel" ? "" : `<p><button class="dugme ikincil" data-sayfa="otomasyon" data-veri="bozulma">Örnek: yazdırma sunucusu güncellendi, yazıcı otomasyonu bozuldu</button></p>`}</div>
 
   <h3 style="margin:1rem 0 .5rem">4. Ayrılan personel</h3>
-  <div class="kart"><p class="kucuk">“Ya giderse?” bir tahmindir; bu kayıttır. Kişi pasif olur, risk haritası onsuz hesaplanır, açık çağrıları yeniden yönlendirilir, eğitim planındaki görevleri düşer. Önce devir dosyasını hazırlayın.</p>
+  <div class="kart"><p class="kucuk">Ayrılık tek akıştır: <b>Biri yoksa → Devri başlat</b> ile son güne kadar her konu bir devralana geçer; devir tamamlanınca kişi ayrıldı olarak kaydedilir (pasif olur, risk haritası onsuz hesaplanır, açık çağrıları yeniden yönlendirilir, eğitim planındaki görevleri düşer).</p>
+    ${devirler.length ? `<ul class="liste">${devirler.map(v => `<li>${rozet("sari", "Devirde")}<div class="govde">${kac(v.ad)} <span class="kucuk">· son gün ${kac(tarihKisa(v.cikis_tarihi))}</span></div><button class="dugme kucuk ikincil" data-sayfa="devir" data-veri="${kac(v.id)}">Devre git</button></li>`).join("")}</ul>` : ""}
+    <p><button class="dugme" data-sayfa="giderse">Devri başlat</button></p>
+    <details class="acilir"><summary><b>Devir yapılamadan ayrıldıysa</b> <span class="kucuk">· ani ayrılık, yalnız kayıt</span></summary>
     <div class="sira"><div style="flex:2 1 200px"><label for="aki">Ayrılan kişi</label>${kisiSec("aki", false)}</div>
       <div><label for="atar">Son gün</label><input id="atar" type="date" value="${bugun}"></div>
-      <div style="flex:0 0 auto"><button class="dugme ikincil" id="adv">Devir dosyası</button> <button class="dugme" id="akay">Ayrıldı olarak kaydet</button></div></div>
-    <div id="asonuc"></div>
+      <div style="flex:0 0 auto"><button class="dugme ikincil" id="adv">Ne olur, gör</button> <button class="dugme" id="akay">Ayrıldı olarak kaydet</button></div></div>
+    <div id="asonuc"></div></details>
     ${d.ayrilanlar.length ? `<ul class="liste" style="margin-top:.5rem">${d.ayrilanlar.map(a => `<li>${rozet("gri", "Ayrıldı")}<div class="govde">${kac(a.ad)} <span class="kucuk">· ${kac(a.birim)} · ${kac(a.cikis || "")}</span></div></li>`).join("")}</ul>` : ""}</div>`;
   $("#geski").onchange = () => $("#gbirimk").classList.toggle("gizli", !!$("#geski").value);
   const ana = $("#ana");

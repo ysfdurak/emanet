@@ -36,7 +36,7 @@ from .db import bosalt, meta_yaz
 # Demo verisinin biçimi değişince artırılır: sunucu yeniden başlarken gece beklemeden yeniden üretir
 # (2: cihaz numaraları, 3: cihaz tablosu ve çağrı durumları, 4: kapanış onayı ve yeniden açılma geçmişi,
 #  5: pazar kapalı, ilk tepki kayıtları, 6: tesisler, 7: çağrı alanları ve ekipleri, 8: aktarım ve BT müdürü)
-VERI_SURUMU = 8
+VERI_SURUMU = 9
 VARDIYA_SAAT = {"gunduz": (8, 16), "aksam": (16, 24), "gece": (0, 8)}
 TEK_KISI_ESIGI = 0.6
 BAKIM_KAYNAGI = "Bakım sistemi dökümü"
@@ -325,6 +325,10 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
 
     # --- Usta: kapalı çağrılar
     hacim = [k["hacim"] for k in kat]
+    # Kişi hızı: sahada aynı konuyu herkes aynı sürede çözmez (deneyim, alışkanlık). Ayrı bir tohumla
+    # üretilir ki ana rastgele akış ve ayarlı senaryolar bozulmasın. Çoğu 0,85-1,15; birkaç kişi belirgin farklı.
+    hiz_rnd = random.Random(tohum + 77)
+    hiz = {ad: round(hiz_rnd.choice([0.8, 0.9, 0.95, 1.0, 1.0, 1.05, 1.1, 1.15, 1.3, 1.4]), 2) for ad in sorted(kisi_vardiya)}
     for acilis, vardiya in _zamanlar(adet, gun, bugun, rnd):
         k = rnd.choices(kat, weights=hacim)[0]
         alt = rnd.choice(k["altlar"])
@@ -332,7 +336,7 @@ def uret(con: sqlite3.Connection, bugun: date | None = None, tohum: int = 42,
         pay = alt["pay_eski"] if (alt["pay_eski"] and acilis.date() < bugun - timedelta(days=ESKI_DONEM_GUN)) else alt["pay"]
         cozen = _kisi_sec(pay, vardiya, kisi_vardiya, rnd)
         kart = k["kart_id"] if (k["kart_id"] and acilis > kart_tarihi and rnd.random() < 0.6) else None
-        sure = k["sure"] * rnd.lognormvariate(0, 0.35) * (0.65 if kart else 1)
+        sure = k["sure"] * rnd.lognormvariate(0, 0.35) * (0.65 if kart else 1) * hiz[cozen]
         if pay[cozen] < 0.10:
             sure *= 1.5
         if kisi_vardiya[cozen] != vardiya:

@@ -133,3 +133,14 @@ def test_devralanin_sinirini_ayri_ayarlanir(con):
     with pytest.raises(ValueError):
         devir.haftalik_sinir_ayarla(con, d["id"], devralan_saat=0.5)
     devir.haftalik_sinir_ayarla(con, d["id"], 4, 4)
+
+
+def test_ayrilik_tek_akis(con):
+    """Ayrılık tek kayıt: kişi ayrıldı diye kaydedilince açık devri de kapanır, kişi açık devir listesinden düşer."""
+    from emanet import degisim
+    k = kid(con, "Murat Özkan")
+    d = devir.baslat(con, k, "2026-12-16", simdi=S)
+    assert any(x["id"] == d["id"] for x in devir.acik_devirler(con))
+    r = degisim.kisi_ayrildi(con, k, "2026-12-16")
+    assert r["devir_kapandi"] == 1 and r["kisi"]["cikis"] == "2026-12-16"
+    assert not devir.acik_devirler(con)

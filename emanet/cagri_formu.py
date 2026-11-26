@@ -125,6 +125,46 @@ KENDIN_DENE: dict[str, list[str]] = {
     "RAPOR": ["Raporu yenile ve tarih filtresine bak."],
 }
 
+# Belirtiye göre adımlar (alan uzmanı): terminal donuyorsa Wi-Fi adımı anlamsızdır, kırık ekranda yeniden
+# başlatma değil yedek cihaz gerekir. Belirti seçilince formdaki "bir dakika dene" kutusu bunlarla değişir.
+KENDIN_DENE_BELIRTI: dict[str, dict[str, list[str]]] = {
+    "EL_TERMINALI": {
+        "Açılmıyor": ["Pili çıkarıp tak; şarjlı bir yedek pille dene.",
+                      "Güç tuşuna 10 saniye basılı tut (zorla yeniden başlatma).",
+                      "Şarj beşiğine koy; şarj ışığı yanıyor mu bak."],
+        "Şarj olmuyor": ["Başka bir şarj beşiğinde dene.",
+                         "Beşikteki ve terminaldeki temas noktalarını kuru bezle sil.",
+                         "Yedek pil çalışıyorsa sorun pilde: çağrıya yaz."],
+        "Ekran kırık ya da dokunmatik çalışmıyor": ["Kırık ekranla çalışmayı bırak; vardiya amirinden yedek terminal al.",
+                                                   "Cihaz numarasını çağrıya yaz; terminal BT'ye teslim edilir."],
+        "Ekran donuyor ya da uygulama kapanıyor": ["Uygulamayı kapatıp yeniden aç.",
+                                                   "Düzelmezse terminali yeniden başlat (güç tuşuna uzun bas).",
+                                                   "Hangi ekranda, hangi işlemde dondu? Çağrıya yaz; hep aynı yerde oluyorsa sorun sistemdedir."],
+        "Oturum açılmıyor": ["Kullanıcı adı ve şifreyi büyük-küçük harfe dikkat ederek yeniden yaz.",
+                             "Başka bir terminalde oturum açılıyor mu dene: açılıyorsa sorun cihazda, açılmıyorsa hesabında."],
+        "Ağa bağlanmıyor": ["Wi-Fi simgesine bak; yoksa bilinen iyi çeken bir noktaya yürüyüp tekrar dene.",
+                            "Terminali yeniden başlat.",
+                            "Yanındaki terminal bağlanıyorsa sorun cihazda, o da bağlanmıyorsa ağda: çağrıya yaz."],
+    },
+    "ETIKET_YAZICI": {
+        "Hiç basmıyor ya da çevrimdışı": ["Yazıcının açık ve ağ kablosunun takılı olduğuna bak.",
+                                          "Yazıcıyı kapat, 10 saniye bekle, aç.",
+                                          "Ekranda hata yazısı varsa not al; çağrıya yaz."],
+        "Boş ya da soluk basıyor": ["Ribon bitmiş ya da ters takılmış olabilir: ribona bak.",
+                                    "Etiket rulosu doğru tarafı yukarı mı takılı bak (termal etiket tersse boş basar)."],
+        "Kayık ya da yanlış basıyor": ["Rulo kılavuzlarının etikete dayalı olduğuna bak.",
+                                       "Besleme tuşuna basıp yazıcının etiketi yeniden ölçmesini sağla (kalibrasyon)."],
+        "Kâğıt sıkıştı": ["Yazıcıyı kapat, kapağı açıp sıkışan etiketi çek; baskı kafasına sivri bir şey değdirme.",
+                          "Ruloyu yeniden tak, kapağı tam kapat, aç."],
+    },
+    "BILGISAYAR": {
+        "Açılmıyor": ["Güç kablosuna ve prize bak; başka bir prizi dene.", "Güç tuşuna 5 saniye basılı tut, bırak, yeniden bas."],
+        "Ekranda görüntü yok": ["Ekranın açık olduğuna ve kablosunun iki ucunun takılı olduğuna bak.", "Bilgisayarı yeniden başlat."],
+        "Çok yavaş": ["Açık programları kapat, bilgisayarı yeniden başlat.", "Yalnız bir programda mı yavaş? Çağrıya yaz."],
+        "Fare, klavye ya da okuyucu çalışmıyor": ["Kablosunu çıkarıp başka bir USB girişine tak.", "Kablosuzsa pilini değiştir."],
+    },
+}
+
 ETKI = {"durdu": ("İş tamamen durdu", 3), "yavas": ("Yavaşladı ya da geçici yolla devam ediyorum", 2),
         "yok": ("İşimi etkilemiyor", 1)}
 KAPSAM = {"ben": ("Yalnız ben", 1), "ekip": ("Ekibim ya da birkaç kişi", 2), "alan": ("Bütün alan ya da vardiya", 3)}
@@ -300,6 +340,7 @@ def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, loka
                       (k["kod"],)).fetchone()
     return dict(kategori_id=k["id"], kategori=k["ad"], kritiklik=k["kritiklik"], talep=k["kod"] in TALEP_KONULARI,
                 sorular=sorular(k["kod"]), kendin_dene=KENDIN_DENE.get(k["kod"], []),
+                kendin_dene_belirti=KENDIN_DENE_BELIRTI.get(k["kod"], {}),
                 kendin_cozdu=int(kendin[0]) if kendin else 0, otomatik_cozum=oto["ad"] if oto else None,
                 alan=k["alan"], alan_haritasi=_kurallar(con).get(k["kod"], {}), benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
                 yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
