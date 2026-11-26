@@ -124,7 +124,7 @@ function mesajKart(m) {
   return `<div class="teams"><div class="ust-satir">Teams · ${kac(m.kime)} (${ROL[m.rol] || m.rol})${m.tur === "onay" ? " · onay kartı" : m.tur === "teyit" ? " · kapanış teyidi" : ""}</div>
     <div>${kac(m.metin)}</div>
     ${bekliyor ? `<div style="margin-top:.45rem">${m.secenekler.map(x => `<button class="dugme kucuk ${x === "Reddet" || x.startsWith("Hayır") ? "ikincil" : ""}" style="margin:.15rem .25rem .15rem 0" data-mesaj="${kac(m.id)}" data-cevap="${kac(x)}">${kac(x)}</button>`).join("")}
-      ${m.serbest ? `<div class="sira" style="margin-top:.3rem"><input id="serbest-${kac(m.id)}" maxlength="200" placeholder="ya da kendin yaz"><div style="flex:0 0 auto"><button class="dugme kucuk ikincil" data-mesaj="${kac(m.id)}">Gönder</button></div></div>` : ""}
+      ${m.serbest ? `<div class="sira" style="margin-top:.3rem"><input id="serbest-${kac(m.id)}" maxlength="200" placeholder="ya da kendin yaz" aria-label="Cevabını yaz"><div style="flex:0 0 auto"><button class="dugme kucuk ikincil" data-mesaj="${kac(m.id)}">Gönder</button></div></div>` : ""}
       <div class="kucuk" style="margin-top:.25rem">Demoda ${kac(m.kime)} yerine sen cevaplıyorsun.</div></div>`
       : m.cevap != null ? `<div class="cevap">Cevap: <b>${kac(m.cevap)}</b></div>` : ""}</div>`;
 }
@@ -166,6 +166,14 @@ function yolKart(y) {
 const CIZ = {};
 
 /* ---------------------------------------------------------------- Genel */
+/* Bugün listesi: acillerin hepsi, toplam 4 satır görünür; gerisi "N madde daha" altında (liste 7+ satıra çıkmıştı) */
+function dikkatListe(liste) {
+  // Yapısal risk (yedeksiz konu) her gün "Acil" görünürse göz alışır; ona "Yüksek risk" denir, "Acil" bugünün işidir.
+  const satir = d => `<li>${rozet(d.seviye, {kirmizi: ["giderse", "risk"].includes(d.sayfa) ? "Yüksek risk" : "Acil", sari: "Dikkat", mavi: "Bilgi"}[d.seviye])}<div class="govde">${kac(d.metin)}</div>
+    <button class="dugme kucuk${d.seviye === "kirmizi" ? "" : " ikincil"}" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>${d.veri === "sureler" ? "Süreleri gir" : DIKKAT_EYLEM[d.sayfa] || "Aç"}</button></li>`;
+  const n = Math.max(4, liste.filter(d => d.seviye === "kirmizi").length), ilk = liste.slice(0, n), kalan = liste.slice(n);
+  return `<ul class="liste">${ilk.map(satir).join("")}</ul>${kalan.length ? `<details class="devam"><summary>${kalan.length} madde daha <span class="kucuk">· ${[...new Set(kalan.map(d => ({kirmizi: "acil", sari: "dikkat", mavi: "bilgi"}[d.seviye])))].join(", ")}</span></summary><ul class="liste">${kalan.map(satir).join("")}</ul></details>` : ""}`;
+}
 CIZ.genel = async () => {
   const [o, tk] = await Promise.all([api("ozet"), api("tek-kisiye-kalanlar?gun_sayisi=7")]);
   const u = o.usta, m = u.model, e = o.emanet;
@@ -178,9 +186,7 @@ CIZ.genel = async () => {
     <button class="dugme ikincil" data-sayfa="plan">Eğitim planı</button>
   </div>
   <div class="kart"><h3>Bugün neye bakmalı?</h3>
-    ${o.dikkat.length ? `<ul class="liste">${o.dikkat.map(d => `<li>${rozet(d.seviye, {kirmizi: "Acil", sari: "Dikkat", mavi: "Bilgi"}[d.seviye])}<div class="govde">${kac(d.metin)}</div>
-    <button class="dugme kucuk${d.seviye === "kirmizi" ? "" : " ikincil"}" data-sayfa="${d.sayfa}" ${d.veri ? `data-veri="${kac(d.veri)}"` : ""}>${d.veri === "sureler" ? "Süreleri gir" : DIKKAT_EYLEM[d.sayfa] || "Aç"}</button></li>`).join("")}</ul>`
-      : '<p class="kucuk">Bugün acil bir iş yok. Riskleri haftada bir gözden geçirmek yeter.</p>'}
+    ${o.dikkat.length ? dikkatListe(o.dikkat) : '<p class="kucuk">Bugün acil bir iş yok. Riskleri haftada bir gözden geçirmek yeter.</p>'}
   </div>
   ${T.mod === "yerel" ? `<div class="not">Bu uygulama kendi verinle çalışıyor (yerel kurulum). Demo senaryoları ve otomasyon örnekleri kapalı; veri bu makineden çıkmaz.</div>` : `<details class="kart" ${sessionStorageAl("tur") ? "" : "open"} id="tur">
     <summary><b>İlk kez mi geliyorsun? 30 saniyelik tur</b></summary>
@@ -279,7 +285,8 @@ CIZ.cagri = async (veri) => {
   async function ikinciAsama() {
     if (!secili) { F = null; $("#asama2").innerHTML = `<h3>2. Birkaç soru</h3><p class="kucuk">${metin.value.trim().length < 5 ? "Sorunu yazınca konusuna göre sorular burada açılır." : "Önce konuyu seç; sorular konuya göre açılır."}</p>`; return; }
     if (F && F.kategori_id === secili) return;
-    const f = await api("cagri/form/" + secili + ($("#lok") ? "?lokasyon_id=" + $("#lok").value : ""));
+    const q = new URLSearchParams({metin: metin.value.trim().slice(0, 2000)}); if ($("#lok")) q.set("lokasyon_id", $("#lok").value);
+    const f = await api("cagri/form/" + secili + "?" + q);
 
     F = {form: f, kategori_id: secili, cevaplar: {}, etki: null, kapsam: null, ne_zaman: null, sevkiyat: false}; sonAlan = null;
     $("#asama2").innerHTML = `<h3>2. Birkaç soru <span class="kucuk">· ${kac(f.kategori)}</span></h3>
@@ -302,7 +309,19 @@ CIZ.cagri = async (veri) => {
       <div id="oncelik" class="kucuk" aria-live="polite">${f.talep ? "Ne zamana lazım olduğunu seç; öncelik buna göre belirlenir." : "Öncelik için iş durumu ve kimi etkilediğini seç."}</div>
       <div id="eksik" class="kucuk"></div>
       <p style="margin-top:.9rem"><button class="dugme" id="ac" disabled>Çağrıyı aç</button></p>`;
+    oneriUygula(f.onerilen || {});
     benzerCiz(f.benzer); ekipGuncelle();
+  }
+  /* Metinden çıkan cevaplar (cihaz no, belirti) önceden işaretlenir; kişi değiştirebilir. */
+  function oneriUygula(o) {
+    const yazilan = [];
+    for (const [kod, deger] of Object.entries(o)) {
+      const cip = [...document.querySelectorAll("#asama2 [data-cevap]")].find(b => b.dataset.cevap === kod + "|" + deger);
+      const kutu = $("#s-" + kod);
+      if (cip) { cip.parentElement.querySelectorAll(".cip").forEach(b => b.setAttribute("aria-pressed", b === cip)); F.cevaplar[kod] = deger; yazilan.push(deger); }
+      else if (kutu && !kutu.value) { kutu.value = deger; F.cevaplar[kod] = deger; yazilan.push(deger); if (kod === "cihaz") cihazBak(deger); }
+    }
+    if (yazilan.length) $("#ekip").insertAdjacentHTML("beforebegin", `<p class="kucuk" id="oneri-not">Yazdığından doldurduk: <b>${yazilan.map(kac).join(", ")}</b>. Yanlışsa değiştir.</p>`);
   }
   /* Çağrının gideceği ekip: belirti cevabı > seçilen alan > konunun alanı (sunucu: cagri_formu.alan_bul) */
   function alanHesapla() {
@@ -491,7 +510,7 @@ CIZ.cihaz = async (no) => {
       <ul class="liste">${O.kayitsiz.map(k => `<li><div class="govde"><b>${kac(k.no)}</b> <span class="kucuk">${k.cagri} çağrı · son ${tarih(k.son)}</span></div><button class="dugme kucuk ikincil" data-cno="${kac(k.no)}">Geçmiş</button></li>`).join("")}</ul></div>` : ""}
     <details class="kart"><summary><b>Envanteri içe aktar</b> <span class="kucuk">· demirbaş sisteminden CSV</span></summary>
       <p class="kucuk">Sütunlar: <code>no</code> (gerekli), <code>tür</code>, <code>model</code>, <code>tesis</code>, <code>yer</code>, <code>seri no</code>, <code>durum</code>. Ayraç virgül, noktalı virgül ya da sekme. Var olan numara güncellenir. Numara tek biçime gelir (yz 7 → YZ-07).</p>
-      <textarea id="envcsv" rows="5" placeholder="no;tür;model;yer&#10;YZ-13;yazıcı;Zebra ZT410;sevkiyat rampası 7"></textarea>
+      <label for="envcsv">CSV içeriği</label><textarea id="envcsv" rows="5" placeholder="no;tür;model;yer&#10;YZ-13;yazıcı;Zebra ZT410;sevkiyat rampası 7"></textarea>
       <label class="satir"><input type="checkbox" id="envtam"> Bu tam liste: listede olmayan cihazları hurdaya ayır</label>
       <p><button class="dugme kucuk" id="envyukle">İçe aktar</button> <span id="envsonuc" class="kucuk" aria-live="polite"></span></p></details>`;
   const bak = async n => { if (!n.trim()) return; $("#cno").value = n; $("#cgecmis").innerHTML = cihazKart(await api("cihaz/" + encodeURIComponent(n.trim()))); };
@@ -563,7 +582,7 @@ function olcumOzeti(o) {
   const en = [...o.konular].sort((a, b) => b.bekleme_saat - a.bekleme_saat)[0];
   const yuk = o.kisiler.filter(k => k.yuk_fazla).map(k => k.ad.split(" ")[0]);
   const p = [`Tipik çağrı açanı ${dk(z.hizmet_ortanca_dk)} bekletiyor`];
-  if (t.bekleme / top >= 0.25) p.push(`sürenin %${Math.round(t.bekleme / top * 100)}'i bilen birinin vardiyasını beklemekle geçiyor${en && en.bekleme_saat >= 8 ? ` (en çok ${en.ad})` : ""}`);
+  if (t.bekleme / top >= 0.25) p.push(`bütün çağrıların toplam süresinin %${Math.round(t.bekleme / top * 100)}'i bilen birinin vardiyasını beklemekle geçiyor${en && en.bekleme_saat >= 8 ? ` (en çok ${en.ad})` : ""}`);
   if (yuk.length) p.push(`${yuk.join(", ")} üzerinde fazla iş var`);
   if (o.yonlendirme && o.yonlendirme.mudurde.length) p.push(`${o.yonlendirme.mudurde.length} çağrı müdür kararı bekliyor`);
   if (o.yonlendirme && o.yonlendirme.kural_onerileri.length) p.push(`${o.yonlendirme.kural_onerileri.length} kural önerisi var`);
@@ -598,9 +617,11 @@ CIZ.olcum = async (gun) => {
         <td class="sayi">${k.uzerinde}${k.uzerinde ? `<div class="kucuk">${yukDokum(k)}</div>` : ""}</td>
         <td class="sayi">${saatYas(k.en_eski_saat)}</td><td class="sayi">${k.kapattigi}<div class="kucuk">${k.konu_sayisi} konu</div></td>
         <td class="sayi">${dk(k.tepki_ortanca_dk)}</td><td class="sayi">${dk(k.ortanca_dk)}</td><td class="sayi">${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}</td><td class="sayi">${k.yeniden_acilan}</td></tr>`).join("")}</tbody></table></div>
-      <ul class="liste mobil">${o.kisiler.map(k => `<li><div class="govde"><b>${kac(k.ad)}</b> <span class="kucuk">${kac(VARDIYA[k.vardiya] || "")}</span>${k.yuk_fazla ? " " + rozet("sari", "Yük fazla") : ""}
+      ${(() => { const kart = k => `<li><div class="govde"><b>${kac(k.ad)}</b> <span class="kucuk">${kac(VARDIYA[k.vardiya] || "")}</span>${k.yuk_fazla ? " " + rozet("sari", "Yük fazla") : ""}
         <div class="kucuk">Üzerinde <b>${k.uzerinde}</b>${k.uzerinde ? ` (${yukDokum(k)}, en eskisi ${saatYas(k.en_eski_saat)})` : ""}</div>
-        <div class="kucuk">${k.kapattigi} kapattı · ${k.konu_sayisi} konu · ilk tepki ${dk(k.tepki_ortanca_dk)} · ortanca ${dk(k.ortanca_dk)} · konuya göre ${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}${k.yeniden_acilan ? " · " + k.yeniden_acilan + " yeniden açıldı" : ""}</div></div></li>`).join("")}</ul>
+        <div class="kucuk">${k.kapattigi} kapattı · ${k.konu_sayisi} konu · ilk tepki ${dk(k.tepki_ortanca_dk)} · ortanca ${dk(k.ortanca_dk)} · konuya göre ${k.konuya_gore == null ? "-" : k.konuya_gore.toFixed(1).replace(".", ",") + "×"}${k.yeniden_acilan ? " · " + k.yeniden_acilan + " yeniden açıldı" : ""}</div></div></li>`, dolu = o.kisiler.filter(k => k.uzerinde), bos = o.kisiler.filter(k => !k.uzerinde);
+        // Telefonda 14 kart oluyordu: önce üzerinde iş olanlar, ötekiler açılır bölümde
+        return `<div class="mobil"><ul class="liste">${dolu.map(kart).join("")}</ul>${bos.length ? `<details class="devam"><summary>${bos.length} kişinin üzerinde açık iş yok</summary><ul class="liste">${bos.map(kart).join("")}</ul></details>` : ""}</div>`; })()}
       <p class="kucuk">Yük fazla: üzerinde en az 3 açık çağrı var ve ekip ortalamasının iki katı. Çağrıyı detay ekranından başkasına yönlendirebilirsin.</p></div>
     ${(o.tesisler || []).length > 1 ? `<details class="kart acilir"><summary><b>Tesisler</b> <span class="kucuk">· ${o.tesisler.filter(t => t.yerinde_kisi.length <= 1).length} tesiste yerinde tek kişi ya da kimse yok</span></summary><p class="kucuk">Cihaz ve ağ arızaları yerinde bakılır: tesiste bu işlere bakan kişi yoksa ya da tek kişiyse, o kişinin vardiyası dışında arıza uzaktan yönlendirilir.</p>
       <ul class="liste">${o.tesisler.map(t => `<li><div class="govde"><b>${kac(t.ad)}</b> <span class="kucuk">· ${t.kapanan} kapandı · açanın beklediği ${dk(t.ortanca_hizmet_dk)} · ${t.acik} açık</span>
@@ -1779,6 +1800,15 @@ CIZ.nasil = async () => {
     <div class="kart"><h3>Emanet’in hesabı</h3>
       <ol class="adim"><li>Son 90 günde her konuyu kim kaç kez çözmüş?</li><li>Yoğunlaşma, yedek sayısı, yazılı çözüm, otomasyon payı ve kritiklikten risk puanı.</li><li>Bir kişi çıkarılınca harita yeniden hesaplanır; ayrılırken devir dosyası çıkar.</li><li>İzin onaylanmadan önce o tarihlerde yedeksiz kalan konular gösterilir.</li><li>Eğitim planı sırt çantası problemi olarak çözülür; pratiği kalmamış yedekler daha ucuza tazelenir.</li><li>Kaydedilen plan takip edilir: öğrenen çağrı çözmeye başladı mı, risk hedefe indi mi? Seyir grafiği kararların etkisini gösterir.</li><li>Değişimler: sistem geçişinde yeni konunun puanı ilk haftalarda geçicidir, bilgi tek kişide toplanırsa erken uyarı verilir; yeni personele yanında öğrenme kolay çağrılar verir; başarısı düşen otomasyon kendiliğinden askıya alınır.</li></ol></div>
   </div>
+  <div class="kart"><h3>Bir çağrının yolu</h3>
+    <ol class="adim">
+      <li><b>Açılış, iki adım:</b> önce sorun kendi cümlesiyle yazılır, model konuyu tahmin eder; sonra konuya özel birkaç soru (cihaz numarası, belirti, işin durumu). Metinde yazılanlar (EL-014, "donuyor") cevaplara önceden işlenir. Öncelik seçtirilmez, cevaplardan hesaplanır.</li>
+      <li><b>Hangi ekip:</b> Donanım, Ağ, WMS, ERP ve raporlama, BT genel. Belirti konudan önce gelir: terminal donuyorsa WMS, hiç açılmıyorsa donanım. Cihaz ve ağ işine o tesiste yerinde bakılır (Gebze, Tuzla, İzmir).</li>
+      <li><b>Durum:</b> Açık → Atandı → İşlemde → (Bilgi bekleniyor) → Çözüldü → Kapalı. Açan "çözüldü"yü onaylar; 72 saat cevap gelmezse kendiliğinden kapanır.</li>
+      <li><b>Yanlış ekip:</b> çözen "bu benim işim değil" der ve ileri aktarır; ikinci aktarımda çağrı BT müdürüne gider, o karar verir. Aynı belirti sık aktarılıyorsa kural önerisi çıkar, insan onaylar.</li>
+      <li><b>Ölçüler:</b> süre çalışma, vardiya beklemesi, bilgi bekleme ve Pazar olarak ayrılır. Depo 6 gün, 3 vardiya çalışır; kişinin hızı yalnız çalışma süresiyle ve konunun tipik süresine göre ölçülür.</li>
+    </ol>
+    <p><button class="dugme kucuk ikincil" data-sayfa="cagri">Çağrı aç</button> <button class="dugme kucuk ikincil" data-sayfa="olcum">Ölçüler</button></p></div>
   <div class="kart"><h3>Otomasyon</h3>
     <p>Bazı çağrılar belirli yetkiler dahilinde insansız çözülür: kurulum ve yetki talepleri (eksik bilgi Teams’ten sorulur, gerekiyorsa yönetici onaylar), kilit açma, bilinen onarım adımları (yazıcı, rapor işi, terminal ağı), toplu arıza birleştirme, kapanış teyidi ve İK kaydıyla işe giriş/çıkış. Karar her zaman yazılı kurallardadır; makine öğrenmesi yalnızca konuyu tanır. Sık tekrar eden çözüm notları “otomatik çözüm adayı” olarak önerilir.</p>
     <p><button class="dugme kucuk ikincil" data-sayfa="otomasyon">Otomasyon ekranı</button></p></div>
@@ -1786,7 +1816,7 @@ CIZ.nasil = async () => {
     <p>Aynı çekirdek bir MCP sunucusu olarak da açıktır: <code>${kac(location.origin)}/mcp</code>. Araçların bir kısmı veri değiştirdiği için erişim anahtar ister (Claude'da bağlayıcı adresi <code>…/mcp</code>, anahtar <code>Authorization: Bearer</code> başlığında); anahtar sunucuda <code>EMANET_MCP_ANAHTARLARI</code> ile tanımlanır. Demo sitesinde herkese açık değildir.</p>
     <p class="kucuk">Örnek sorular: “Sipariş dalgası açılmıyor; bu daha önce nasıl çözüldü?” · “Bu hafta izinde olanlar yüzünden hangi konular tek kişiye kaldı?” · “40 saatlik eğitimle riski en çok nerede düşürürüm?”</p></div>
   ${T.mod === "yerel" ? `<div class="kart"><h3>Veri</h3><p>Bu kurulum kendi çağrı dökümünle yapıldı (python -m emanet.yerel). Veri bu makinede durur; yenilemek için içe aktarmayı yeniden çalıştır.</p></div>` : `<div class="kart"><h3>Veri</h3>
-    <p>Yıldız Ev &amp; Yaşam kurgusal bir şirkettir. 28 kişi, 5 birim, 14 sistemsel ve 14 teknik konu; yaklaşık 900 Usta çağrısı ve 650 kayıtlık bir bakım dökümü üretilir. İçine bilerek birkaç bağımlılık örüntüsü gömülmüştür. Veri her gece ve aşağıdaki düğmeyle başlangıç hâline döner.</p>
+    <p>Yıldız Ev &amp; Yaşam kurgusal bir şirkettir. 3 tesis (Gebze, Tuzla, İzmir), 28 kişi ve bir BT müdürü, 5 birim, 14 sistemsel ve 14 teknik konu, 42 cihaz; altı aylık yaklaşık 1500 Usta çağrısı ve 650 kayıtlık bir bakım dökümü üretilir. İçine bilerek birkaç bağımlılık örüntüsü gömülmüştür. Veri her gece ve aşağıdaki düğmeyle başlangıç hâline döner.</p>
     <p>Demoyu deneyen her ziyaretçinin kendi alanı vardır: açtığın çağrılar, kaydettiğin planlar yalnız sana görünür. Alan 24 saat ya da gece sıfırlamasına kadar durur.</p>
     <p><button class="dugme ikincil" id="sf">Kendi demo alanımı sıfırla</button></p></div>`}`;
   if ($("#sf")) $("#sf").onclick = async () => { await api("sifirla", {}); T = await api("tanimlar"); bildir("Kendi demo alanın başlangıç hâline döndü."); };

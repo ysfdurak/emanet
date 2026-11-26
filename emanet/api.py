@@ -637,11 +637,13 @@ def cihazlar_tekrarlayan():
 
 
 @api.get("/api/cagri/form/{kategori_id}")
-def cagri_form(kategori_id: int, yer: str | None = Query(None, max_length=60), lokasyon_id: int | None = None):
-    """İkinci aşama: konuya özel sorular, kendin dene adımları ve aynı sorunun açık bir çağrısı var mı."""
+def cagri_form(kategori_id: int, yer: str | None = Query(None, max_length=60), lokasyon_id: int | None = None,
+               metin: str | None = Query(None, max_length=2000)):
+    """İkinci aşama: konuya özel sorular, kendin dene adımları, aynı sorunun açık bir çağrısı var mı;
+    metin verilirse cevap önerisi (cihaz numarası, belirti)."""
     with KILIT:
         try:
-            return cagri_formu.form(con, kategori_id, yer, lokasyon_id)
+            return cagri_formu.form(con, kategori_id, yer, lokasyon_id, metin)
         except ValueError as e:
             raise HTTPException(404, str(e))
 

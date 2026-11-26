@@ -189,3 +189,7 @@ dl.ek dd{margin:0}
 .donem{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.3rem 0 .6rem}
 .donem select{width:auto;flex:1 1 10rem;max-width:16rem;margin:0}
 .ozet-cumle{font-size:1.02rem;margin:.2rem 0 .8rem;line-height:1.5}
+details.devam{margin-top:.4rem}
+details.devam>summary{cursor:pointer;padding:.5rem 0;font-weight:600;color:var(--murekkep)}
+/* Telefonda küçük düğmeler parmakla rahat basılsın (ölçümde 32 px'ti) */
+@media (max-width:640px){.dugme.kucuk{min-height:2.4rem}}

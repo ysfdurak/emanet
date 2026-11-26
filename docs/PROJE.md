@@ -571,6 +571,29 @@ alan uzmanı sorusuydu ("teknisyen kuyruğa bakınca hangisini alır?").
 **Sıradaki (onay bekleyen):** Bugün listesi büyüdü (müdür kararı, tekrarlayan cihaz, kural önerisi, vardiya boşluğu);
 satır sınırı ya da "hepsini gör" eklenebilir. Ölçüler'deki kişi listesi telefonda 14 kart; "yalnız üzerinde iş olanlar" süzgeci düşünülebilir.
 
+### Dış göz turu (26 Kasım 2026, beşinci tur)
+
+Her sayfa 390 ve 1350 px'te gezildi, erişilebilirlik ölçüldü (etiketsiz alan, adsız düğme, dokunma hedefi,
+başlık sırası) ve bir çağrı baştan sona açıldı.
+
+| Bulgu | Rol | Ne yapıldı |
+| --- | --- | --- |
+| "Terminal donuyor … EL-014" yazınca cihaz numarası boş, belirti seçilmemiş kalıyor, çağrı **Donanım**'a gidiyordu (kural: donma → WMS) | Günlük kullanıcı, alan uzmanı | `cagri_formu.metinden_cevaplar`: metindeki cihaz numarası ve belirti ikinci aşamaya önceden işlenir, "Yazdığından doldurduk… Yanlışsa değiştir" notu. En uzun ifade kazanır ("oturum açılmıyor" → Oturum); iki ayrı belirti varsa öneri yok. MCP `cagri_ac` da aynısını yapar. Test: `test_metinden_cevap_onerisi` |
+| Bugün listesi 7 satır | Günlük kullanıcı | İlk 4 satır (acillerin hepsi) görünür, gerisi "3 madde daha" altında (390 px: 2306 → 1924) |
+| Yedeksiz konu her gün "Acil" etiketiyle | Yönetici | Yapısal risk "Yüksek risk"; "Acil" bugünün işine kaldı (her gün aynı acil uyarısı göz alıştırır) |
+| Ölçüler'de 14 kişi kartı | Yönetici | Telefonda önce üzerinde iş olanlar; ötekiler "N kişinin üzerinde açık iş yok" altında (3781 → 3104 px) |
+| Özet cümle ortancayı toplam payla yan yana koyuyordu | Yönetici | "bütün çağrıların toplam süresinin %51'i" |
+| Nasıl çalışır son iki günün özelliklerini anlatmıyordu; "900 çağrı, 28 kişi" eskimişti | İlk kez gelen, mülakatçı | "Bir çağrının yolu" kartı (iki adım, ekip, durumlar, aktarım, ölçüler); 3 tesis, BT müdürü, 42 cihaz, ~1500 çağrı. README de |
+| Etiketsiz iki alan (Teams cevap kutusu, envanter CSV) | Erişilebilirlik | `aria-label` / `label` |
+| Küçük düğmeler 32 px | Erişilebilirlik | Telefonda en az 2,4 rem (~38 px) |
+
+**Onay bekleyen (büyük ya da veri değiştiren):**
+- Demo verisinde herkesin "konuya göre" hızı 1,0×: üretici kişi hızını konuya göre ölçekliyor, kişi farkı yok. Yönetici bu sütunu işe yaramaz sanar. Kişi başına küçük bir hız çarpanı eklenebilir; ayarlı test senaryoları yeniden doğrulanmalı.
+- "Kendin dene" adımları konuya göre geliyor, belirtiye göre değil (donma için Wi-Fi adımları). Belirtiye göre adım seçimi.
+- Ayrılan personel iki yerde kaydediliyor (Değişimler → Ayrılan personel, Biri yoksa → Devir başlat); tek akışa indirilebilir.
+- Çözüm kütüphanesinde ekip (Donanım, WMS…) süzgeci.
+- Sunucu yeniden başlayınca ilk ziyaretçi birkaç saniye "Yükleniyor…" görüyor (model ısınması); açılışta önceden ısıtma.
+
 ### Pilot bitiş ölçütleri (dış kaynak olmadan)
 
 Dördü de sağlanınca durum "Tamamlandı" olur; siteye proje sayfası ve Rota girdisi eklenir.
@@ -769,3 +792,4 @@ satırının nasıl değiştiğine bak. Değeri geri al.
 | 25 Kasım 2026 | Kullanıcı düzeltmesi: gruplar yerine çağrı alanları ve ekipleri (Donanım, Ağ, WMS, ERP, BT genel); alan belirtiden (terminal donuyor → WMS, açılmıyor → donanım); Riskler'de tesis kapsama tablosu; 143 test |
 | 25 Kasım 2026 | Yanlış yönlendirme: 'Bu benim işim değil' ile ileri aktarım, ikinci aktarımda BT müdürü, yönlendirme kaybı, sistem kaydı, belirti kuralı önerisi (insan onaylar); MCP `cagri_aktar`; 149 test |
 | 26 Kasım 2026 | Kullanıcı gözüyle dördüncü tur: Ölçüler özet cümlesi ve açılır bölümler (5808 → 3781 px), eğitim takviminde sonraki haftalar kapalı (12 636 → 6455 px), kuyruk sırası öncelik + en eski, Risk ilk ekranında eylem, Çağrılar alt menüsü satır kırar; dal koruması durumu belgelendi |
+| 26 Kasım 2026 | Dış göz turu: metinden cevap önerisi (donma → WMS düzeldi), Bugün listesi kısaldı, risk etiketi, Ölçüler kişi listesi, Nasıl çalışır güncel, iki erişilebilirlik düzeltmesi; 150 test |

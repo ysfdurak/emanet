@@ -7,7 +7,7 @@ sisteminden içe aktarılan teknik arıza dökümünü birlikte okuyup "kim gide
 çıkarır ve çapraz eğitim planı önerir.
 
 Veriler kurgusaldır: Yıldız Ev & Yaşam adlı hayali bir deponun 28 kişisi, 14 sistemsel ve 14 teknik
-konusu, yaklaşık 900 Usta çağrısı ve 650 kayıtlık bir bakım dökümü bir üreticiyle oluşturulur.
+konusu, altı aylık yaklaşık 1500 Usta çağrısı ve 650 kayıtlık bir bakım dökümü bir üreticiyle oluşturulur.
 
 ## Ne yapar
 

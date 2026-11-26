@@ -250,7 +250,48 @@ def _kurallar(con: sqlite3.Connection) -> dict:
     return belirti_kurallari(con)
 
 
-def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, lokasyon_id: int | None = None) -> dict:
+# Metindeki ifade → belirti seçeneği. Saha dili: kişi "terminal donuyor EL-014" yazıp aşağıda belirtiyi
+# seçmeyi unutursa çağrı konunun varsayılan ekibine (donanım) düşüyordu; donma ise sistemsel (WMS) bir iştir.
+BELIRTI_IPUCU = {
+    "Açılmıyor": ["açılmıyor", "açılmadı", "açmıyor", "çalışmıyor hiç"],
+    "Şarj olmuyor": ["şarj"],
+    "Ekran kırık ya da dokunmatik çalışmıyor": ["kırık", "kırıldı", "çatlak", "dokunmatik"],
+    "Ekran donuyor ya da uygulama kapanıyor": ["donuyor", "dondu", "donma", "kapanıyor", "kapandı", "takılıyor", "kilitleniyor"],
+    "Oturum açılmıyor": ["oturum açılmıyor", "oturum açamıyorum", "oturum", "giriş yapamıyor", "login"],
+    "Ağa bağlanmıyor": ["ağa bağlan", "wifi", "wi-fi", "kablosuz", "ağ yok"],
+    "Hiç bağlanmıyor": ["hiç bağlan", "bağlanmıyor"],
+    "Sık kopuyor": ["kopuyor", "kopma", "gidip geliyor"],
+    "Çok yavaş": ["yavaş"],
+    "Ekranda görüntü yok": ["görüntü yok", "ekran siyah", "ekran kara"],
+    "Fare, klavye ya da okuyucu çalışmıyor": ["fare", "mouse", "klavye", "okuyucu"],
+}
+_CIHAZ_ON = sorted({re.match(r"[A-Z]+", no).group() for no in K.CIHAZLAR})
+_CIHAZ_RE = re.compile(r"\b(" + "|".join(_CIHAZ_ON) + r")[\s\-]?0*(\d{1,4})\b")
+
+
+def metinden_cevaplar(kod: str, metin: str | None) -> dict:
+    """Çağrı metninden ikinci aşama cevaplarını önerir (kullanıcı değiştirebilir): cihaz numarası ve belirti.
+    Belirtide en uzun eşleşen ifade kazanır ("oturum açılmıyor" → Oturum, "açılmıyor" değil);
+    iki farklı seçenek eşit güçteyse hiçbiri önerilmez, tahmin yerine kişi seçer."""
+    if not metin:
+        return {}
+    oneri, k = {}, kucult(metin)
+    for s in sorular(kod):
+        if s["kod"] == "cihaz" and s["tur"] == "metin":
+            m = _CIHAZ_RE.search(metin.upper().replace("İ", "I"))
+            if m:
+                oneri["cihaz"] = cihaz_no(m.group(1) + "-" + m.group(2))
+        elif s["kod"] == "belirti" and s["tur"] == "secim":
+            eslesme = [(sec, kucult(i)) for sec in s["secenekler"] for i in BELIRTI_IPUCU.get(sec, []) if kucult(i) in k]
+            # Başka bir eşleşmenin içinde kalan ifade sayılmaz: "oturum açılmıyor" varken "açılmıyor" düşer.
+            kalan = {sec for sec, i in eslesme if not any(i != j and i in j for _, j in eslesme)}
+            if len(kalan) == 1:          # iki ayrı belirti (şarj + kırık) → öneri yok, kişi seçer
+                oneri["belirti"] = kalan.pop()
+    return oneri
+
+
+def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, lokasyon_id: int | None = None,
+         metin: str | None = None) -> dict:
     k = con.execute("SELECT id, kod, ad, kritiklik, alan FROM kategori WHERE id=?", (kategori_id,)).fetchone()
     if not k:
         raise ValueError("Konu bulunamadı")
@@ -263,7 +304,8 @@ def form(con: sqlite3.Connection, kategori_id: int, yer: str | None = None, loka
                 alan=k["alan"], alan_haritasi=_kurallar(con).get(k["kod"], {}), benzer=benzer_acik(con, kategori_id, yer, lokasyon_id=lokasyon_id),
                 yerler=K.YERLER, etki=[dict(kod=a, ad=b[0]) for a, b in ETKI.items()],
                 kapsam=[dict(kod=a, ad=b[0]) for a, b in KAPSAM.items()],
-                ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()])
+                ne_zaman=[dict(kod=a, ad=b[0]) for a, b in NE_ZAMAN.items()],
+                onerilen=metinden_cevaplar(k["kod"], metin))
 
 
 def kendin_cozdu(con: sqlite3.Connection, kategori_id: int) -> int:

@@ -144,3 +144,14 @@ def test_envanter_ice_aktar_ve_ozet(con):
     assert any(x["no"] == "YZ-99" for x in o["kayitsiz"]) and o["modeller"] and o["cihaz_sayisi"] >= 43
     with pytest.raises(ValueError):
         F.envanter_ice_aktar(con, "model;yer\nx;y")      # numara sütunu yok
+
+
+def test_metinden_cevap_onerisi():
+    """Metinde yazılan cihaz numarası ve belirti ikinci aşamaya önceden işlenir; belirti ekibi değiştirir."""
+    o = F.metinden_cevaplar("EL_TERMINALI", "Terminal sürekli donuyor, ekran kapanıyor el 14")
+    assert o == {"cihaz": "EL-014", "belirti": "Ekran donuyor ya da uygulama kapanıyor"}
+    assert F.alan_bul("EL_TERMINALI", o)["alan"] == "wms"            # donma sistemsel: WMS ekibi
+    assert F.metinden_cevaplar("EL_TERMINALI", "oturum açılmıyor")["belirti"] == "Oturum açılmıyor"   # uzun ifade kazanır
+    assert "belirti" not in F.metinden_cevaplar("EL_TERMINALI", "şarj olmuyor, ekranı da kırık")       # iki belirti: kişi seçer
+    assert F.metinden_cevaplar("ETIKET_YAZICI", "yz7 basmıyor") == {"cihaz": "YZ-07"}
+    assert F.metinden_cevaplar("DALGA", "EL-014 dalga açılmıyor") == {}                               # soru yoksa öneri yok

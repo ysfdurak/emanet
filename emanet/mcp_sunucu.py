@@ -127,6 +127,8 @@ def cagri_ac(metin: str, acan_birim: str = "Depolama", aciliyet: int = 2, vardiy
         kid_son = kid or usta.kategori_oner(con, metin)["oneriler"][0]["kategori_id"]
         k = con.execute("SELECT kod, kritiklik FROM kategori WHERE id=?", (kid_son,)).fetchone()
         # MCP'de zorunlu soru eksikse çağrı yine açılır; eksikler 'sorulmayanlar'da döner (Claude sorabilsin)
+        # Verilmeyen cevaplar metinden önerilir (cihaz no, belirti); verilen her zaman önce gelir
+        cevaplar = {**cagri_formu.metinden_cevaplar(k["kod"], metin), **(cevaplar or {})}
         cevap = cagri_formu.cevaplari_dogrula(k["kod"], cevaplar, zorunlu_denetle=False, con=con)
         ek, onc = None, None
         if etki or kapsam or cevap or yer:
