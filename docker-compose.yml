@@ -4,6 +4,7 @@
 name: emanet
 services:
   emanet:
+    init: true  # PID 1 olarak tini: alt süreçleri toplar (zombie birikmez), sinyalleri düzgün iletir
     build: .
     container_name: emanet
     env_file:
